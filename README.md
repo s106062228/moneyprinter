@@ -4,13 +4,15 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/s106062228/moneyprinter/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/s106062228/moneyprinter/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI Status" /></a>
   <a href="https://github.com/s106062228/moneyprinter/blob/main/LICENSE"><img src="https://img.shields.io/github/license/s106062228/moneyprinter?style=for-the-badge&color=blue" alt="License" /></a>
   <a href="https://github.com/s106062228/moneyprinter/stargazers"><img src="https://img.shields.io/github/stars/s106062228/moneyprinter?style=for-the-badge&color=yellow" alt="Stars" /></a>
   <a href="https://github.com/s106062228/moneyprinter/issues"><img src="https://img.shields.io/github/issues/s106062228/moneyprinter?style=for-the-badge&color=red" alt="Issues" /></a>
   <a href="https://github.com/s106062228/moneyprinter/pulls"><img src="https://img.shields.io/github/issues-pr/s106062228/moneyprinter?style=for-the-badge&color=green" alt="Pull Requests" /></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12+" />
-  <img src="https://img.shields.io/badge/security-audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security Audited" />
-  <img src="https://img.shields.io/badge/tests-117%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 117 Passed" />
+  <img src="https://img.shields.io/badge/docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Ready" />
+  <img src="https://img.shields.io/badge/security-5x%20audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security: 5x Audited" />
+  <img src="https://img.shields.io/badge/tests-166%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 166 Passed" />
 </p>
 
 ---
@@ -27,25 +29,33 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 - **Affiliate Marketing** — Scrape Amazon product info, generate marketing pitches, and auto-post to Twitter
 - **Business Outreach** — Scrape Google Maps for local businesses, extract emails, and send cold outreach
 - **Local AI First** — All text generation runs through Ollama (Llama, Mistral, Gemma, etc.) — no API keys needed for the core pipeline
+- **Docker Ready** — Full Docker and Docker Compose support with Xvfb for headless browser automation
 - **Analytics Tracking** — Built-in event tracking for all content generation and upload activity
-- **Centralized Logging** — Rotating file logs with colored console output for easy debugging
+- **Centralized Logging** — All status messages flow through both colored console output and rotating log files
 - **Config Caching** — High-performance config system that loads once, not on every call
 - **Scheduled Automation** — Built-in CRON job system for hands-off content posting
 - **Speech-to-Text** — Local Whisper or cloud AssemblyAI for subtitle generation
 - **Image Generation** — Gemini-powered AI image generation for video visuals
-- **117 Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, cache, logging, LLM provider, and utilities
-- **3x Security Audited** — SSRF protection, TOCTOU-safe atomic writes, ZIP traversal hardening, email rate limiting
+- **Retry & Recovery** — Exponential backoff retry system with pipeline stage management for resilient video generation
+- **CI/CD Pipeline** — GitHub Actions with automated testing, security scanning (Bandit), and code linting (Ruff)
+- **166 Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, cache, logging, LLM provider, retry logic, Twitter/YouTube cache, and utilities
+- **5x Security Audited** — SSRF protection, TOCTOU-safe atomic writes across all cache layers, ZIP traversal hardening, recursion depth limits, email rate limiting, info disclosure prevention
 
 ## Architecture
 
 ```
 moneyprinter/
+├── .github/workflows/ci.yml  # CI/CD: tests, security scan, linting
+├── Dockerfile                 # Docker containerization
+├── docker-compose.yml         # Multi-service orchestration
 ├── src/
 │   ├── main.py              # CLI entry point with interactive menu
 │   ├── config.py             # Cached configuration management
 │   ├── mp_logger.py          # Centralized logging framework
+│   ├── status.py             # Console output + logger bridge
+│   ├── retry.py              # Retry with exponential backoff + pipeline stages
 │   ├── llm_provider.py       # Ollama LLM integration
-│   ├── analytics.py          # Event tracking and metrics
+│   ├── analytics.py          # Event tracking and metrics (atomic writes)
 │   ├── validation.py         # Input validation and security
 │   ├── cache.py              # Atomic JSON-based data persistence
 │   ├── utils.py              # Helper utilities
@@ -57,7 +67,7 @@ moneyprinter/
 │       ├── AFM.py             # Affiliate marketing (Amazon)
 │       ├── Outreach.py        # Google Maps scraping + cold email
 │       └── Tts.py             # KittenTTS wrapper
-├── tests/                     # pytest unit test suite (117 tests)
+├── tests/                     # pytest unit test suite (166 tests)
 ├── config.example.json        # Template configuration
 ├── scripts/                   # Setup and utility scripts
 ├── docs/                      # Documentation
@@ -106,6 +116,21 @@ pip install -r requirements.txt
 cp config.example.json config.json
 # Edit config.json with your settings
 ```
+
+### Docker
+
+Run MoneyPrinter in a Docker container with all dependencies pre-installed:
+
+```bash
+# Build and start with Docker Compose
+docker compose up -d
+
+# Or build manually
+docker build -t moneyprinter .
+docker run --shm-size=2g -v ./config.json:/app/config.json moneyprinter
+```
+
+The Docker setup includes Firefox ESR, geckodriver, Xvfb (virtual display), and ImageMagick. Environment variables for secrets are passed through automatically — see `docker-compose.yml` for the full configuration.
 
 ### Configuration
 
@@ -156,6 +181,27 @@ The interactive menu will guide you through:
 bash scripts/upload_video.sh
 ```
 
+### Using the Retry System
+
+MoneyPrinter includes a robust retry system for resilient operations:
+
+```python
+from retry import retry, run_pipeline, PipelineStage
+
+# Decorator-based retry with exponential backoff
+@retry(max_retries=3, retryable_exceptions=(ConnectionError, TimeoutError))
+def upload_video(path):
+    ...
+
+# Pipeline-based approach for multi-stage operations
+stages = [
+    PipelineStage("Generate Topic", youtube.generate_topic),
+    PipelineStage("Generate Script", youtube.generate_script),
+    PipelineStage("Generate Audio", lambda: tts.synthesize(script), required=False),
+]
+result = run_pipeline(stages)  # Returns success status, results, and errors
+```
+
 ### Logging
 
 MoneyPrinter uses a centralized logging framework with both console and file output:
@@ -163,6 +209,7 @@ MoneyPrinter uses a centralized logging framework with both console and file out
 - **Console**: Colored output at INFO level and above
 - **File**: Detailed logs at DEBUG level, saved to `.mp/logs/moneyprinter.log`
 - **Rotation**: Log files rotate at 5MB with 3 backups
+- **Bridge**: All legacy `status.py` calls (error/success/info/warning) now also flow through the logger
 
 Developers can use the logger in any module:
 
@@ -181,14 +228,24 @@ MoneyPrinter includes a comprehensive pytest test suite:
 pip install pytest
 
 # Run all tests
-PYTHONPATH=src pytest tests/ -v
+cd src && python -m pytest ../tests/ -v
 ```
 
-**117 tests** covering: config loading and caching, input validation (paths, URLs, filenames), analytics tracking, cache CRUD operations, logging framework, LLM provider, and utility functions.
+**166 tests** covering: config loading and caching, input validation (paths, URLs, filenames), analytics tracking, cache CRUD operations (including Twitter and YouTube atomic writes), logging framework, LLM provider, retry/recovery logic, and utility functions.
+
+## CI/CD
+
+Every push and pull request triggers a GitHub Actions pipeline that runs:
+
+- **Tests** — Full pytest suite (166 tests)
+- **Security** — Bandit SAST scan + dependency vulnerability check (safety)
+- **Linting** — Ruff code quality checks
+
+See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full configuration.
 
 ## Security
 
-MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (**3 audits completed**).
+MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (**5 audits completed, 31 findings, 29 fixed**).
 
 Key security measures:
 
@@ -198,12 +255,16 @@ Key security measures:
 - Safe zip extraction with `os.path.normpath()` path traversal prevention
 - No `shell=True` in subprocess calls; no `os.system()` usage
 - Timeouts on all HTTP requests
-- SSRF protection with internal IP blocking on outreach requests
-- Atomic file writes in cache layer (prevents TOCTOU race conditions)
+- SSRF protection with internal IP blocking on all outreach requests
+- Atomic file writes across ALL cache and data layers (prevents TOCTOU race conditions)
 - Shell scripts hardened with `set -euo pipefail` and input validation
 - Cron runner validates all command-line arguments
 - Email send rate limiting to prevent abuse
+- Recursion depth limits on all LLM retry loops
+- Information disclosure prevention (no response bodies or full exceptions in logs)
+- Automated security scanning in CI (Bandit + safety)
 - Unused dependencies removed to minimize attack surface
+- Docker containerization with non-root user for isolation
 
 To report a security vulnerability, please open a private issue or contact the maintainer directly.
 
@@ -213,9 +274,7 @@ See [TODO.md](TODO.md) for the full roadmap. Key upcoming features:
 
 - Instagram Reels upload integration
 - Multi-platform simultaneous posting
-- Docker containerization
 - Web dashboard for monitoring
-- CI/CD pipeline (GitHub Actions)
 - Additional LLM provider support (OpenAI, Anthropic, Groq)
 - AI hook optimization for viral engagement
 - Auto-captioning with animated styles

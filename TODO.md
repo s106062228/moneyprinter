@@ -20,21 +20,29 @@
 - [x] Security audit (Run 3) — SSRF fixes, TOCTOU race conditions, ZIP traversal hardening, email rate limiting
 - [x] Atomic cache writes (`tempfile.mkstemp` + `os.replace`)
 - [x] Email send rate limiting in Outreach
+- [x] CI/CD pipeline (GitHub Actions) with pytest + Bandit SAST + dependency scanning + Ruff linting
+- [x] Retry and error recovery module (`retry.py`) with exponential backoff + pipeline stages
+- [x] Security audit (Run 4) — TikTok TOCTOU fix, Outreach SSRF hardening, recursion depth limits, exception info disclosure fix
+- [x] TikTok cache atomic writes
+- [x] YouTube pipeline recursion depth limits (generate_script, generate_metadata, generate_prompts)
+- [x] Unit tests for retry module (19 new tests, 136 total)
+- [x] Docker containerization (Dockerfile + docker-compose.yml with Ollama service)
+- [x] Migrate status.py to bridge legacy output to mp_logger (dual console + file logging)
+- [x] Migrate Twitter.py and YouTube.py cache writes to atomic pattern (tempfile + os.replace)
+- [x] Analytics module atomic writes (TOCTOU fix + atomic save)
+- [x] Security audit (Run 5) — Twitter/YouTube/analytics atomic writes, API response info disclosure fixes
+- [x] Unit tests for Twitter/YouTube atomic cache (30 new tests, 166 total)
 
 ## In Progress
 - [ ] Instagram Reels upload integration
 - [ ] Multi-platform simultaneous posting
 
 ## Planned — High Priority
-- [ ] CI/CD pipeline (GitHub Actions) with pytest + security scanning
-- [ ] Rate limiting and retry logic for API calls
-- [ ] Error recovery in video generation pipeline
-- [ ] Docker containerization
 - [ ] Web dashboard for monitoring content generation
-- [ ] Migrate status.py print calls to use mp_logger throughout codebase
+- [ ] Support for additional LLM providers (OpenAI, Anthropic, Groq)
+- [ ] pytest-cov integration for coverage tracking in CI
 
 ## Planned — Medium Priority
-- [ ] Support for additional LLM providers (OpenAI, Anthropic, Groq)
 - [ ] Video template system (custom intros/outros)
 - [ ] Thumbnail generation
 - [ ] SEO optimization for generated titles/descriptions
@@ -43,6 +51,7 @@
 - [ ] A/B testing for video titles and thumbnails
 - [ ] AI hook optimization (trending hooks for better engagement)
 - [ ] Auto-caption styling (animated captions like CapCut)
+- [ ] Virality scoring (predict clip engagement before posting)
 
 ## Planned — Low Priority
 - [ ] Plugin system for custom platform integrations
@@ -52,3 +61,4 @@
 - [ ] Batch video generation mode
 - [ ] OpusClip-style smart clipping from long-form content
 - [ ] Encrypt cache files containing account data at rest
+- [ ] Kubernetes Helm chart for scaled deployment

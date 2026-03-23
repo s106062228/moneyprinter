@@ -5,6 +5,7 @@ import time
 import os
 import requests
 import assemblyai as aai
+import tempfile
 
 from utils import *
 from cache import *
@@ -149,13 +150,14 @@ class YouTube:
 
         return completion
 
-    def generate_script(self) -> str:
+    def generate_script(self, _retry_depth: int = 0) -> str:
         """
         Generate a script for a video, depending on the subject of the video, the number of paragraphs, and the AI model.
 
         Returns:
             script (str): The script of the video.
         """
+        _MAX_RETRIES = 5
         sentence_length = get_script_sentence_length()
         prompt = f"""
         Generate a script for a video in {sentence_length} sentences, depending on the subject of the video.
@@ -170,12 +172,12 @@ class YouTube:
         Get straight to the point, don't start with unnecessary things like, "welcome to this video".
 
         Obviously, the script should be related to the subject of the video.
-        
+
         YOU MUST NOT EXCEED THE {sentence_length} SENTENCES LIMIT. MAKE SURE THE {sentence_length} SENTENCES ARE SHORT.
         YOU MUST NOT INCLUDE ANY TYPE OF MARKDOWN OR FORMATTING IN THE SCRIPT, NEVER USE A TITLE.
         YOU MUST WRITE THE SCRIPT IN THE LANGUAGE SPECIFIED IN [LANGUAGE].
         ONLY RETURN THE RAW CONTENT OF THE SCRIPT. DO NOT INCLUDE "VOICEOVER", "NARRATOR" OR SIMILAR INDICATORS OF WHAT SHOULD BE SPOKEN AT THE BEGINNING OF EACH PARAGRAPH OR LINE. YOU MUST NOT MENTION THE PROMPT, OR ANYTHING ABOUT THE SCRIPT ITSELF. ALSO, NEVER TALK ABOUT THE AMOUNT OF PARAGRAPHS OR LINES. JUST WRITE THE SCRIPT
-        
+
         Subject: {self.subject}
         Language: {self.language}
         """
@@ -189,29 +191,38 @@ class YouTube:
             return
 
         if len(completion) > 5000:
-            if get_verbose():
-                warning("Generated Script is too long. Retrying...")
-            return self.generate_script()
+            if _retry_depth >= _MAX_RETRIES:
+                error("Generated script is too long after max retries. Using truncated version.")
+                completion = completion[:5000]
+            else:
+                if get_verbose():
+                    warning("Generated Script is too long. Retrying...")
+                return self.generate_script(_retry_depth=_retry_depth + 1)
 
         self.script = completion
 
         return completion
 
-    def generate_metadata(self) -> dict:
+    def generate_metadata(self, _retry_depth: int = 0) -> dict:
         """
         Generates Video metadata for the to-be-uploaded YouTube Short (Title, Description).
 
         Returns:
             metadata (dict): The generated metadata.
         """
+        _MAX_RETRIES = 5
         title = self.generate_response(
             f"Please generate a YouTube Video Title for the following subject, including hashtags: {self.subject}. Only return the title, nothing else. Limit the title under 100 characters."
         )
 
         if len(title) > 100:
-            if get_verbose():
-                warning("Generated Title is too long. Retrying...")
-            return self.generate_metadata()
+            if _retry_depth >= _MAX_RETRIES:
+                error("Generated title is too long after max retries. Truncating.")
+                title = title[:97] + "..."
+            else:
+                if get_verbose():
+                    warning("Generated Title is too long. Retrying...")
+                return self.generate_metadata(_retry_depth=_retry_depth + 1)
 
         description = self.generate_response(
             f"Please generate a YouTube Video Description for the following script: {self.script}. Only return the description, nothing else."
@@ -283,6 +294,12 @@ class YouTube:
                 if len(image_prompts) == 0:
                     if get_verbose():
                         warning("Failed to generate Image Prompts. Retrying...")
+                    if not hasattr(self, '_prompt_retry_count'):
+                        self._prompt_retry_count = 0
+                    self._prompt_retry_count += 1
+                    if self._prompt_retry_count > 5:
+                        error("Failed to generate image prompts after max retries.")
+                        return []
                     return self.generate_prompts()
 
         if len(image_prompts) > n_prompts:
@@ -370,11 +387,11 @@ class YouTube:
                         return self._persist_image(image_bytes, "Nano Banana 2 API")
 
             if get_verbose():
-                warning(f"Nano Banana 2 did not return an image payload. Response: {body}")
+                warning("Nano Banana 2 did not return an image payload. Check API response format.")
             return None
         except Exception as e:
             if get_verbose():
-                warning(f"Failed to generate image with Nano Banana 2 API: {str(e)}")
+                warning(f"Failed to generate image with Nano Banana 2 API: {type(e).__name__}")
             return None
 
     def generate_image(self, prompt: str) -> str:
@@ -413,6 +430,43 @@ class YouTube:
 
         return path
 
+    def _safe_read_cache(self) -> dict:
+        """
+        Reads YouTube cache using try/except (TOCTOU-safe).
+
+        Returns:
+            dict: The parsed cache or default empty structure.
+        """
+        cache_path = get_youtube_cache_path()
+        try:
+            with open(cache_path, "r") as f:
+                data = json.load(f)
+                return data if data is not None else {"accounts": []}
+        except (FileNotFoundError, json.JSONDecodeError, IOError):
+            return {"accounts": []}
+
+    def _safe_write_cache(self, data: dict) -> None:
+        """
+        Atomically writes YouTube cache using tempfile + os.replace.
+
+        Args:
+            data (dict): The data to write.
+        """
+        cache_path = get_youtube_cache_path()
+        dir_name = os.path.dirname(cache_path)
+        os.makedirs(dir_name, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, indent=4)
+            os.replace(tmp_path, cache_path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
     def add_video(self, video: dict) -> None:
         """
         Adds a video to the cache.
@@ -423,23 +477,27 @@ class YouTube:
         Returns:
             None
         """
-        videos = self.get_videos()
-        videos.append(video)
+        data = self._safe_read_cache()
 
-        cache = get_youtube_cache_path()
+        account_found = False
+        for account in data.get("accounts", []):
+            if account.get("id") == self._account_uuid:
+                account.setdefault("videos", []).append(video)
+                account_found = True
+                break
 
-        with open(cache, "r") as file:
-            previous_json = json.loads(file.read())
+        if not account_found:
+            data["accounts"].append(
+                {
+                    "id": self._account_uuid,
+                    "nickname": self._account_nickname,
+                    "niche": self._niche,
+                    "language": self._language,
+                    "videos": [video],
+                }
+            )
 
-            # Find our account
-            accounts = previous_json["accounts"]
-            for account in accounts:
-                if account["id"] == self._account_uuid:
-                    account["videos"].append(video)
-
-            # Commit changes
-            with open(cache, "w") as f:
-                f.write(json.dumps(previous_json))
+        self._safe_write_cache(data)
 
     def generate_subtitles(self, audio_path: str) -> str:
         """
@@ -860,20 +918,12 @@ class YouTube:
         Returns:
             videos (List[dict]): The uploaded videos.
         """
-        if not os.path.exists(get_youtube_cache_path()):
-            # Create the cache file
-            with open(get_youtube_cache_path(), "w") as file:
-                json.dump({"videos": []}, file, indent=4)
-            return []
+        data = self._safe_read_cache()
 
-        videos = []
-        # Read the cache file
-        with open(get_youtube_cache_path(), "r") as file:
-            previous_json = json.loads(file.read())
-            # Find our account
-            accounts = previous_json["accounts"]
-            for account in accounts:
-                if account["id"] == self._account_uuid:
-                    videos = account["videos"]
+        # Find our account
+        for account in data.get("accounts", []):
+            if account.get("id") == self._account_uuid:
+                videos = account.get("videos", [])
+                return videos if videos is not None else []
 
-        return videos
+        return []

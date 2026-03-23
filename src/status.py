@@ -1,4 +1,7 @@
 from termcolor import colored
+from mp_logger import get_logger
+
+_logger = get_logger("status")
 
 def error(message: str, show_emoji: bool = True) -> None:
     """
@@ -13,6 +16,7 @@ def error(message: str, show_emoji: bool = True) -> None:
     """
     emoji = "❌" if show_emoji else ""
     print(colored(f"{emoji} {message}", "red"))
+    _logger.error(message)
 
 def success(message: str, show_emoji: bool = True) -> None:
     """
@@ -27,6 +31,7 @@ def success(message: str, show_emoji: bool = True) -> None:
     """
     emoji = "✅" if show_emoji else ""
     print(colored(f"{emoji} {message}", "green"))
+    _logger.info(message)
 
 def info(message: str, show_emoji: bool = True) -> None:
     """
@@ -41,6 +46,7 @@ def info(message: str, show_emoji: bool = True) -> None:
     """
     emoji = "ℹ️" if show_emoji else ""
     print(colored(f"{emoji} {message}", "magenta"))
+    _logger.info(message)
 
 def warning(message: str, show_emoji: bool = True) -> None:
     """
@@ -55,6 +61,7 @@ def warning(message: str, show_emoji: bool = True) -> None:
     """
     emoji = "⚠️" if show_emoji else ""
     print(colored(f"{emoji} {message}", "yellow"))
+    _logger.warning(message)
 
 def question(message: str, show_emoji: bool = True) -> str:
     """
@@ -68,4 +75,5 @@ def question(message: str, show_emoji: bool = True) -> str:
         user_input (str): The user's input
     """
     emoji = "❓" if show_emoji else ""
+    _logger.info(f"User prompt: {message}")
     return input(colored(f"{emoji} {message}", "magenta"))

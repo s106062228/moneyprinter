@@ -7,6 +7,7 @@ content strategy optimization.
 
 import os
 import json
+import tempfile
 from datetime import datetime
 from typing import Optional
 from config import ROOT_DIR
@@ -16,21 +17,30 @@ ANALYTICS_FILE = os.path.join(ROOT_DIR, ".mp", "analytics.json")
 
 
 def _load_analytics() -> dict:
-    """Loads the analytics data from disk."""
-    if not os.path.exists(ANALYTICS_FILE):
-        return {"events": [], "summary": {}}
+    """Loads the analytics data from disk (TOCTOU-safe)."""
     try:
         with open(ANALYTICS_FILE, "r") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError):
+            data = json.load(f)
+            return data if data is not None else {"events": [], "summary": {}}
+    except (FileNotFoundError, json.JSONDecodeError, IOError):
         return {"events": [], "summary": {}}
 
 
 def _save_analytics(data: dict) -> None:
-    """Persists analytics data to disk."""
-    os.makedirs(os.path.dirname(ANALYTICS_FILE), exist_ok=True)
-    with open(ANALYTICS_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+    """Atomically persists analytics data to disk using tempfile + os.replace."""
+    dir_name = os.path.dirname(ANALYTICS_FILE)
+    os.makedirs(dir_name, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp_path, ANALYTICS_FILE)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def track_event(

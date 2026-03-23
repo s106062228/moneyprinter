@@ -1,7 +1,7 @@
 # Security Audit Report — MoneyPrinter
 
-**Last Updated:** 2026-03-23
-**Audit Run:** 3
+**Last Updated:** 2026-03-24
+**Audit Run:** 5
 
 ## Summary
 
@@ -9,8 +9,8 @@
 |----------|-------|-------|
 | Critical | 2 | 2 |
 | High | 5 | 5 |
-| Medium | 9 | 9 |
-| Low | 4 | 3 |
+| Medium | 15 | 15 |
+| Low | 8 | 7 |
 
 ## Findings — Run 1
 
@@ -169,9 +169,90 @@
 1. ✅ Move all secrets to environment variables (completed — env var fallbacks added)
 2. ✅ Add rate limiting to prevent API abuse (completed — email send delay added)
 3. ✅ Implement proper logging with log levels (completed — `mp_logger.py` added)
-4. Add automated security scanning to CI pipeline
+4. ✅ Add automated security scanning to CI pipeline (completed — Bandit + safety in GitHub Actions)
 5. ✅ Remove unused `undetected_chromedriver` dependency (completed)
 6. Consider adding CSP headers if web dashboard is added
 7. ✅ Add email sending rate limiter to Outreach to prevent abuse (completed)
 8. Add `pytest-cov` to CI for security-relevant code coverage tracking
 9. Consider encrypting cache files containing account data at rest
+10. ✅ Fix TOCTOU in TikTok cache operations (completed)
+11. ✅ Add SSRF protection to Outreach main loop (completed)
+12. ✅ Cap recursive retries in YouTube pipeline (completed)
+
+## Findings — Run 4
+
+### MEDIUM
+
+#### 21. TOCTOU race condition in TikTok cache operations
+- **File:** `src/classes/TikTok.py` — `get_videos()`, `add_video()`
+- **Issue:** Used `os.path.exists()` check before `open()` — same TOCTOU pattern previously fixed in `cache.py` during Run 3. Between the check and the open, another process could create/modify/delete the file.
+- **Fix:** Complete rewrite with `_safe_read_cache()` (try/except instead of exists-check) and `_safe_write_cache()` (atomic writes via `tempfile.mkstemp()` + `os.replace()`).
+- **Status:** ✅ Fixed
+
+#### 22. Missing SSRF protection in Outreach main email loop
+- **File:** `src/classes/Outreach.py` line 297
+- **Issue:** `requests.get(website, timeout=30)` in the main email-sending loop did not validate URLs or block internal IPs. Only `set_email_for_website()` had SSRF protection. Scraped URLs could redirect to internal services.
+- **Fix:** Added `validate_url()` call and internal IP blocking (localhost, 127.0.0.1, 0.0.0.0, ::1) before making the request in the main loop.
+- **Status:** ✅ Fixed
+
+#### 23. Unbounded recursion in YouTube video generation pipeline
+- **File:** `src/classes/YouTube.py` — `generate_script()`, `generate_metadata()`, `generate_prompts()`
+- **Issue:** All three methods recursively called themselves when LLM output didn't meet criteria (script too long, title too long, prompts unparseable). No depth limit — could cause StackOverflow if the LLM consistently returns oversized output.
+- **Fix:** Added `_retry_depth` parameter with `_MAX_RETRIES = 5` cap. After max retries, uses truncated/fallback output instead of infinite recursion.
+- **Status:** ✅ Fixed
+
+### LOW
+
+#### 24. Exception information disclosure in Outreach email loop
+- **File:** `src/classes/Outreach.py` line 332
+- **Issue:** `error(f" => Error: {err}...")` leaked full exception string including potentially sensitive file paths, URLs, or system details.
+- **Fix:** Changed to `error(f" => Error processing item: {type(err).__name__}")` — only exposes exception class name.
+- **Status:** ✅ Fixed
+
+#### 25. Twitter/YouTube cache writes not atomic
+- **File:** `src/classes/Twitter.py` — `add_post()`, `src/classes/YouTube.py` — `add_video()`
+- **Issue:** Cache writes use `open("r")` then `open("w")` — if the process crashes mid-write, the cache file is corrupted. Not using the atomic write pattern from `cache.py`.
+- **Fix:** Complete rewrite of both `Twitter.py` and `YouTube.py` cache operations with `_safe_read_cache()` (try/except) and `_safe_write_cache()` (atomic tempfile + os.replace). 30 new tests added to verify.
+- **Status:** ✅ Fixed
+
+#### 26. No CI security scanning
+- **File:** N/A
+- **Issue:** No automated security scanning in CI/CD pipeline.
+- **Fix:** Added GitHub Actions workflow with Bandit (Python SAST) and safety (dependency vulnerability scanning).
+- **Status:** ✅ Fixed
+
+## Findings — Run 5
+
+### MEDIUM
+
+#### 27. Analytics TOCTOU race condition and non-atomic writes
+- **File:** `src/analytics.py` — `_load_analytics()`, `_save_analytics()`
+- **Issue:** `_load_analytics()` used `os.path.exists()` before `open()` — TOCTOU race condition. `_save_analytics()` used direct `open("w")` — non-atomic, data loss on crash.
+- **Fix:** Rewrote `_load_analytics()` with try/except (no exists check). Rewrote `_save_analytics()` with `tempfile.mkstemp()` + `os.replace()` for atomic writes.
+- **Status:** ✅ Fixed
+
+#### 28. Twitter cache TOCTOU race condition and non-atomic writes
+- **File:** `src/classes/Twitter.py` — `get_posts()`, `add_post()`
+- **Issue:** `get_posts()` used `os.path.exists()` then `open()`. `add_post()` used nested `open("r")` then `open("w")` — non-atomic, same pattern as issue #25.
+- **Fix:** Added `_safe_read_cache()` and `_safe_write_cache()` methods. Complete rewrite of both `get_posts()` and `add_post()` to use atomic operations.
+- **Status:** ✅ Fixed
+
+#### 29. YouTube cache TOCTOU race condition and non-atomic writes
+- **File:** `src/classes/YouTube.py` — `get_videos()`, `add_video()`
+- **Issue:** Same TOCTOU and non-atomic write patterns as Twitter.py.
+- **Fix:** Same atomic rewrite pattern. Added `_safe_read_cache()` and `_safe_write_cache()` methods.
+- **Status:** ✅ Fixed
+
+### LOW
+
+#### 30. API response body logged in verbose mode (information disclosure)
+- **File:** `src/classes/YouTube.py` line 390
+- **Issue:** `warning(f"...Response: {body}")` logged the full Gemini API response body in verbose mode. Response could contain tokens, internal identifiers, or debug info.
+- **Fix:** Changed to generic message: `"Check API response format."` — no response body logged.
+- **Status:** ✅ Fixed
+
+#### 31. Full exception string logged in image generation error
+- **File:** `src/classes/YouTube.py` line 394
+- **Issue:** `warning(f"...{str(e)}")` could leak API URLs, headers, or system paths in exception messages.
+- **Fix:** Changed to `type(e).__name__` — only exposes exception class name.
+- **Status:** ✅ Fixed

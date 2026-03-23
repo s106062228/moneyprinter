@@ -3,6 +3,7 @@ import sys
 import time
 import os
 import json
+import tempfile
 
 from cache import *
 from config import *
@@ -140,6 +141,43 @@ class Twitter:
 
         success("Posted to Twitter successfully!")
 
+    def _safe_read_cache(self) -> dict:
+        """
+        Reads Twitter cache using try/except (TOCTOU-safe).
+
+        Returns:
+            dict: The parsed cache or default empty structure.
+        """
+        cache_path = get_twitter_cache_path()
+        try:
+            with open(cache_path, "r") as f:
+                data = json.load(f)
+                return data if data is not None else {"accounts": []}
+        except (FileNotFoundError, json.JSONDecodeError, IOError):
+            return {"accounts": []}
+
+    def _safe_write_cache(self, data: dict) -> None:
+        """
+        Atomically writes Twitter cache using tempfile + os.replace.
+
+        Args:
+            data (dict): The data to write.
+        """
+        cache_path = get_twitter_cache_path()
+        dir_name = os.path.dirname(cache_path)
+        os.makedirs(dir_name, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, indent=4)
+            os.replace(tmp_path, cache_path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
     def get_posts(self) -> List[dict]:
         """
         Gets the posts from the cache.
@@ -147,25 +185,13 @@ class Twitter:
         Returns:
             posts (List[dict]): The posts
         """
-        if not os.path.exists(get_twitter_cache_path()):
-            # Create the cache file
-            with open(get_twitter_cache_path(), "w") as file:
-                json.dump({"accounts": []}, file, indent=4)
+        data = self._safe_read_cache()
 
-        with open(get_twitter_cache_path(), "r") as file:
-            parsed = json.load(file)
-
-            # Find our account
-            accounts = parsed["accounts"]
-            for account in accounts:
-                if account["id"] == self.account_uuid:
-                    posts = account["posts"]
-
-                    if posts is None:
-                        return []
-
-                    # Return the posts
-                    return posts
+        # Find our account
+        for account in data.get("accounts", []):
+            if account.get("id") == self.account_uuid:
+                posts = account.get("posts", [])
+                return posts if posts is not None else []
 
         return []
 
@@ -179,21 +205,26 @@ class Twitter:
         Returns:
             None
         """
-        posts = self.get_posts()
-        posts.append(post)
+        data = self._safe_read_cache()
 
-        with open(get_twitter_cache_path(), "r") as file:
-            previous_json = json.loads(file.read())
+        account_found = False
+        for account in data.get("accounts", []):
+            if account.get("id") == self.account_uuid:
+                account.setdefault("posts", []).append(post)
+                account_found = True
+                break
 
-            # Find our account
-            accounts = previous_json["accounts"]
-            for account in accounts:
-                if account["id"] == self.account_uuid:
-                    account["posts"].append(post)
+        if not account_found:
+            data["accounts"].append(
+                {
+                    "id": self.account_uuid,
+                    "nickname": self.account_nickname,
+                    "topic": self.topic,
+                    "posts": [post],
+                }
+            )
 
-            # Commit changes
-            with open(get_twitter_cache_path(), "w") as f:
-                f.write(json.dumps(previous_json))
+        self._safe_write_cache(data)
 
     def generate_post(self) -> str:
         """
