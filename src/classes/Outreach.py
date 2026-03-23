@@ -294,6 +294,17 @@ class Outreach:
                 website = [w for w in website if w.startswith("http")]
                 website = website[0] if len(website) > 0 else ""
                 if website != "":
+                    # Validate URL before making request (SSRF protection)
+                    try:
+                        validate_url(website, allowed_schemes=("http", "https"))
+                        parsed_ws = urlparse(website)
+                        if parsed_ws.hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+                            warning(f" => Skipping internal URL: {website}")
+                            continue
+                    except ValueError:
+                        warning(f" => Invalid URL in scraper output: {website}")
+                        continue
+
                     test_r = requests.get(website, timeout=30)
                     if test_r.status_code == 200:
                         self.set_email_for_website(index, website, output_path)
@@ -329,5 +340,6 @@ class Outreach:
                     else:
                         warning(f" => Website {website} is invalid. Skipping...")
             except Exception as err:
-                error(f" => Error: {err}...")
+                # Avoid leaking sensitive info in error output
+                error(f" => Error processing item: {type(err).__name__}")
                 continue

@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import tempfile
 
 from cache import *
 from config import *
@@ -77,17 +78,36 @@ class TikTok:
         """Returns path to TikTok cache file."""
         return os.path.join(get_cache_path(), "tiktok.json")
 
+    def _safe_read_cache(self) -> dict:
+        """Reads TikTok cache using try/except (TOCTOU-safe)."""
+        cache_path = self.get_tiktok_cache_path()
+        try:
+            with open(cache_path, "r") as f:
+                data = json.load(f)
+                return data if data is not None else {"accounts": []}
+        except (FileNotFoundError, json.JSONDecodeError, IOError):
+            return {"accounts": []}
+
+    def _safe_write_cache(self, data: dict) -> None:
+        """Atomically writes TikTok cache using tempfile + os.replace."""
+        cache_path = self.get_tiktok_cache_path()
+        dir_name = os.path.dirname(cache_path)
+        os.makedirs(dir_name, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, indent=4)
+            os.replace(tmp_path, cache_path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
     def get_videos(self) -> List[dict]:
         """Gets uploaded videos from cache."""
-        cache_path = self.get_tiktok_cache_path()
-
-        if not os.path.exists(cache_path):
-            with open(cache_path, "w") as f:
-                json.dump({"accounts": []}, f, indent=4)
-            return []
-
-        with open(cache_path, "r") as f:
-            data = json.load(f)
+        data = self._safe_read_cache()
 
         for account in data.get("accounts", []):
             if account.get("id") == self._account_uuid:
@@ -97,13 +117,7 @@ class TikTok:
 
     def add_video(self, video: dict) -> None:
         """Adds a video record to cache."""
-        cache_path = self.get_tiktok_cache_path()
-
-        if not os.path.exists(cache_path):
-            data = {"accounts": []}
-        else:
-            with open(cache_path, "r") as f:
-                data = json.load(f)
+        data = self._safe_read_cache()
 
         account_found = False
         for account in data.get("accounts", []):
@@ -122,8 +136,7 @@ class TikTok:
                 }
             )
 
-        with open(cache_path, "w") as f:
-            json.dump(data, f, indent=4)
+        self._safe_write_cache(data)
 
     def upload_video(
         self,
