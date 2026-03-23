@@ -106,11 +106,17 @@ def fetch_songs() -> None:
                     file.write(response.content)
 
                 SAFE_EXTENSIONS = (".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac")
+                abs_target = os.path.abspath(files_dir)
                 with zipfile.ZipFile(archive_path, "r") as zf:
                     for member in zf.namelist():
                         basename = os.path.basename(member)
                         if not basename or not basename.lower().endswith(SAFE_EXTENSIONS):
                             warning(f"Skipping non-audio file in archive: {member}")
+                            continue
+                        # Resolve full path and verify it stays within target directory
+                        member_path = os.path.normpath(os.path.join(abs_target, member))
+                        if not member_path.startswith(abs_target):
+                            warning(f"Skipping path traversal attempt in archive: {member}")
                             continue
                         if ".." in member or member.startswith("/"):
                             warning(f"Skipping suspicious path in archive: {member}")

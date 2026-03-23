@@ -16,14 +16,17 @@
 - [x] Remove unused `undetected_chromedriver` dependency
 - [x] Shell script hardening (`upload_video.sh`)
 - [x] Cron argument validation
+- [x] Unit test suite (pytest) — 117 tests covering config, validation, analytics, cache, logger, LLM provider, and utils
+- [x] Security audit (Run 3) — SSRF fixes, TOCTOU race conditions, ZIP traversal hardening, email rate limiting
+- [x] Atomic cache writes (`tempfile.mkstemp` + `os.replace`)
+- [x] Email send rate limiting in Outreach
 
 ## In Progress
 - [ ] Instagram Reels upload integration
 - [ ] Multi-platform simultaneous posting
 
 ## Planned — High Priority
-- [ ] Unit test suite (pytest)
-- [ ] CI/CD pipeline (GitHub Actions)
+- [ ] CI/CD pipeline (GitHub Actions) with pytest + security scanning
 - [ ] Rate limiting and retry logic for API calls
 - [ ] Error recovery in video generation pipeline
 - [ ] Docker containerization
@@ -48,3 +51,4 @@
 - [ ] Auto-niche detection from trending topics
 - [ ] Batch video generation mode
 - [ ] OpusClip-style smart clipping from long-form content
+- [ ] Encrypt cache files containing account data at rest

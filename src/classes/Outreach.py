@@ -10,10 +10,15 @@ import yagmail
 import requests
 import subprocess
 import platform
+from urllib.parse import urlparse
 
 from cache import *
 from status import *
 from config import *
+from validation import validate_url
+
+# Rate limit: minimum seconds between outreach emails
+_EMAIL_SEND_DELAY = 2
 
 
 class Outreach:
@@ -78,9 +83,22 @@ class Outreach:
             info("=> Scraper already unzipped. Skipping unzip.")
             return
 
-        r = requests.get(zip_link)
-        z = zipfile.ZipFile(io.BytesIO(r.content))
+        r = requests.get(zip_link, timeout=60)
+        r.raise_for_status()
+
+        # Validate content looks like a ZIP before processing
+        content = r.content
+        if not content[:4] == b'PK\x03\x04' and not content[:4] == b'PK\x05\x06':
+            raise ValueError("Downloaded content is not a valid ZIP file.")
+
+        z = zipfile.ZipFile(io.BytesIO(content))
+        target_dir = os.path.abspath(os.getcwd())
         for member in z.namelist():
+            # Resolve the full extraction path and verify it stays within target
+            member_path = os.path.normpath(os.path.join(target_dir, member))
+            if not member_path.startswith(target_dir):
+                warning(f"Skipping path traversal attempt in archive: {member}")
+                continue
             if ".." in member or member.startswith("/"):
                 warning(f"Skipping suspicious path in archive: {member}")
                 continue
@@ -145,8 +163,9 @@ class Outreach:
         except subprocess.TimeoutExpired:
             print(colored("=> Scraper timed out.", "red"))
         except Exception as e:
-            print(colored("An error occurred while running the scraper:", "red"))
-            print(str(e))
+            print(colored("An error occurred while running the scraper.", "red"))
+            # Avoid leaking sensitive paths or system details in error output
+            print(colored(f"Error type: {type(e).__name__}", "red"))
 
     def get_items_from_file(self, file_name: str) -> list:
         """
@@ -178,6 +197,18 @@ class Outreach:
             output_file (str): The path to the CSV file to update with the extracted email."""
         # Extract and set an email for a website
         email = ""
+
+        # Validate URL before making request (prevents SSRF)
+        try:
+            validate_url(website, allowed_schemes=("http", "https"))
+            parsed = urlparse(website)
+            # Block requests to private/internal IPs
+            if parsed.hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+                warning(f" => Skipping internal URL: {website}")
+                return
+        except ValueError:
+            warning(f" => Invalid URL: {website}")
+            return
 
         r = requests.get(website, timeout=30)
         if r.status_code == 200:
@@ -292,6 +323,9 @@ class Outreach:
                         )
 
                         success(f" => Sent email to {receiver_email}")
+
+                        # Rate limit: pause between email sends
+                        time.sleep(_EMAIL_SEND_DELAY)
                     else:
                         warning(f" => Website {website} is invalid. Skipping...")
             except Exception as err:

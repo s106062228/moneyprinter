@@ -1,16 +1,16 @@
 # Security Audit Report — MoneyPrinter
 
 **Last Updated:** 2026-03-23
-**Audit Run:** 2
+**Audit Run:** 3
 
 ## Summary
 
 | Severity | Found | Fixed |
 |----------|-------|-------|
 | Critical | 2 | 2 |
-| High | 4 | 4 |
-| Medium | 5 | 5 |
-| Low | 3 | 3 |
+| High | 5 | 5 |
+| Medium | 9 | 9 |
+| Low | 4 | 3 |
 
 ## Findings — Run 1
 
@@ -108,6 +108,50 @@
 - **Fix:** Acceptable for local-only deployment. Added note that remote Ollama should use HTTPS.
 - **Status:** ⚠️ Documented (acceptable risk for local use)
 
+## Findings — Run 3
+
+### HIGH
+
+#### 15. SSRF vulnerability — Missing timeout and validation on zip download
+- **File:** `src/classes/Outreach.py` line 81
+- **Issue:** `requests.get(zip_link)` had no timeout, no content-type validation, and no SSRF protection. An attacker-controlled URL could hang the process or redirect to internal services.
+- **Fix:** Added `timeout=60`, `raise_for_status()`, ZIP magic byte validation (`PK\x03\x04`), and `os.path.normpath()` based path traversal check on extraction.
+- **Status:** ✅ Fixed
+
+### MEDIUM
+
+#### 16. TOCTOU race condition in cache file operations
+- **File:** `src/cache.py` — `get_accounts()`, `get_products()`, `add_account()`, `remove_account()`, `add_product()`
+- **Issue:** `os.path.exists()` check followed by `open()` creates a time-of-check-time-of-use race condition. Between the check and the open, another process could create/modify/delete the file.
+- **Fix:** Complete rewrite of cache.py with `_safe_read_json()` (try/except instead of exists-check) and `_safe_write_json()` (atomic writes via `tempfile.mkstemp()` + `os.replace()`).
+- **Status:** ✅ Fixed
+
+#### 17. Weak ZIP path traversal checks in song fetcher
+- **File:** `src/utils.py` lines 108-118
+- **Issue:** Path traversal check only looked for `..` literal string and `/` prefix, missing Unicode tricks, normpath-resolvable sequences, and Windows-style paths.
+- **Fix:** Added `os.path.normpath()` + `os.path.abspath()` check to verify extracted path stays within target directory. Original string checks kept as defense-in-depth.
+- **Status:** ✅ Fixed
+
+#### 18. No URL validation before outreach HTTP requests
+- **File:** `src/classes/Outreach.py` lines 182, 266
+- **Issue:** URLs from scraped data used directly in `requests.get()` without validation. Potential SSRF — scraped URLs could point to internal IPs.
+- **Fix:** Added `validate_url()` call and internal IP blocking (localhost, 127.0.0.1, 0.0.0.0, ::1) before making requests.
+- **Status:** ✅ Fixed
+
+#### 19. No rate limiting on email sends
+- **File:** `src/classes/Outreach.py` lines 259-299
+- **Issue:** Email sending loop had no delay between sends, risking SMTP rate limits, IP blacklisting, and spam classification.
+- **Fix:** Added `_EMAIL_SEND_DELAY = 2` constant and `time.sleep()` between successful email sends.
+- **Status:** ✅ Fixed
+
+### LOW
+
+#### 20. Exception information disclosure in scraper error handler
+- **File:** `src/classes/Outreach.py` line 149
+- **Issue:** Full `str(e)` printed to stdout on scraper errors, potentially leaking sensitive file paths or system details.
+- **Fix:** Changed to print only `type(e).__name__` without the full exception message.
+- **Status:** ✅ Fixed
+
 ## Dependency Audit
 
 | Package | Risk | Notes |
@@ -123,9 +167,11 @@
 
 ## Recommendations
 1. ✅ Move all secrets to environment variables (completed — env var fallbacks added)
-2. Add rate limiting to prevent API abuse
+2. ✅ Add rate limiting to prevent API abuse (completed — email send delay added)
 3. ✅ Implement proper logging with log levels (completed — `mp_logger.py` added)
 4. Add automated security scanning to CI pipeline
 5. ✅ Remove unused `undetected_chromedriver` dependency (completed)
 6. Consider adding CSP headers if web dashboard is added
-7. Add email sending rate limiter to Outreach to prevent abuse
+7. ✅ Add email sending rate limiter to Outreach to prevent abuse (completed)
+8. Add `pytest-cov` to CI for security-relevant code coverage tracking
+9. Consider encrypting cache files containing account data at rest

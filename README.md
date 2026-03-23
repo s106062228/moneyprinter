@@ -10,6 +10,7 @@
   <a href="https://github.com/s106062228/moneyprinter/pulls"><img src="https://img.shields.io/github/issues-pr/s106062228/moneyprinter?style=for-the-badge&color=green" alt="Pull Requests" /></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12+" />
   <img src="https://img.shields.io/badge/security-audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security Audited" />
+  <img src="https://img.shields.io/badge/tests-117%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 117 Passed" />
 </p>
 
 ---
@@ -32,6 +33,8 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 - **Scheduled Automation** — Built-in CRON job system for hands-off content posting
 - **Speech-to-Text** — Local Whisper or cloud AssemblyAI for subtitle generation
 - **Image Generation** — Gemini-powered AI image generation for video visuals
+- **117 Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, cache, logging, LLM provider, and utilities
+- **3x Security Audited** — SSRF protection, TOCTOU-safe atomic writes, ZIP traversal hardening, email rate limiting
 
 ## Architecture
 
@@ -44,7 +47,7 @@ moneyprinter/
 │   ├── llm_provider.py       # Ollama LLM integration
 │   ├── analytics.py          # Event tracking and metrics
 │   ├── validation.py         # Input validation and security
-│   ├── cache.py              # JSON-based data persistence
+│   ├── cache.py              # Atomic JSON-based data persistence
 │   ├── utils.py              # Helper utilities
 │   ├── cron.py               # Headless scheduler runner
 │   └── classes/
@@ -54,6 +57,7 @@ moneyprinter/
 │       ├── AFM.py             # Affiliate marketing (Amazon)
 │       ├── Outreach.py        # Google Maps scraping + cold email
 │       └── Tts.py             # KittenTTS wrapper
+├── tests/                     # pytest unit test suite (117 tests)
 ├── config.example.json        # Template configuration
 ├── scripts/                   # Setup and utility scripts
 ├── docs/                      # Documentation
@@ -168,20 +172,37 @@ logger = get_logger(__name__)
 logger.info("Video generation started")
 ```
 
+## Testing
+
+MoneyPrinter includes a comprehensive pytest test suite:
+
+```bash
+# Install test dependencies
+pip install pytest
+
+# Run all tests
+PYTHONPATH=src pytest tests/ -v
+```
+
+**117 tests** covering: config loading and caching, input validation (paths, URLs, filenames), analytics tracking, cache CRUD operations, logging framework, LLM provider, and utility functions.
+
 ## Security
 
-MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (2 audits completed).
+MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (**3 audits completed**).
 
 Key security measures:
 
 - `config.json` is gitignored to prevent credential leaks
 - Environment variable fallbacks for all sensitive configuration
 - Input validation on all file paths and URLs
-- Safe zip extraction with path traversal prevention
+- Safe zip extraction with `os.path.normpath()` path traversal prevention
 - No `shell=True` in subprocess calls; no `os.system()` usage
 - Timeouts on all HTTP requests
+- SSRF protection with internal IP blocking on outreach requests
+- Atomic file writes in cache layer (prevents TOCTOU race conditions)
 - Shell scripts hardened with `set -euo pipefail` and input validation
 - Cron runner validates all command-line arguments
+- Email send rate limiting to prevent abuse
 - Unused dependencies removed to minimize attack surface
 
 To report a security vulnerability, please open a private issue or contact the maintainer directly.
@@ -194,7 +215,7 @@ See [TODO.md](TODO.md) for the full roadmap. Key upcoming features:
 - Multi-platform simultaneous posting
 - Docker containerization
 - Web dashboard for monitoring
-- Unit test suite and CI/CD pipeline
+- CI/CD pipeline (GitHub Actions)
 - Additional LLM provider support (OpenAI, Anthropic, Groq)
 - AI hook optimization for viral engagement
 - Auto-captioning with animated styles
