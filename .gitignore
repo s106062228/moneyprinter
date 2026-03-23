@@ -1,0 +1,10 @@
+__pycache__
+config.json
+.mp/
+venv/
+Songs/
+google-maps-scraper-0.9.7/
+niche.txt
+*.exe
+auto.sh
+.DS_Store
