@@ -1,0 +1,118 @@
+"""
+Analytics module for tracking MoneyPrinter content generation and upload metrics.
+
+Stores event data in a local JSON file for performance monitoring and
+content strategy optimization.
+"""
+
+import os
+import json
+from datetime import datetime
+from typing import Optional
+from config import ROOT_DIR
+
+
+ANALYTICS_FILE = os.path.join(ROOT_DIR, ".mp", "analytics.json")
+
+
+def _load_analytics() -> dict:
+    """Loads the analytics data from disk."""
+    if not os.path.exists(ANALYTICS_FILE):
+        return {"events": [], "summary": {}}
+    try:
+        with open(ANALYTICS_FILE, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {"events": [], "summary": {}}
+
+
+def _save_analytics(data: dict) -> None:
+    """Persists analytics data to disk."""
+    os.makedirs(os.path.dirname(ANALYTICS_FILE), exist_ok=True)
+    with open(ANALYTICS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def track_event(
+    event_type: str,
+    platform: str,
+    details: Optional[dict] = None,
+) -> None:
+    """
+    Records an analytics event.
+
+    Args:
+        event_type: Type of event (e.g. "video_generated", "video_uploaded",
+                    "tweet_posted", "pitch_shared").
+        platform: Target platform ("youtube", "twitter", "tiktok").
+        details: Optional dict with extra metadata.
+    """
+    data = _load_analytics()
+
+    event = {
+        "timestamp": datetime.now().isoformat(),
+        "type": event_type,
+        "platform": platform,
+        "details": details or {},
+    }
+    data["events"].append(event)
+
+    # Update summary counters
+    summary = data.setdefault("summary", {})
+    platform_summary = summary.setdefault(platform, {})
+    platform_summary[event_type] = platform_summary.get(event_type, 0) + 1
+    platform_summary["total_events"] = platform_summary.get("total_events", 0) + 1
+
+    _save_analytics(data)
+
+
+def get_summary() -> dict:
+    """
+    Returns a summary of all tracked analytics.
+
+    Returns:
+        Dictionary with per-platform event counts.
+    """
+    data = _load_analytics()
+    return data.get("summary", {})
+
+
+def get_events(
+    platform: Optional[str] = None,
+    event_type: Optional[str] = None,
+    limit: int = 50,
+) -> list:
+    """
+    Returns recent analytics events, optionally filtered.
+
+    Args:
+        platform: Filter by platform name.
+        event_type: Filter by event type.
+        limit: Max number of events to return.
+
+    Returns:
+        List of event dicts, most recent first.
+    """
+    data = _load_analytics()
+    events = data.get("events", [])
+
+    if platform:
+        events = [e for e in events if e.get("platform") == platform]
+    if event_type:
+        events = [e for e in events if e.get("type") == event_type]
+
+    return list(reversed(events))[:limit]
+
+
+def get_platform_stats(platform: str) -> dict:
+    """
+    Returns statistics for a specific platform.
+
+    Args:
+        platform: Platform name.
+
+    Returns:
+        Dict with event counts for the platform.
+    """
+    summary = get_summary()
+    return summary.get(platform, {})

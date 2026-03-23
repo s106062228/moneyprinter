@@ -1,10 +1,30 @@
 __pycache__
+*.pyc
+*.pyo
+
+# Secrets & configuration
 config.json
+.env
+.env.*
+
+# Runtime data
 .mp/
-venv/
 Songs/
-google-maps-scraper-0.9.7/
+google-maps-scraper-*/
 niche.txt
 *.exe
-auto.sh
+
+# Virtual environment
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
 .DS_Store
+Thumbs.db
+auto.sh

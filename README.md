@@ -1,90 +1,201 @@
-# MoneyPrinter
+<p align="center">
+  <h1 align="center">MoneyPrinter</h1>
+  <p align="center">Automated content creation and monetization pipeline powered by local AI</p>
+</p>
 
-> Forked and maintained by [s106062228](https://github.com/s106062228). Originally created by [FujiwaraChoki](https://github.com/FujiwaraChoki/MoneyPrinterV2).
+<p align="center">
+  <a href="https://github.com/s106062228/moneyprinter/blob/main/LICENSE"><img src="https://img.shields.io/github/license/s106062228/moneyprinter?style=for-the-badge&color=blue" alt="License" /></a>
+  <a href="https://github.com/s106062228/moneyprinter/stargazers"><img src="https://img.shields.io/github/stars/s106062228/moneyprinter?style=for-the-badge&color=yellow" alt="Stars" /></a>
+  <a href="https://github.com/s106062228/moneyprinter/issues"><img src="https://img.shields.io/github/issues/s106062228/moneyprinter?style=for-the-badge&color=red" alt="Issues" /></a>
+  <a href="https://github.com/s106062228/moneyprinter/pulls"><img src="https://img.shields.io/github/issues-pr/s106062228/moneyprinter?style=for-the-badge&color=green" alt="Pull Requests" /></a>
+  <img src="https://img.shields.io/badge/python-3.12+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12+" />
+</p>
 
-[![GitHub license](https://img.shields.io/github/license/s106062228/moneyprinter?style=for-the-badge)](https://github.com/s106062228/moneyprinter/blob/main/LICENSE)
-[![GitHub issues](https://img.shields.io/github/issues/s106062228/moneyprinter?style=for-the-badge)](https://github.com/s106062228/moneyprinter/issues)
-[![GitHub stars](https://img.shields.io/github/stars/s106062228/moneyprinter?style=for-the-badge)](https://github.com/s106062228/moneyprinter/stargazers)
+---
 
-An Application that automates the process of making money online.
-MPV2 (MoneyPrinter Version 2) is, as the name suggests, the second version of the MoneyPrinter project. It is a complete rewrite of the original project, with a focus on a wider range of features and a more modular architecture.
+MoneyPrinter is an open-source automation tool that generates and publishes short-form video content across multiple platforms. It uses local AI models via [Ollama](https://ollama.com) for script generation, [KittenTTS](https://github.com/KittenML/KittenTTS) for text-to-speech, and Selenium for automated uploads — all running on your machine with no cloud AI dependency.
 
-> **Note:** MPV2 needs Python 3.12 to function effectively.
-> Watch the YouTube video [here](https://youtu.be/wAZ_ZSuIqfk)
+> Originally forked from [FujiwaraChoki/MoneyPrinterV2](https://github.com/FujiwaraChoki/MoneyPrinterV2). Actively maintained with new features, security hardening, and multi-platform support.
 
 ## Features
 
-- [x] Twitter Bot (with CRON Jobs => `scheduler`)
-- [x] YouTube Shorts Automater (with CRON Jobs => `scheduler`)
-- [x] Affiliate Marketing (Amazon + Twitter)
-- [x] Find local businesses & cold outreach
+- **YouTube Shorts Automation** — Generate topics, scripts, AI images, voiceovers, and subtitles, then upload directly to YouTube Studio
+- **TikTok Upload** — Cross-post generated videos to TikTok via web automation
+- **Twitter/X Bot** — Generate and post AI-written tweets on a schedule (CRON support)
+- **Affiliate Marketing** — Scrape Amazon product info, generate marketing pitches, and auto-post to Twitter
+- **Business Outreach** — Scrape Google Maps for local businesses, extract emails, and send cold outreach
+- **Local AI First** — All text generation runs through Ollama (Llama, Mistral, Gemma, etc.) — no API keys needed for the core pipeline
+- **Analytics Tracking** — Built-in event tracking for all content generation and upload activity
+- **Scheduled Automation** — Built-in CRON job system for hands-off content posting
+- **Speech-to-Text** — Local Whisper or cloud AssemblyAI for subtitle generation
+- **Image Generation** — Gemini-powered AI image generation for video visuals
 
-## Versions
+## Architecture
 
-MoneyPrinter has different versions for multiple languages developed by the community for the community. Here are some known versions:
-
-- Chinese: [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo)
-
-If you would like to submit your own version/fork of MoneyPrinter, please open an issue describing the changes you made to the fork.
-
-## Installation
-
-> ⚠️ If you are planning to reach out to scraped businesses per E-Mail, please first install the [Go Programming Language](https://golang.org/).
-
-```bash
-git clone https://github.com/FujiwaraChoki/MoneyPrinterV2.git
-
-cd MoneyPrinterV2
-# Copy Example Configuration and fill out values in config.json
-cp config.example.json config.json
-
-# Create a virtual environment
-python -m venv venv
-
-# Activate the virtual environment - Windows
-.\venv\Scripts\activate
-
-# Activate the virtual environment - Unix
-source venv/bin/activate
-
-# Install the requirements
-pip install -r requirements.txt
+```
+moneyprinter/
+├── src/
+│   ├── main.py              # CLI entry point with interactive menu
+│   ├── config.py             # Configuration management (config.json)
+│   ├── llm_provider.py       # Ollama LLM integration
+│   ├── analytics.py          # Event tracking and metrics
+│   ├── validation.py         # Input validation and security
+│   ├── cache.py              # JSON-based data persistence
+│   ├── utils.py              # Helper utilities
+│   ├── cron.py               # Headless scheduler runner
+│   └── classes/
+│       ├── YouTube.py         # Full video generation + upload pipeline
+│       ├── TikTok.py          # TikTok video upload automation
+│       ├── Twitter.py         # Tweet generation + posting
+│       ├── AFM.py             # Affiliate marketing (Amazon)
+│       ├── Outreach.py        # Google Maps scraping + cold email
+│       └── Tts.py             # KittenTTS wrapper
+├── config.example.json        # Template configuration
+├── scripts/                   # Setup and utility scripts
+├── docs/                      # Documentation
+└── fonts/                     # Custom fonts for subtitles
 ```
 
-## Usage
+**Video Generation Pipeline:**
+
+```
+Ollama (topic) → Ollama (script) → KittenTTS (audio) → Gemini (images)
+    → faster-whisper (subtitles) → MoviePy (composite) → Selenium (upload)
+```
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.12+
+- [Ollama](https://ollama.com) with at least one model pulled (e.g., `ollama pull llama3.2:3b`)
+- Firefox browser (for Selenium automation)
+- [ImageMagick](https://imagemagick.org/) (for subtitle rendering)
+- [Go](https://golang.org/) (only needed for business outreach feature)
+
+### Installation
 
 ```bash
-# Run the application
+# Clone the repository
+git clone https://github.com/s106062228/moneyprinter.git
+cd moneyprinter
+
+# Run the automated setup script (macOS/Linux)
+bash scripts/setup_local.sh
+```
+
+Or set up manually:
+
+```bash
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Create configuration
+cp config.example.json config.json
+# Edit config.json with your settings
+```
+
+### Configuration
+
+Edit `config.json` with your settings:
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| `firefox_profile` | Path to your Firefox profile directory | Yes |
+| `ollama_model` | Ollama model name (e.g., `llama3.2:3b`) | Yes |
+| `imagemagick_path` | Path to ImageMagick binary | Yes |
+| `nanobanana2_api_key` | Gemini API key for image generation | For video |
+| `assembly_ai_api_key` | AssemblyAI key (if using cloud STT) | Optional |
+| `email` | SMTP credentials for outreach | For outreach |
+
+**Security tip:** Sensitive values can also be set via environment variables (e.g., `GEMINI_API_KEY`).
+
+### Usage
+
+```bash
+# Activate virtual environment
+source venv/bin/activate
+
+# Run preflight checks
+python scripts/preflight_local.py
+
+# Start the application
 python src/main.py
 ```
 
-## Documentation
+The interactive menu will guide you through:
 
-All relevant document can be found [here](docs/).
+1. **YouTube Shorts** — Generate and upload videos
+2. **Twitter Bot** — Post AI-generated tweets
+3. **Affiliate Marketing** — Create and share product pitches
+4. **Outreach** — Scrape businesses and send emails
 
-## Scripts
+### Direct Upload
 
-For easier usage, there are some scripts in the `scripts` directory, that can be used to directly access the core functionality of MPV2, without the need of user interaction.
+```bash
+# Upload a video directly using the upload script
+bash scripts/upload_video.sh
+```
 
-All scripts need to be run from the root directory of the project, e.g. `bash scripts/upload_video.sh`.
+## Security
+
+MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report.
+
+Key security measures:
+
+- `config.json` is gitignored to prevent credential leaks
+- Input validation on all file paths and URLs
+- Safe zip extraction with path traversal prevention
+- No shell=True in subprocess calls
+- Timeouts on all HTTP requests
+- Environment variable support for sensitive configuration
+
+To report a security vulnerability, please open a private issue or contact the maintainer directly.
+
+## Roadmap
+
+See [TODO.md](TODO.md) for the full roadmap. Key upcoming features:
+
+- Instagram Reels upload integration
+- Multi-platform simultaneous posting
+- Docker containerization
+- Web dashboard for monitoring
+- Unit test suite and CI/CD pipeline
+- Additional LLM provider support (OpenAI, Anthropic, Groq)
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests to us. Check out [docs/Roadmap.md](docs/Roadmap.md) for a list of features that need to be implemented.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-## Code of Conduct
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-Please read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for details on our code of conduct, and the process for submitting pull requests to us.
+## Documentation
+
+- [Configuration Guide](docs/Configuration.md)
+- [YouTube Automation](docs/YouTube.md)
+- [Twitter Bot](docs/TwitterBot.md)
+- [Affiliate Marketing](docs/AffiliateMarketing.md)
+- [Roadmap](docs/Roadmap.md)
 
 ## License
 
-MoneyPrinterV2 is licensed under `Affero General Public License v3.0`. See [LICENSE](LICENSE) for more information.
+MoneyPrinter is licensed under the [GNU Affero General Public License v3.0](LICENSE).
 
 ## Acknowledgments
 
-- [KittenTTS](https://github.com/KittenML/KittenTTS)
-- [gpt4free](https://github.com/xtekky/gpt4free)
+- [FujiwaraChoki/MoneyPrinterV2](https://github.com/FujiwaraChoki/MoneyPrinterV2) — Original project
+- [KittenTTS](https://github.com/KittenML/KittenTTS) — Text-to-speech engine
+- [Ollama](https://ollama.com) — Local LLM runtime
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — Local speech-to-text
 
 ## Disclaimer
 
-This project is for educational purposes only. The author will not be responsible for any misuse of the information provided. All the information on this website is published in good faith and for general information purpose only. The author does not make any warranties about the completeness, reliability, and accuracy of this information. Any action you take upon the information you find on this website (FujiwaraChoki/MoneyPrinterV2), is strictly at your own risk. The author will not be liable for any losses and/or damages in connection with the use of our website.
+This project is for educational purposes only. The author is not responsible for any misuse of the information or tools provided. All automation should comply with the terms of service of the respective platforms. Use responsibly.
