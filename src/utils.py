@@ -32,7 +32,7 @@ def close_running_selenium_instances() -> None:
         success(" => Closed running Selenium instances.")
 
     except Exception as e:
-        error(f"Error occurred while closing running Selenium instances: {str(e)}")
+        error(f"Error occurred while closing running Selenium instances: {type(e).__name__}")
 
 
 def build_url(youtube_video_id: str) -> str:
@@ -126,7 +126,7 @@ def fetch_songs() -> None:
                 downloaded = True
                 break
             except Exception as err:
-                warning(f"Failed to fetch songs from {download_url}: {err}")
+                warning(f"Failed to fetch songs from configured URL: {type(err).__name__}")
 
         if not downloaded:
             raise RuntimeError(
@@ -140,7 +140,7 @@ def fetch_songs() -> None:
         success(" => Downloaded Songs to ../Songs.")
 
     except Exception as e:
-        error(f"Error occurred while fetching songs: {str(e)}")
+        error(f"Error occurred while fetching songs: {type(e).__name__}")
 
 
 def choose_random_song() -> str:
@@ -164,5 +164,5 @@ def choose_random_song() -> str:
         success(f" => Chose song: {song}")
         return os.path.join(ROOT_DIR, "Songs", song)
     except Exception as e:
-        error(f"Error occurred while choosing random song: {str(e)}")
+        error(f"Error occurred while choosing random song: {type(e).__name__}")
         raise

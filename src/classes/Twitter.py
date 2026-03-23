@@ -71,6 +71,18 @@ class Twitter:
         )
         self.wait: WebDriverWait = WebDriverWait(self.browser, 30)
 
+    def __enter__(self):
+        """Context manager entry — returns self."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit — ensures browser is closed."""
+        try:
+            self.browser.quit()
+        except Exception:
+            pass
+        return False
+
     def post(self, text: Optional[str] = None) -> None:
         """
         Starts the Twitter Bot.

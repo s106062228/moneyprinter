@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    name: Tests (Python ${{ matrix.python-version }})
+    name: Tests + Coverage (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -34,8 +34,22 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          cd src && python -m pytest ../tests/ -v --tb=short --co -q 2>/dev/null || true
-          cd src && python -m pytest ../tests/ -v --tb=short
+          cd src && python -m pytest ../tests/ -v --tb=short \
+            --cov=. --cov-report=term-missing --cov-report=xml:../coverage.xml \
+            --cov-config=../.coveragerc
+
+      - name: Enforce coverage threshold
+        run: |
+          cd src && python -m pytest ../tests/ -q --no-header \
+            --cov=. --cov-config=../.coveragerc --cov-fail-under=40
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 14
 
       - name: Syntax check all Python files
         run: |
@@ -46,6 +60,7 @@ jobs:
           python -m py_compile src/mp_logger.py
           python -m py_compile src/llm_provider.py
           python -m py_compile src/status.py
+          python -m py_compile src/retry.py
 
   security:
     name: Security Scan

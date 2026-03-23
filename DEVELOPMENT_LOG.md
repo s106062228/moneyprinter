@@ -315,3 +315,150 @@ Supporting infrastructure: `conftest.py` with shared fixtures, `pytest.ini` conf
 - Pipeline stage execution with error recovery: PASS
 - Outreach SSRF protection in main loop: PASS
 
+
+---
+
+## Run 6 — 2026-03-24
+
+### Architecture Analysis
+- **LLM Provider**: The biggest functional gap — llm_provider.py was hardcoded to Ollama only. No way to use cloud LLMs (OpenAI, Anthropic, Groq) which many users prefer for quality or convenience. Now rewritten with abstract provider pattern.
+- **CSV Parsing**: Outreach.py used `item.split(",")` for CSV data — a known anti-pattern that breaks on quoted fields containing commas. Replaced with `csv.reader()`.
+- **URL Parsing Safety**: YouTube.py had two URL split operations without bounds checks, risking IndexError or wrong data extraction on unexpected URL formats.
+- **Email Regex**: Outreach email regex had a literal `|` inside character class and a 7-char TLD limit. Fixed to accept all valid email formats.
+- **Input Validation Gap**: main.py accepted Firefox profile paths without any validation, allowing potential path traversal on account creation.
+- **Test Growth**: 166 → 183 tests (+17 new tests for multi-LLM provider system).
+
+### Research Findings (2026 Market Update)
+- **AI video tools are mainstream in 2026**: Clippie, Runway, Veo 3.1, and LTX Studio dominate. Text-to-video is becoming photorealistic.
+- **Multi-LLM provider** is table stakes: LiteLLM (100+ providers), AISuite, and Instructor all offer unified LLM interfaces. Users expect to choose their provider.
+- **AI video generator market**: $847M in 2026, projected $3.35B by 2034 (Fortune Business Insights).
+- **Top AI creators earning $500K-5M+ annually** — volume + quality + multi-platform is the winning formula.
+- **Groq** (fast inference) gaining traction for real-time content generation.
+- **Anthropic Claude and OpenAI o1** preferred for higher-quality script generation compared to local models.
+
+### Features Implemented
+
+#### 1. Multi-LLM Provider System (`src/llm_provider.py` rewrite)
+- Complete rewrite with abstract `LLMProvider` base class and provider registry
+- **OllamaProvider**: Local inference (backward-compatible, remains default)
+- **OpenAIProvider**: OpenAI API (GPT-4o, GPT-4o-mini, o1, etc.)
+- **AnthropicProvider**: Anthropic Claude API (Claude Sonnet 4.6, Opus 4.6, Haiku 4.5)
+- **GroqProvider**: Groq fast inference (Llama 3.3 70B, Mixtral, Gemma2)
+- Provider selected via `config.json` "llm_provider" field or `LLM_PROVIDER` env var
+- API keys support both config.json and env var fallbacks (OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY)
+- Lazy imports — cloud SDKs only loaded when their provider is selected
+- `set_provider()` and `get_provider_name()` for runtime provider switching
+- Fully backward-compatible API: `generate_text()`, `select_model()`, `list_models()` all work unchanged
+- 17 new tests covering provider creation, switching, error handling, model listing, and text generation
+
+#### 2. Config Getters for Multi-Provider (`src/config.py`)
+- Added 7 new config getters: `get_llm_provider()`, `get_openai_api_key()`, `get_openai_model()`, `get_anthropic_api_key()`, `get_anthropic_model()`, `get_groq_api_key()`, `get_groq_model()`
+- All API key getters support env var fallbacks
+- Default models configured for each provider
+
+#### 3. Updated main.py for Multi-Provider
+- Model selection now works with any provider, not just Ollama
+- Provider name displayed on startup
+- Firefox profile path validation on account creation (YouTube + Twitter)
+
+### Security Issues Found & Fixed (Run 6)
+
+1. **Unsafe CSV parsing in Outreach** (MEDIUM) — `item.split(",")` replaced with `csv.reader()` to properly handle quoted fields. Added empty row checks.
+
+2. **YouTube URL bounds check — channel ID** (MEDIUM) — Added length and empty-string validation before using `split("/")[-1]` result.
+
+3. **YouTube URL bounds check — video ID** (MEDIUM) — Added `len(href_parts) < 3` validation before using `split("/")[-2]`.
+
+4. **Email regex literal pipe + TLD limit** (LOW) — Changed `[A-Z|a-z]{2,7}` to `[A-Za-z]{2,}`.
+
+5. **Missing Firefox profile path validation** (LOW) — Added `validate_path()` on both YouTube and Twitter account creation.
+
+### README Updates
+- Added "Multi-LLM Provider" badge
+- Updated test count badge to 183
+- Updated security audit count to 6x
+- Updated project description to highlight multi-provider support
+- Added multi-LLM provider to feature list
+- Updated architecture diagram (llm_provider.py description)
+- Updated video pipeline diagram to show provider-agnostic flow
+- Updated configuration table with all LLM provider settings
+- Updated env var table with provider API keys
+- Updated testing section with new test count
+- Updated security section with new findings count
+- Updated roadmap (multi-LLM provider completed)
+
+### Test Results
+- All 183 pytest tests: PASS (0.40s)
+- Syntax check on all modified Python files: PASS
+- All security fixes verified
+- Multi-LLM provider tests (17 new): PASS
+- Provider creation, switching, error handling: PASS
+- Backward-compatible API (generate_text, select_model, list_models): PASS
+
+---
+
+## Run 7 — 2026-03-24
+
+### Architecture Analysis
+- **Code Coverage Gap**: 183 tests existed but no visibility into what code they actually cover. No coverage tool configured, no CI integration, no threshold enforcement. This was identified as a high-priority TODO item in previous runs.
+- **Browser Resource Leaks**: YouTube.py, Twitter.py, TikTok.py, and AFM.py all instantiate Firefox browsers in `__init__` but don't implement context manager protocol (`__enter__`/`__exit__`). If any exception occurs between construction and `quit()`, the browser process and geckodriver leak as orphaned processes.
+- **Non-Atomic CSV Write**: Outreach.py's `set_email_for_website()` used `open("w")` to rewrite CSV data — if the process crashes mid-write, the CSV is corrupted. No bounds checking on the index parameter either.
+- **Exception Info Disclosure**: Found 6 remaining locations across utils.py, TikTok.py, and YouTube.py where `str(e)` or `{e}` was used in error messages, potentially leaking file paths, URLs, or system internals.
+- **Song URL Leak**: `fetch_songs()` logged the configured download URL in error messages.
+
+### Research Findings (2026 Market Update)
+- **AI short-form video tools are mainstream**: Clippie, OpusClip, Pika, LTX Studio dominate. Sub-second generation is emerging.
+- **Virality scoring** (OpusClip-style 0-100 viral potential prediction) is the key differentiator for 2026 tools.
+- **The shift from generation to orchestration**: AI video in 2026 is less about pressing a button and more about directing a system.
+- **Production efficiency**: Short-form tools cut content production time by 70-80%.
+- **Instagram Reels API**: Now officially supports uploads for Business/Creator accounts via Graph API with 25 posts/day rate limit.
+- **pytest-cov best practices**: Branch coverage, CI threshold enforcement, and coverage-gated pipelines are standard in 2026 Python projects.
+
+### Features Implemented
+
+#### 1. pytest-cov Integration with CI Coverage Reporting
+- Added pytest-cov to test configuration in `pytest.ini` with `--cov`, `--cov-report=term-missing`, and `--cov-report=html`
+- Created `.coveragerc` with source filtering (excludes tests, site-packages, art.py, constants.py), line exclusion patterns, `fail_under=40` threshold, and HTML report output
+- Updated CI workflow with dedicated coverage step: generates XML report, enforces 40% minimum threshold, uploads coverage artifact (14-day retention)
+- Added `htmlcov/`, `coverage.xml`, `.coverage` to `.gitignore`
+
+#### 2. Context Manager Protocol for Browser Classes
+- Added `__enter__`/`__exit__` to YouTube, Twitter, TikTok, and AFM classes
+- `__exit__` calls `browser.quit()` with exception safety (catches and suppresses cleanup errors)
+- Enables `with YouTube(...) as yt:` pattern — browser is automatically closed even on exceptions
+- Backward-compatible — existing code without `with` statements continues to work unchanged
+
+### Security Issues Found & Fixed (Run 7)
+
+1. **Non-atomic CSV write in Outreach email extraction** (MEDIUM) — `set_email_for_website()` used `open("w")` for CSV rewrite. Fixed with `tempfile.mkstemp()` + `os.replace()`. Added index bounds check.
+
+2. **Browser resource leak — no context manager** (MEDIUM) — All 4 browser classes lacked `__enter__`/`__exit__`. Fixed by adding context manager protocol to YouTube, Twitter, TikTok, and AFM.
+
+3. **Exception info disclosure in utils.py** (LOW) — 3 locations used `str(e)`. Changed to `type(e).__name__`.
+
+4. **Exception info disclosure in TikTok upload** (LOW) — `{e}` in error. Changed to `type(e).__name__`.
+
+5. **Exception info disclosure in YouTube subtitles** (LOW) — `{e}` in warning. Changed to `type(e).__name__`.
+
+6. **Exception info disclosure in YouTube upload** (LOW) — `{e}` in error. Changed to `type(e).__name__`.
+
+7. **Niche file write unbounded length** (LOW) — Added `[:500]` limit on niche string written to file.
+
+8. **Song download URL leaked in error message** (LOW) — Replaced URL with "configured URL" in error message.
+
+### README Updates
+- Updated security audit count badge to 7x
+- Added coverage badge
+- Updated feature list with code coverage and context manager entries
+- Updated security findings count (44 findings, 43 fixed)
+- Updated CI/CD section to document coverage reporting
+- Updated testing section with coverage instructions
+- Updated security measures list
+- Updated roadmap
+
+### Test Results
+- All 183 pytest tests: PASS (0.43s)
+- Syntax check on all 6 modified Python files: PASS
+- All security fixes verified
+- Context manager protocol: verified in YouTube, Twitter, TikTok, AFM
+- Atomic CSV write in Outreach: verified

@@ -100,6 +100,18 @@ class YouTube:
             service=self.service, options=self.options
         )
 
+    def __enter__(self):
+        """Context manager entry — returns self."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit — ensures browser is closed."""
+        try:
+            self.browser.quit()
+        except Exception:
+            pass
+        return False
+
     @property
     def niche(self) -> str:
         """
@@ -684,7 +696,7 @@ class YouTube:
             subtitles = SubtitlesClip(subtitles_path, generator)
             subtitles.set_pos(("center", "center"))
         except Exception as e:
-            warning(f"Failed to generate subtitles, continuing without subtitles: {e}")
+            warning(f"Failed to generate subtitles, continuing without subtitles: {type(e).__name__}")
 
         random_song_clip = AudioFileClip(random_song).set_fps(44100)
 
@@ -753,7 +765,13 @@ class YouTube:
         driver = self.browser
         driver.get("https://studio.youtube.com")
         time.sleep(2)
-        channel_id = driver.current_url.split("/")[-1]
+        url_parts = driver.current_url.split("/")
+        # Expected URL: https://studio.youtube.com/channel/<CHANNEL_ID>
+        if len(url_parts) < 2 or not url_parts[-1]:
+            raise ValueError(
+                f"Unexpected YouTube Studio URL structure: {driver.current_url}"
+            )
+        channel_id = url_parts[-1]
         self.channel_id = channel_id
 
         return channel_id
@@ -882,7 +900,12 @@ class YouTube:
             href = anchor_tag.get_attribute("href")
             if verbose:
                 info(f"\t=> Extracting video ID from URL: {href}")
-            video_id = href.split("/")[-2]
+            href_parts = href.split("/")
+            if len(href_parts) < 3:
+                raise ValueError(
+                    f"Unexpected video URL structure: {href}"
+                )
+            video_id = href_parts[-2]
 
             # Build URL
             url = build_url(video_id)
@@ -907,7 +930,7 @@ class YouTube:
 
             return True
         except Exception as e:
-            error(f"YouTube upload failed: {e}")
+            error(f"YouTube upload failed: {type(e).__name__}")
             self.browser.quit()
             return False
 

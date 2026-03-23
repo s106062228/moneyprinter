@@ -70,6 +70,18 @@ class TikTok:
         )
         self.wait = WebDriverWait(self.browser, 30)
 
+    def __enter__(self):
+        """Context manager entry — returns self."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit — ensures browser is closed."""
+        try:
+            self.browser.quit()
+        except Exception:
+            pass
+        return False
+
     @property
     def niche(self) -> str:
         return self._niche
@@ -275,7 +287,7 @@ class TikTok:
             return True
 
         except Exception as e:
-            error(f"TikTok upload failed: {e}")
+            error(f"TikTok upload failed: {type(e).__name__}")
             return False
         finally:
             try:

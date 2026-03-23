@@ -32,6 +32,14 @@
 - [x] Analytics module atomic writes (TOCTOU fix + atomic save)
 - [x] Security audit (Run 5) — Twitter/YouTube/analytics atomic writes, API response info disclosure fixes
 - [x] Unit tests for Twitter/YouTube atomic cache (30 new tests, 166 total)
+- [x] Multi-LLM provider system (OpenAI, Anthropic, Groq) with unified provider interface
+- [x] Security audit (Run 6) — CSV injection fix, URL bounds validation, email regex fix, Firefox profile path validation
+- [x] Unit tests for multi-LLM provider (17 new tests, 183 total)
+- [x] pytest-cov integration for code coverage tracking in CI
+- [x] Context manager protocol for browser classes (YouTube, Twitter, TikTok, AFM)
+- [x] Security audit (Run 7) — Non-atomic CSV write, browser resource leaks, exception info disclosure (6 locations), niche length limit, URL leak in error messages
+- [x] Coverage reporting with threshold enforcement (40% minimum)
+- [x] Coverage artifact upload in CI pipeline
 
 ## In Progress
 - [ ] Instagram Reels upload integration
@@ -39,8 +47,6 @@
 
 ## Planned — High Priority
 - [ ] Web dashboard for monitoring content generation
-- [ ] Support for additional LLM providers (OpenAI, Anthropic, Groq)
-- [ ] pytest-cov integration for coverage tracking in CI
 
 ## Planned — Medium Priority
 - [ ] Video template system (custom intros/outros)

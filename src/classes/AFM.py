@@ -88,6 +88,15 @@ class AffiliateMarketing:
         # Scrape the product information
         self.scrape_product_information()
 
+    def __enter__(self):
+        """Context manager entry — returns self."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit — ensures browser is closed."""
+        self.quit()
+        return False
+
     def scrape_product_information(self) -> None:
         """
         This method will be used to scrape the product

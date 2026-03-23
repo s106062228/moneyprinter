@@ -1,7 +1,7 @@
 # Security Audit Report — MoneyPrinter
 
 **Last Updated:** 2026-03-24
-**Audit Run:** 5
+**Audit Run:** 7
 
 ## Summary
 
@@ -9,8 +9,8 @@
 |----------|-------|-------|
 | Critical | 2 | 2 |
 | High | 5 | 5 |
-| Medium | 15 | 15 |
-| Low | 8 | 7 |
+| Medium | 20 | 20 |
+| Low | 17 | 16 |
 
 ## Findings — Run 1
 
@@ -255,4 +255,94 @@
 - **File:** `src/classes/YouTube.py` line 394
 - **Issue:** `warning(f"...{str(e)}")` could leak API URLs, headers, or system paths in exception messages.
 - **Fix:** Changed to `type(e).__name__` — only exposes exception class name.
+- **Status:** ✅ Fixed
+
+## Findings — Run 6
+
+### MEDIUM
+
+#### 32. Unsafe CSV parsing in Outreach email loop (CSV injection risk)
+- **File:** `src/classes/Outreach.py` lines 293, 313, 319
+- **Issue:** Direct `item.split(",")` used instead of proper CSV parsing. If CSV fields contain quoted commas (valid in CSV), this corrupts field extraction — potentially sending emails to wrong addresses or using wrong company names. Also no bounds checking on split indices.
+- **Fix:** Replaced all `item.split(",")` calls with `csv.reader()` (Python's built-in CSV parser) which properly handles quoted fields, escaped commas, and edge cases. Added empty row checks.
+- **Status:** ✅ Fixed
+
+#### 33. URL bounds check missing in YouTube channel ID extraction
+- **File:** `src/classes/YouTube.py` line 756
+- **Issue:** `driver.current_url.split("/")[-1]` assumes URL always has the expected structure. If YouTube Studio redirects to an unexpected URL format, `[-1]` could return the wrong value (e.g., domain name instead of channel ID).
+- **Fix:** Added `len(url_parts)` validation and empty-string check before using the split result. Raises `ValueError` with descriptive message on unexpected URL structure.
+- **Status:** ✅ Fixed
+
+#### 34. URL bounds check missing in YouTube video ID extraction
+- **File:** `src/classes/YouTube.py` line 885
+- **Issue:** `href.split("/")[-2]` assumes video URL always has at least 3 path segments. Malformed `href` attributes could cause IndexError or extract incorrect video ID.
+- **Fix:** Added `len(href_parts) < 3` validation. Raises `ValueError` with the problematic URL for debugging.
+- **Status:** ✅ Fixed
+
+### LOW
+
+#### 35. Email regex allows literal pipe character in TLD
+- **File:** `src/classes/Outreach.py` line 216
+- **Issue:** Email regex pattern `[A-Z|a-z]{2,7}` includes a literal `|` character inside the bracket expression (not an OR operator). Also limits TLDs to 7 characters, rejecting valid TLDs like `.technology`.
+- **Fix:** Changed to `[A-Za-z]{2,}` — removed literal pipe, removed upper length limit to accept all valid TLDs.
+- **Status:** ✅ Fixed
+
+#### 36. No Firefox profile path validation on account creation
+- **File:** `src/main.py` lines 80-81
+- **Issue:** Firefox profile path entered by user was stored directly without validation. Invalid or path-traversal paths could be stored and later used by Selenium.
+- **Fix:** Added `validate_path()` call from `validation.py` on both YouTube and Twitter account creation paths. Returns early with error message if path is invalid.
+- **Status:** ✅ Fixed
+
+## Findings — Run 7
+
+### MEDIUM
+
+#### 37. Non-atomic CSV write in Outreach email extraction
+- **File:** `src/classes/Outreach.py` — `set_email_for_website()`
+- **Issue:** CSV file was read then written back with `open("w")` — if the process crashes mid-write, the CSV is corrupted. No bounds checking on the row index either.
+- **Fix:** Added index bounds validation. Rewrote write path with `tempfile.mkstemp()` + `os.replace()` for atomic writes.
+- **Status:** ✅ Fixed
+
+#### 38. Browser resource leak — no context manager protocol
+- **File:** `src/classes/YouTube.py`, `src/classes/Twitter.py`, `src/classes/TikTok.py`, `src/classes/AFM.py`
+- **Issue:** All four browser-using classes instantiate Firefox in `__init__` but don't implement `__enter__`/`__exit__`. If an exception occurs between construction and `quit()`, the browser process and geckodriver leak as orphaned processes.
+- **Fix:** Added `__enter__` and `__exit__` methods to all four classes, enabling `with` statement usage and automatic browser cleanup on exceptions.
+- **Status:** ✅ Fixed
+
+### LOW
+
+#### 39. Exception info disclosure in utils.py (3 locations)
+- **File:** `src/utils.py` — `close_running_selenium_instances()`, `fetch_songs()`, `choose_random_song()`
+- **Issue:** `str(e)` was logged in error messages, potentially leaking file paths, URLs, or system details.
+- **Fix:** Changed all three locations to `type(e).__name__` — only exposes exception class name.
+- **Status:** ✅ Fixed
+
+#### 40. Exception info disclosure in TikTok upload
+- **File:** `src/classes/TikTok.py` line 278
+- **Issue:** `error(f"TikTok upload failed: {e}")` could leak Selenium internal paths, WebDriver URLs, or system details.
+- **Fix:** Changed to `type(e).__name__`.
+- **Status:** ✅ Fixed
+
+#### 41. Exception info disclosure in YouTube subtitle generation
+- **File:** `src/classes/YouTube.py` line 687
+- **Issue:** `warning(f"Failed to generate subtitles...: {e}")` could leak audio file paths or Whisper model details.
+- **Fix:** Changed to `type(e).__name__`.
+- **Status:** ✅ Fixed
+
+#### 42. Exception info disclosure in YouTube upload
+- **File:** `src/classes/YouTube.py` line 920
+- **Issue:** `error(f"YouTube upload failed: {e}")` could leak Selenium internals.
+- **Fix:** Changed to `type(e).__name__`.
+- **Status:** ✅ Fixed
+
+#### 43. Niche file write unbounded length
+- **File:** `src/classes/Outreach.py` line 253
+- **Issue:** `self.niche` (from config) written to `niche.txt` without length limit. A maliciously large niche string could fill disk.
+- **Fix:** Added `[:500]` length limit on the niche string written to file.
+- **Status:** ✅ Fixed
+
+#### 44. Song download URL leaked in error message
+- **File:** `src/utils.py` line 129
+- **Issue:** `warning(f"Failed to fetch songs from {download_url}: {err}")` leaked both the configured download URL and the full exception message.
+- **Fix:** Changed to `"Failed to fetch songs from configured URL: {type(err).__name__}"` — no URL or exception details exposed.
 - **Status:** ✅ Fixed

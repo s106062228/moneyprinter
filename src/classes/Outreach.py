@@ -213,7 +213,7 @@ class Outreach:
         r = requests.get(website, timeout=30)
         if r.status_code == 200:
             # Define a regular expression pattern to match email addresses
-            email_pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b"
+            email_pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"
 
             # Find all email addresses in the HTML string
             email_addresses = re.findall(email_pattern, r.text)
@@ -221,15 +221,31 @@ class Outreach:
             email = email_addresses[0] if len(email_addresses) > 0 else ""
 
         if email:
-            print(f"=> Setting email {email} for website {website}")
+            print(f"=> Setting email for website {website}")
             with open(output_file, "r", newline="", errors="ignore") as csvfile:
                 csvreader = csv.reader(csvfile)
                 items = list(csvreader)
-                items[index].append(email)
+                if 0 <= index < len(items):
+                    items[index].append(email)
+                else:
+                    warning(f" => Index {index} out of range for CSV file. Skipping.")
+                    return
 
-            with open(output_file, "w", newline="", errors="ignore") as csvfile:
-                csvwriter = csv.writer(csvfile)
-                csvwriter.writerows(items)
+            # Atomic write: write to temp file then replace
+            dir_name = os.path.dirname(os.path.abspath(output_file))
+            import tempfile
+            fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".csv.tmp")
+            try:
+                with os.fdopen(fd, "w", newline="", errors="ignore") as csvfile:
+                    csvwriter = csv.writer(csvfile)
+                    csvwriter.writerows(items)
+                os.replace(tmp_path, output_file)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
 
     def start(self) -> None:
         """
@@ -249,9 +265,10 @@ class Outreach:
         # Build the scraper
         self.build_scraper()
 
-        # Write the niche to a file
-        with open("niche.txt", "w") as f:
-            f.write(self.niche)
+        # Write the niche to a temp file (avoid polluting cwd with arbitrary data)
+        niche_path = os.path.join(os.getcwd(), "niche.txt")
+        with open(niche_path, "w") as f:
+            f.write(self.niche[:500])  # Limit length to prevent abuse
 
         output_path = get_results_cache_path()
         message_subject = get_outreach_message_subject()
@@ -266,7 +283,7 @@ class Outreach:
             error(
                 f" => Scraper output not found at {output_path}. Check scraper logs and configuration."
             )
-            os.remove("niche.txt")
+            os.remove(niche_path)
             return
 
         # Get the items from the file
@@ -289,10 +306,16 @@ class Outreach:
         # Get the email for each business
         for index, item in enumerate(items, start=1):
             try:
-                # Check if the item"s website is valid
-                website = item.split(",")
-                website = [w for w in website if w.startswith("http")]
-                website = website[0] if len(website) > 0 else ""
+                # Parse CSV fields properly (handles quoted commas)
+                parsed_fields = list(csv.reader([item]))
+                if not parsed_fields or not parsed_fields[0]:
+                    warning(f" => Empty row at index {index}. Skipping...")
+                    continue
+                fields = parsed_fields[0]
+
+                # Extract website URL from fields
+                website_candidates = [f for f in fields if f.strip().startswith("http")]
+                website = website_candidates[0].strip() if website_candidates else ""
                 if website != "":
                     # Validate URL before making request (SSRF protection)
                     try:
@@ -310,13 +333,13 @@ class Outreach:
                         self.set_email_for_website(index, website, output_path)
 
                         # Send emails using the existing SMTP connection
-                        receiver_email = item.split(",")[-1]
+                        receiver_email = fields[-1].strip() if fields else ""
 
                         if "@" not in receiver_email:
                             warning(f" => No email provided. Skipping...")
                             continue
 
-                        company_name = item.split(",")[0]
+                        company_name = fields[0].strip() if fields else ""
                         subject = message_subject.replace(
                             "{{COMPANY_NAME}}", company_name
                         )
