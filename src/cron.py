@@ -19,17 +19,30 @@ def main():
     Command-line arguments:
         sys.argv[1]: A string indicating the purpose, either "twitter" or "youtube".
         sys.argv[2]: A string representing the account UUID.
-
-    The function also handles verbose output based on user settings and reports success or errors as appropriate.
+        sys.argv[3]: The Ollama model name.
 
     Args:
         None. The function uses command-line arguments accessed via sys.argv.
 
     Returns:
-        None. The function performs operations based on the purpose and account UUID and does not return any value."""
-    purpose = str(sys.argv[1])
-    account_id = str(sys.argv[2])
-    model = str(sys.argv[3]) if len(sys.argv) > 3 else None
+        None."""
+    if len(sys.argv) < 3:
+        error("Usage: cron.py <twitter|youtube> <account_uuid> [model_name]")
+        sys.exit(1)
+
+    purpose = str(sys.argv[1]).strip()
+    account_id = str(sys.argv[2]).strip()
+    model = str(sys.argv[3]).strip() if len(sys.argv) > 3 else None
+
+    # Validate purpose to prevent unexpected behavior
+    if purpose not in ("twitter", "youtube"):
+        error(f"Invalid purpose: {purpose}. Expected 'twitter' or 'youtube'.")
+        sys.exit(1)
+
+    # Validate account_id is a plausible UUID (basic check)
+    if not account_id or len(account_id) < 8:
+        error("Account UUID appears invalid.")
+        sys.exit(1)
 
     if model:
         select_model(model)

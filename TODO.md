@@ -10,20 +10,25 @@
 - [x] Input validation module
 - [x] Security audit (Run 1)
 - [x] Professional README
+- [x] Config caching system (no more per-call file reads)
+- [x] Centralized logging framework (`mp_logger.py`)
+- [x] Security audit (Run 2) — shell injection, file handle leaks, unused deps
+- [x] Remove unused `undetected_chromedriver` dependency
+- [x] Shell script hardening (`upload_video.sh`)
+- [x] Cron argument validation
 
 ## In Progress
 - [ ] Instagram Reels upload integration
 - [ ] Multi-platform simultaneous posting
-- [ ] Centralized configuration caching (avoid re-reading config.json per call)
 
 ## Planned — High Priority
 - [ ] Unit test suite (pytest)
 - [ ] CI/CD pipeline (GitHub Actions)
 - [ ] Rate limiting and retry logic for API calls
-- [ ] Proper logging framework (replace print statements)
 - [ ] Error recovery in video generation pipeline
 - [ ] Docker containerization
 - [ ] Web dashboard for monitoring content generation
+- [ ] Migrate status.py print calls to use mp_logger throughout codebase
 
 ## Planned — Medium Priority
 - [ ] Support for additional LLM providers (OpenAI, Anthropic, Groq)
@@ -33,6 +38,8 @@
 - [ ] Webhook notifications (Discord, Slack)
 - [ ] Content calendar / scheduling UI
 - [ ] A/B testing for video titles and thumbnails
+- [ ] AI hook optimization (trending hooks for better engagement)
+- [ ] Auto-caption styling (animated captions like CapCut)
 
 ## Planned — Low Priority
 - [ ] Plugin system for custom platform integrations
@@ -40,3 +47,4 @@
 - [ ] Video analytics dashboard (views, engagement tracking)
 - [ ] Auto-niche detection from trending topics
 - [ ] Batch video generation mode
+- [ ] OpusClip-style smart clipping from long-form content

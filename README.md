@@ -9,6 +9,7 @@
   <a href="https://github.com/s106062228/moneyprinter/issues"><img src="https://img.shields.io/github/issues/s106062228/moneyprinter?style=for-the-badge&color=red" alt="Issues" /></a>
   <a href="https://github.com/s106062228/moneyprinter/pulls"><img src="https://img.shields.io/github/issues-pr/s106062228/moneyprinter?style=for-the-badge&color=green" alt="Pull Requests" /></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12+" />
+  <img src="https://img.shields.io/badge/security-audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security Audited" />
 </p>
 
 ---
@@ -26,6 +27,8 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 - **Business Outreach** — Scrape Google Maps for local businesses, extract emails, and send cold outreach
 - **Local AI First** — All text generation runs through Ollama (Llama, Mistral, Gemma, etc.) — no API keys needed for the core pipeline
 - **Analytics Tracking** — Built-in event tracking for all content generation and upload activity
+- **Centralized Logging** — Rotating file logs with colored console output for easy debugging
+- **Config Caching** — High-performance config system that loads once, not on every call
 - **Scheduled Automation** — Built-in CRON job system for hands-off content posting
 - **Speech-to-Text** — Local Whisper or cloud AssemblyAI for subtitle generation
 - **Image Generation** — Gemini-powered AI image generation for video visuals
@@ -36,7 +39,8 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 moneyprinter/
 ├── src/
 │   ├── main.py              # CLI entry point with interactive menu
-│   ├── config.py             # Configuration management (config.json)
+│   ├── config.py             # Cached configuration management
+│   ├── mp_logger.py          # Centralized logging framework
 │   ├── llm_provider.py       # Ollama LLM integration
 │   ├── analytics.py          # Event tracking and metrics
 │   ├── validation.py         # Input validation and security
@@ -112,7 +116,14 @@ Edit `config.json` with your settings:
 | `assembly_ai_api_key` | AssemblyAI key (if using cloud STT) | Optional |
 | `email` | SMTP credentials for outreach | For outreach |
 
-**Security tip:** Sensitive values can also be set via environment variables (e.g., `GEMINI_API_KEY`).
+**Security tip:** Sensitive values can also be set via environment variables:
+
+| Environment Variable | Overrides |
+|---------------------|-----------|
+| `GEMINI_API_KEY` | `nanobanana2_api_key` |
+| `ASSEMBLYAI_API_KEY` | `assembly_ai_api_key` |
+| `MP_EMAIL_USERNAME` | `email.username` |
+| `MP_EMAIL_PASSWORD` | `email.password` |
 
 ### Usage
 
@@ -141,18 +152,37 @@ The interactive menu will guide you through:
 bash scripts/upload_video.sh
 ```
 
+### Logging
+
+MoneyPrinter uses a centralized logging framework with both console and file output:
+
+- **Console**: Colored output at INFO level and above
+- **File**: Detailed logs at DEBUG level, saved to `.mp/logs/moneyprinter.log`
+- **Rotation**: Log files rotate at 5MB with 3 backups
+
+Developers can use the logger in any module:
+
+```python
+from mp_logger import get_logger
+logger = get_logger(__name__)
+logger.info("Video generation started")
+```
+
 ## Security
 
-MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report.
+MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (2 audits completed).
 
 Key security measures:
 
 - `config.json` is gitignored to prevent credential leaks
+- Environment variable fallbacks for all sensitive configuration
 - Input validation on all file paths and URLs
 - Safe zip extraction with path traversal prevention
-- No shell=True in subprocess calls
+- No `shell=True` in subprocess calls; no `os.system()` usage
 - Timeouts on all HTTP requests
-- Environment variable support for sensitive configuration
+- Shell scripts hardened with `set -euo pipefail` and input validation
+- Cron runner validates all command-line arguments
+- Unused dependencies removed to minimize attack surface
 
 To report a security vulnerability, please open a private issue or contact the maintainer directly.
 
@@ -166,6 +196,8 @@ See [TODO.md](TODO.md) for the full roadmap. Key upcoming features:
 - Web dashboard for monitoring
 - Unit test suite and CI/CD pipeline
 - Additional LLM provider support (OpenAI, Anthropic, Groq)
+- AI hook optimization for viral engagement
+- Auto-captioning with animated styles
 
 ## Contributing
 
@@ -183,7 +215,8 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for gu
 - [YouTube Automation](docs/YouTube.md)
 - [Twitter Bot](docs/TwitterBot.md)
 - [Affiliate Marketing](docs/AffiliateMarketing.md)
-- [Roadmap](docs/Roadmap.md)
+- [Security Audit](SECURITY_AUDIT.md)
+- [Roadmap](TODO.md)
 
 ## License
 
