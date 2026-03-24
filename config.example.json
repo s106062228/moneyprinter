@@ -29,7 +29,20 @@
   "whisper_compute_type": "int8",
   "assembly_ai_api_key": "",
   "tts_voice": "Jasper",
+  "llm_provider": "ollama",
+  "openai_api_key": "",
+  "openai_model": "gpt-4o-mini",
+  "anthropic_api_key": "",
+  "anthropic_model": "claude-sonnet-4-6",
+  "groq_api_key": "",
+  "groq_model": "llama-3.3-70b-versatile",
   "font": "bold_font.ttf",
   "imagemagick_path": "Path to magick.exe or on linux/macOS just /usr/bin/convert",
-  "script_sentence_length": 4
+  "script_sentence_length": 4,
+  "webhooks": {
+    "enabled": false,
+    "discord_url": "",
+    "slack_url": "",
+    "notify_on": ["video_generated", "video_uploaded", "tweet_posted", "pitch_shared", "error"]
+  }
 }

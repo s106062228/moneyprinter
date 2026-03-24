@@ -1,7 +1,7 @@
 # Security Audit Report — MoneyPrinter
 
 **Last Updated:** 2026-03-24
-**Audit Run:** 7
+**Audit Run:** 8
 
 ## Summary
 
@@ -10,7 +10,7 @@
 | Critical | 2 | 2 |
 | High | 5 | 5 |
 | Medium | 20 | 20 |
-| Low | 17 | 16 |
+| Low | 19 | 18 |
 
 ## Findings — Run 1
 
@@ -345,4 +345,20 @@
 - **File:** `src/utils.py` line 129
 - **Issue:** `warning(f"Failed to fetch songs from {download_url}: {err}")` leaked both the configured download URL and the full exception message.
 - **Fix:** Changed to `"Failed to fetch songs from configured URL: {type(err).__name__}"` — no URL or exception details exposed.
+- **Status:** ✅ Fixed
+
+## Findings — Run 8
+
+### LOW
+
+#### 45. Exception info disclosure in LLM provider initialization
+- **File:** `src/main.py` line 467
+- **Issue:** `error(f"Could not initialize LLM provider '{provider_name}': {e}")` leaked full exception message, which could contain API key validation errors, file paths, or connection details from the LLM provider SDK.
+- **Fix:** Changed to `type(e).__name__` — only exposes exception class name.
+- **Status:** ✅ Fixed
+
+#### 46. Exception info disclosure in model listing
+- **File:** `src/main.py` line 479
+- **Issue:** `error(f"Could not list models from {get_provider_name()}: {e}")` leaked full exception message from the LLM provider, potentially exposing API endpoints, auth errors, or system paths.
+- **Fix:** Changed to `type(e).__name__` — only exposes exception class name.
 - **Status:** ✅ Fixed

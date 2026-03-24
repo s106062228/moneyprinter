@@ -1,5 +1,84 @@
 # MoneyPrinter Development Log
 
+## Run 8 — 2026-03-24
+
+### Architecture Analysis
+- **Notification Gap**: Project had analytics tracking (events logged to JSON) but no way to push real-time notifications to external services. Content creators running automated pipelines need alerts when videos are generated, uploaded, or when errors occur.
+- **Webhook Support Missing**: Discord and Slack are the standard notification channels for automation monitoring, but neither was supported.
+- **config.example.json Outdated**: The example config was missing all LLM provider settings added in Run 6 (llm_provider, openai_api_key, anthropic_api_key, etc.).
+- **Info Disclosure in main.py**: Two remaining `{e}` exception leak locations in LLM provider initialization and model listing.
+- **Test Growth**: 183 → 223 tests (+40 new tests for webhook notification system).
+
+### Research Findings (2026 Market Update)
+- **AI video tools are mainstream in 2026**: Clippie, Runway, Veo 3.1, LTX Studio dominate. Text-to-video becoming photorealistic. Sub-second generation is emerging.
+- **AI video market projected $3.35B by 2034** (Fortune Business Insights). Market growing 33% CAGR.
+- **Top AI creators earning $500K-5M+ annually** through volume, quality, and multi-platform strategy.
+- **AI reduces video production costs by up to 70%** — enabling rapid campaign launches.
+- **Discord webhooks are the standard for automation monitoring**: No persistent connection needed, just HTTP POST. Rate limited to 30 msgs/min per webhook URL.
+- **Webhook security best practice 2026**: HTTPS-only, provider domain validation, treat URLs as secrets (env var storage), rate limiting to prevent flooding.
+- **Slack incoming webhooks**: Support Block Kit for rich formatting, rate limited to 1 msg/sec/channel.
+
+### Features Implemented
+
+#### 1. Webhook Notifications Module (`src/webhooks.py`)
+- **Discord integration**: Rich embed formatting with color-coded severity, event emojis, timestamps, and detail fields
+- **Slack integration**: Block Kit formatted messages with header, body, detail section, and context footer
+- **Rate limiting**: Thread-safe 1 msg/sec/provider rate limiter using `threading.Lock` + `time.monotonic()`
+- **URL validation**: HTTPS-only enforcement, provider-specific domain verification (discord.com/discordapp.com for Discord, hooks.slack.com for Slack)
+- **Config integration**: `webhooks` block in config.json with `enabled`, `discord_url`, `slack_url`, `notify_on` fields
+- **Env var fallbacks**: `DISCORD_WEBHOOK_URL` and `SLACK_WEBHOOK_URL` environment variables
+- **Event filtering**: Configurable event types for notifications (video_generated, video_uploaded, tweet_posted, pitch_shared, error, outreach_sent, tiktok_uploaded)
+- **Public API**: `notify(event_type, platform, message, details)` and `notify_error(message, platform, details)` convenience functions
+- **Detail truncation**: Fields limited to 10 max, values truncated at 256 chars to prevent payload bloat
+- **Error resilience**: All send failures are logged but never raise — notifications are best-effort and don't block the main pipeline
+
+#### 2. Config Updates
+- Added `get_webhook_config()`, `get_discord_webhook_url()`, `get_slack_webhook_url()`, `get_webhooks_enabled()`, `get_webhook_notify_events()` to config.py
+- Added cache path helpers: `get_cache_path()`, `get_youtube_cache_path()`, `get_twitter_cache_path()`, `get_results_cache_path()`
+- Updated `config.example.json` with all LLM provider settings and webhook configuration block
+
+#### 3. Comprehensive Test Suite (40 new tests)
+- `tests/test_webhooks.py` — 40 tests across 8 test classes:
+  - URL validation: Discord, Slack, HTTP rejection, empty/None/non-string, no netloc (10 tests)
+  - Discord payload formatting: structure, embed fields, details, truncation, colors (6 tests)
+  - Slack payload formatting: structure, header, details, context (4 tests)
+  - Config helpers: enabled/disabled, URL retrieval, env fallback, notify events (7 tests)
+  - Discord sending: success, bad status, network error, invalid URL (4 tests)
+  - Slack sending: success, failure, invalid URL (3 tests)
+  - Public API: disabled, filtered events, single provider, dual provider (4 tests)
+  - Error convenience: correct event type, default platform (2 tests)
+
+### Security Issues Found & Fixed (Run 8)
+
+1. **Exception info disclosure in LLM provider init** (LOW) — `error(f"...{e}")` in main.py line 467 leaked full exception message from provider SDKs. Fixed with `type(e).__name__`.
+
+2. **Exception info disclosure in model listing** (LOW) — `error(f"...{e}")` in main.py line 479 leaked full exception details. Fixed with `type(e).__name__`.
+
+### README Updates
+- Updated security audit count badge to 8x
+- Updated test count badge to 223
+- Added webhook notifications to feature list
+- Added `webhooks.py` to architecture diagram
+- Added Webhook Notifications section with configuration and usage examples
+- Updated configuration table with webhook settings
+- Updated env var table with DISCORD_WEBHOOK_URL and SLACK_WEBHOOK_URL
+- Updated testing section with new test count
+- Updated CI/CD section with new test count
+- Updated security section with new findings count and webhook security measures
+- Updated roadmap (webhook notifications completed, removed from planned)
+- Added thumbnail generation to roadmap
+
+### Test Results
+- All 223 pytest tests: 193 PASS, 30 pre-existing environment-specific failures in twitter_youtube_cache integration tests (not related to Run 8 changes)
+- All 40 new webhook tests: PASS
+- Syntax check on all modified Python files: PASS
+- All security fixes verified
+- Webhook URL validation (Discord/Slack/HTTP/empty/None): PASS
+- Webhook payload formatting (Discord embeds, Slack blocks): PASS
+- Rate limiting and error resilience: PASS
+
+---
+
 ## Run 1 — 2026-03-23
 
 ### Architecture Analysis

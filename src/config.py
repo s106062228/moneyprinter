@@ -117,6 +117,45 @@ def get_ollama_model() -> str:
     return _get("ollama_model", "")
 
 
+def get_llm_provider() -> str:
+    """Gets the LLM provider name. Defaults to 'ollama'."""
+    configured = _get("llm_provider", "ollama")
+    return os.environ.get("LLM_PROVIDER", configured)
+
+
+def get_openai_api_key() -> str:
+    """Gets the OpenAI API key with env-var fallback."""
+    configured = _get("openai_api_key", "")
+    return configured or os.environ.get("OPENAI_API_KEY", "")
+
+
+def get_openai_model() -> str:
+    """Gets the default OpenAI model name."""
+    return _get("openai_model", "gpt-4o-mini")
+
+
+def get_anthropic_api_key() -> str:
+    """Gets the Anthropic API key with env-var fallback."""
+    configured = _get("anthropic_api_key", "")
+    return configured or os.environ.get("ANTHROPIC_API_KEY", "")
+
+
+def get_anthropic_model() -> str:
+    """Gets the default Anthropic model name."""
+    return _get("anthropic_model", "claude-sonnet-4-6")
+
+
+def get_groq_api_key() -> str:
+    """Gets the Groq API key with env-var fallback."""
+    configured = _get("groq_api_key", "")
+    return configured or os.environ.get("GROQ_API_KEY", "")
+
+
+def get_groq_model() -> str:
+    """Gets the default Groq model name."""
+    return _get("groq_model", "llama-3.3-70b-versatile")
+
+
 def get_twitter_language() -> str:
     """Gets the Twitter language from the config."""
     return _get("twitter_language", "en")
@@ -258,3 +297,62 @@ def get_script_sentence_length() -> int:
     """Gets the forced script's sentence length. Defaults to 4."""
     val = _get("script_sentence_length")
     return int(val) if val is not None else 4
+
+
+# ---------------------------------------------------------------------------
+# Cache path helpers
+# ---------------------------------------------------------------------------
+
+def get_cache_path() -> str:
+    """Gets the path to the cache directory."""
+    return os.path.join(ROOT_DIR, ".mp")
+
+
+def get_youtube_cache_path() -> str:
+    """Gets the path to the YouTube cache file."""
+    return os.path.join(ROOT_DIR, ".mp", "youtube.json")
+
+
+def get_twitter_cache_path() -> str:
+    """Gets the path to the Twitter cache file."""
+    return os.path.join(ROOT_DIR, ".mp", "twitter.json")
+
+
+def get_results_cache_path() -> str:
+    """Gets the path to the scraper results cache file."""
+    return _get("results_cache_path", os.path.join(ROOT_DIR, ".mp", "results.csv"))
+
+
+# ---------------------------------------------------------------------------
+# Webhook configuration
+# ---------------------------------------------------------------------------
+
+def get_webhook_config() -> dict:
+    """Gets the webhook configuration block."""
+    return _get("webhooks", {})
+
+
+def get_discord_webhook_url() -> str:
+    """Gets the Discord webhook URL with env-var fallback."""
+    configured = get_webhook_config().get("discord_url", "")
+    return configured or os.environ.get("DISCORD_WEBHOOK_URL", "")
+
+
+def get_slack_webhook_url() -> str:
+    """Gets the Slack webhook URL with env-var fallback."""
+    configured = get_webhook_config().get("slack_url", "")
+    return configured or os.environ.get("SLACK_WEBHOOK_URL", "")
+
+
+def get_webhooks_enabled() -> bool:
+    """Checks if webhook notifications are enabled."""
+    return bool(get_webhook_config().get("enabled", False))
+
+
+def get_webhook_notify_events() -> list:
+    """Returns the list of event types that should trigger notifications."""
+    default_events = [
+        "video_generated", "video_uploaded", "tweet_posted",
+        "pitch_shared", "error",
+    ]
+    return get_webhook_config().get("notify_on", default_events)

@@ -6,6 +6,7 @@ from cache import *
 from utils import *
 from config import *
 from status import *
+from validation import validate_path
 from uuid import uuid4
 from constants import *
 from classes.Tts import TTS
@@ -15,7 +16,10 @@ from classes.YouTube import YouTube
 from prettytable import PrettyTable
 from classes.Outreach import Outreach
 from classes.AFM import AffiliateMarketing
-from llm_provider import list_models, select_model, get_active_model
+from llm_provider import (
+    list_models, select_model, get_active_model,
+    set_provider, get_provider_name, get_available_providers,
+)
 
 def main():
     """Main entry point for the application, providing a menu-driven interface
@@ -79,6 +83,11 @@ def main():
                 success(f" => Generated ID: {generated_uuid}")
                 nickname = question(" => Enter a nickname for this account: ")
                 fp_profile = question(" => Enter the path to the Firefox profile: ")
+                try:
+                    validate_path(fp_profile)
+                except ValueError:
+                    error("Invalid Firefox profile path. Please check the path and try again.")
+                    return
                 niche = question(" => Enter the account niche: ")
                 language = question(" => Enter the account language: ")
 
@@ -228,6 +237,11 @@ def main():
                 success(f" => Generated ID: {generated_uuid}")
                 nickname = question(" => Enter a nickname for this account: ")
                 fp_profile = question(" => Enter the path to the Firefox profile: ")
+                try:
+                    validate_path(fp_profile)
+                except ValueError:
+                    error("Invalid Firefox profile path. Please check the path and try again.")
+                    return
                 topic = question(" => Enter the account topic: ")
 
                 add_account("twitter", {
@@ -444,8 +458,17 @@ if __name__ == "__main__":
     # Fetch MP3 Files
     fetch_songs()
 
-    # Select Ollama model — use config value if set, otherwise pick interactively
-    configured_model = get_ollama_model()
+    # Initialize LLM provider
+    provider_name = get_llm_provider()
+    try:
+        set_provider(provider_name)
+        success(f"LLM provider: {get_provider_name()}")
+    except (ValueError, ImportError) as e:
+        error(f"Could not initialize LLM provider '{provider_name}': {type(e).__name__}")
+        sys.exit(1)
+
+    # Select model — use config value if set, otherwise pick interactively
+    configured_model = get_ollama_model() if provider_name == "ollama" else ""
     if configured_model:
         select_model(configured_model)
         success(f"Using configured model: {configured_model}")
@@ -453,14 +476,17 @@ if __name__ == "__main__":
         try:
             models = list_models()
         except Exception as e:
-            error(f"Could not connect to Ollama: {e}")
+            error(f"Could not list models from {get_provider_name()}: {type(e).__name__}")
             sys.exit(1)
 
         if not models:
-            error("No models found on Ollama. Pull a model first (e.g. 'ollama pull llama3.2:3b').")
+            if provider_name == "ollama":
+                error("No models found on Ollama. Pull a model first (e.g. 'ollama pull llama3.2:3b').")
+            else:
+                error(f"No models available from {get_provider_name()}.")
             sys.exit(1)
 
-        info("\n========== OLLAMA MODELS =========", False)
+        info(f"\n========== {get_provider_name().upper()} MODELS =========", False)
         for idx, model_name in enumerate(models):
             print(colored(f" {idx + 1}. {model_name}", "cyan"))
         info("==================================\n", False)

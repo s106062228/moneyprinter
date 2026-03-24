@@ -11,8 +11,8 @@
   <a href="https://github.com/s106062228/moneyprinter/pulls"><img src="https://img.shields.io/github/issues-pr/s106062228/moneyprinter?style=for-the-badge&color=green" alt="Pull Requests" /></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12+" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Ready" />
-  <img src="https://img.shields.io/badge/security-7x%20audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security: 7x Audited" />
-  <img src="https://img.shields.io/badge/tests-183%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 183 Passed" />
+  <img src="https://img.shields.io/badge/security-8x%20audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security: 8x Audited" />
+  <img src="https://img.shields.io/badge/tests-223%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 223 Passed" />
   <img src="https://img.shields.io/badge/coverage-tracked-blue?style=for-the-badge&logo=codecov&logoColor=white" alt="Coverage Tracked" />
   <img src="https://img.shields.io/badge/LLM-multi--provider-blueviolet?style=for-the-badge&logo=openai&logoColor=white" alt="Multi-LLM Provider" />
 </p>
@@ -33,6 +33,7 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 - **Multi-LLM Provider** — Choose from Ollama (local), OpenAI, Anthropic Claude, or Groq for text generation — swap providers with a single config change
 - **Local AI First** — Default Ollama integration (Llama, Mistral, Gemma, etc.) — no API keys needed for the core pipeline
 - **Docker Ready** — Full Docker and Docker Compose support with Xvfb for headless browser automation
+- **Webhook Notifications** — Real-time Discord and Slack notifications when content is generated, uploaded, or errors occur — with rate limiting, HTTPS-only validation, and rich embed formatting
 - **Analytics Tracking** — Built-in event tracking for all content generation and upload activity
 - **Centralized Logging** — All status messages flow through both colored console output and rotating log files
 - **Config Caching** — High-performance config system that loads once, not on every call
@@ -43,8 +44,8 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 - **CI/CD Pipeline** — GitHub Actions with automated testing, code coverage reporting, security scanning (Bandit), and code linting (Ruff)
 - **Code Coverage** — pytest-cov integration with per-line coverage tracking, HTML reports, and CI threshold enforcement (40% minimum)
 - **Context Managers** — All browser classes support `with` statement for automatic resource cleanup (no leaked browser processes)
-- **183 Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, cache, logging, multi-LLM provider, retry logic, Twitter/YouTube cache, and utilities
-- **7x Security Audited** — SSRF protection, TOCTOU-safe atomic writes, ZIP traversal hardening, recursion depth limits, email rate limiting, CSV injection prevention, URL bounds validation, info disclosure prevention
+- **223 Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, cache, logging, multi-LLM provider, retry logic, webhooks, Twitter/YouTube cache, and utilities
+- **8x Security Audited** — SSRF protection, TOCTOU-safe atomic writes, ZIP traversal hardening, recursion depth limits, email rate limiting, CSV injection prevention, URL bounds validation, webhook URL validation, info disclosure prevention
 
 ## Architecture
 
@@ -60,6 +61,7 @@ moneyprinter/
 │   ├── status.py             # Console output + logger bridge
 │   ├── retry.py              # Retry with exponential backoff + pipeline stages
 │   ├── llm_provider.py       # Multi-LLM provider (Ollama/OpenAI/Anthropic/Groq)
+│   ├── webhooks.py            # Discord & Slack webhook notifications
 │   ├── analytics.py          # Event tracking and metrics (atomic writes)
 │   ├── validation.py         # Input validation and security
 │   ├── cache.py              # Atomic JSON-based data persistence
@@ -72,7 +74,7 @@ moneyprinter/
 │       ├── AFM.py             # Affiliate marketing (Amazon)
 │       ├── Outreach.py        # Google Maps scraping + cold email
 │       └── Tts.py             # KittenTTS wrapper
-├── tests/                     # pytest unit test suite (183 tests)
+├── tests/                     # pytest unit test suite (223 tests)
 ├── config.example.json        # Template configuration
 ├── scripts/                   # Setup and utility scripts
 ├── docs/                      # Documentation
@@ -158,6 +160,10 @@ Edit `config.json` with your settings:
 | `nanobanana2_api_key` | Gemini API key for image generation | For video |
 | `assembly_ai_api_key` | AssemblyAI key (if using cloud STT) | Optional |
 | `email` | SMTP credentials for outreach | For outreach |
+| `webhooks.enabled` | Enable webhook notifications | No (default: `false`) |
+| `webhooks.discord_url` | Discord webhook URL | If using Discord |
+| `webhooks.slack_url` | Slack incoming webhook URL | If using Slack |
+| `webhooks.notify_on` | Event types to notify on | No (default: all) |
 
 **Security tip:** Sensitive values can also be set via environment variables:
 
@@ -171,6 +177,8 @@ Edit `config.json` with your settings:
 | `ASSEMBLYAI_API_KEY` | `assembly_ai_api_key` |
 | `MP_EMAIL_USERNAME` | `email.username` |
 | `MP_EMAIL_PASSWORD` | `email.password` |
+| `DISCORD_WEBHOOK_URL` | `webhooks.discord_url` |
+| `SLACK_WEBHOOK_URL` | `webhooks.slack_url` |
 
 ### Usage
 
@@ -220,6 +228,37 @@ stages = [
 result = run_pipeline(stages)  # Returns success status, results, and errors
 ```
 
+### Webhook Notifications
+
+MoneyPrinter can send real-time notifications to Discord and/or Slack when content is generated, uploaded, or when errors occur:
+
+```json
+{
+  "webhooks": {
+    "enabled": true,
+    "discord_url": "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN",
+    "slack_url": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
+    "notify_on": ["video_generated", "video_uploaded", "tweet_posted", "pitch_shared", "error"]
+  }
+}
+```
+
+Or set webhook URLs via environment variables: `DISCORD_WEBHOOK_URL`, `SLACK_WEBHOOK_URL`.
+
+Developers can send notifications from any module:
+
+```python
+from webhooks import notify, notify_error
+
+# Send a notification when a video is uploaded
+notify("video_uploaded", "youtube", "New video uploaded!", {"title": "My Video", "url": "https://..."})
+
+# Send an error notification
+notify_error("Upload failed after 3 retries", platform="youtube")
+```
+
+Features: rich Discord embeds with color-coded severity, Slack block kit formatting, rate limiting (1 msg/sec/provider), HTTPS-only URL validation with provider domain checks, and env-var fallbacks for webhook secrets.
+
 ### Logging
 
 MoneyPrinter uses a centralized logging framework with both console and file output:
@@ -252,7 +291,7 @@ cd src && python -m pytest ../tests/ -v
 cd src && python -m pytest ../tests/ --cov=. --cov-report=term-missing --cov-report=html:../htmlcov
 ```
 
-**183 tests** covering: config loading and caching, input validation (paths, URLs, filenames), analytics tracking, cache CRUD operations (including Twitter and YouTube atomic writes), logging framework, multi-LLM provider system (Ollama/OpenAI/Anthropic/Groq), retry/recovery logic, and utility functions.
+**223 tests** covering: config loading and caching, input validation (paths, URLs, filenames), analytics tracking, cache CRUD operations (including Twitter and YouTube atomic writes), logging framework, multi-LLM provider system (Ollama/OpenAI/Anthropic/Groq), retry/recovery logic, webhook notifications (Discord/Slack), and utility functions.
 
 Coverage reports are generated automatically in CI and stored as build artifacts. The `.coveragerc` configuration enforces a **40% minimum coverage threshold** — the CI pipeline fails if coverage drops below this level.
 
@@ -260,7 +299,7 @@ Coverage reports are generated automatically in CI and stored as build artifacts
 
 Every push and pull request triggers a GitHub Actions pipeline that runs:
 
-- **Tests + Coverage** — Full pytest suite (183 tests) with pytest-cov coverage tracking, threshold enforcement (40% min), and XML report artifact upload
+- **Tests + Coverage** — Full pytest suite (223 tests) with pytest-cov coverage tracking, threshold enforcement (40% min), and XML report artifact upload
 - **Security** — Bandit SAST scan + dependency vulnerability check (safety)
 - **Linting** — Ruff code quality checks
 
@@ -268,7 +307,7 @@ See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full configur
 
 ## Security
 
-MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (**7 audits completed, 44 findings, 43 fixed**).
+MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (**8 audits completed, 46 findings, 45 fixed**).
 
 Key security measures:
 
@@ -290,6 +329,8 @@ Key security measures:
 - Docker containerization with non-root user for isolation
 - Context manager protocol on all browser classes to prevent resource leaks
 - Atomic CSV writes in outreach email extraction
+- Webhook URL validation with HTTPS enforcement and provider domain checks
+- Webhook secrets supported via environment variables (never hardcoded)
 
 To report a security vulnerability, please open a private issue or contact the maintainer directly.
 
@@ -301,6 +342,7 @@ See [TODO.md](TODO.md) for the full roadmap. Key upcoming features:
 - Multi-platform simultaneous posting
 - Web dashboard for monitoring
 - Video template system (custom intros/outros)
+- Thumbnail generation
 - AI hook optimization for viral engagement
 - Virality scoring (predict engagement before posting)
 

@@ -40,6 +40,9 @@
 - [x] Security audit (Run 7) — Non-atomic CSV write, browser resource leaks, exception info disclosure (6 locations), niche length limit, URL leak in error messages
 - [x] Coverage reporting with threshold enforcement (40% minimum)
 - [x] Coverage artifact upload in CI pipeline
+- [x] Webhook notifications (Discord, Slack) with rate limiting and rich formatting
+- [x] Security audit (Run 8) — info disclosure in main.py, webhook URL validation, config.example.json updated
+- [x] Unit tests for webhook module (40 new tests, 223 total)
 
 ## In Progress
 - [ ] Instagram Reels upload integration
@@ -52,7 +55,6 @@
 - [ ] Video template system (custom intros/outros)
 - [ ] Thumbnail generation
 - [ ] SEO optimization for generated titles/descriptions
-- [ ] Webhook notifications (Discord, Slack)
 - [ ] Content calendar / scheduling UI
 - [ ] A/B testing for video titles and thumbnails
 - [ ] AI hook optimization (trending hooks for better engagement)
