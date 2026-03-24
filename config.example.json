@@ -44,5 +44,10 @@
     "discord_url": "",
     "slack_url": "",
     "notify_on": ["video_generated", "video_uploaded", "tweet_posted", "pitch_shared", "error"]
+  },
+  "publisher": {
+    "platforms": ["youtube"],
+    "retry_failed": true,
+    "max_retries": 2
   }
 }

@@ -58,11 +58,19 @@ def rem_temp_files() -> None:
     # Path to the `.mp` directory
     mp_dir = os.path.join(ROOT_DIR, ".mp")
 
+    if not os.path.isdir(mp_dir):
+        return
+
     files = os.listdir(mp_dir)
 
     for file in files:
-        if not file.endswith(".json"):
-            os.remove(os.path.join(mp_dir, file))
+        file_path = os.path.join(mp_dir, file)
+        # Only remove regular files, skip directories (like logs/) and JSON caches
+        if os.path.isfile(file_path) and not file.endswith(".json"):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
 
 
 def fetch_songs() -> None:

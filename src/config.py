@@ -32,7 +32,7 @@ def _load_config() -> dict:
         with open(_config_path, "r") as f:
             _config_cache = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as exc:
-        print(colored(f"[config] Failed to load {_config_path}: {exc}", "red"))
+        print(colored(f"[config] Failed to load config: {type(exc).__name__}", "red"))
         _config_cache = {}
     return _config_cache
 

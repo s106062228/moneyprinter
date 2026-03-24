@@ -43,10 +43,13 @@
 - [x] Webhook notifications (Discord, Slack) with rate limiting and rich formatting
 - [x] Security audit (Run 8) — info disclosure in main.py, webhook URL validation, config.example.json updated
 - [x] Unit tests for webhook module (40 new tests, 223 total)
+- [x] Multi-platform content publisher (`publisher.py`) with cross-platform orchestration, retry logic, analytics integration, and webhook notifications
+- [x] Security audit (Run 9) — analytics unbounded growth, config path disclosure, input echo, scraper path disclosure, temp file safety
+- [x] Analytics event rotation (10,000 max events to prevent disk exhaustion)
+- [x] Unit tests for publisher module (34 new tests, 257 total)
 
 ## In Progress
 - [ ] Instagram Reels upload integration
-- [ ] Multi-platform simultaneous posting
 
 ## Planned — High Priority
 - [ ] Web dashboard for monitoring content generation

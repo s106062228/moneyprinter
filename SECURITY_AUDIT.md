@@ -1,7 +1,7 @@
 # Security Audit Report — MoneyPrinter
 
 **Last Updated:** 2026-03-24
-**Audit Run:** 8
+**Audit Run:** 9
 
 ## Summary
 
@@ -9,8 +9,8 @@
 |----------|-------|-------|
 | Critical | 2 | 2 |
 | High | 5 | 5 |
-| Medium | 20 | 20 |
-| Low | 19 | 18 |
+| Medium | 21 | 21 |
+| Low | 23 | 21 |
 
 ## Findings — Run 1
 
@@ -361,4 +361,40 @@
 - **File:** `src/main.py` line 479
 - **Issue:** `error(f"Could not list models from {get_provider_name()}: {e}")` leaked full exception message from the LLM provider, potentially exposing API endpoints, auth errors, or system paths.
 - **Fix:** Changed to `type(e).__name__` — only exposes exception class name.
+- **Status:** ✅ Fixed
+
+## Findings — Run 9
+
+### MEDIUM
+
+#### 47. Unbounded analytics event growth (disk exhaustion)
+- **File:** `src/analytics.py` — `track_event()`
+- **Issue:** Analytics events were appended to `analytics.json` indefinitely with no rotation or size limit. Over time (especially with automated cron jobs running daily), this file could grow to hundreds of megabytes or gigabytes, eventually filling the disk.
+- **Fix:** Added `_MAX_EVENTS = 10000` constant and event rotation — when events exceed 10,000, oldest events are trimmed on each write. Keeps disk usage bounded while retaining recent history.
+- **Status:** ✅ Fixed
+
+### LOW
+
+#### 48. Config load error leaks full file path and JSON parse details
+- **File:** `src/config.py` line 35
+- **Issue:** `print(colored(f"[config] Failed to load {_config_path}: {exc}", "red"))` leaked the full filesystem path to `config.json` and the full JSON decode error message (which can include byte offsets and partial content).
+- **Fix:** Changed to `type(exc).__name__` — only exposes exception class name, no paths or content details.
+- **Status:** ✅ Fixed
+
+#### 49. ValueError message echoed to user in main menu
+- **File:** `src/main.py` line 67
+- **Issue:** `print(f"Invalid input: {e}")` echoed the full ValueError exception message to the user. While the exception came from user input (int conversion), the pattern could leak internal details if the error handling path changed.
+- **Fix:** Changed to generic message: "Invalid input. Please enter a valid number."
+- **Status:** ✅ Fixed
+
+#### 50. File path disclosure in scraper output error
+- **File:** `src/classes/Outreach.py` line 283
+- **Issue:** `error(f" => Scraper output not found at {output_path}. Check scraper logs and configuration.")` leaked the full filesystem path to the scraper output file.
+- **Fix:** Changed to generic message without file path.
+- **Status:** ✅ Fixed
+
+#### 51. rem_temp_files crashes if .mp directory missing
+- **File:** `src/utils.py` — `rem_temp_files()`
+- **Issue:** `os.listdir(mp_dir)` would raise `FileNotFoundError` if `.mp` didn't exist yet (first run). Also, `os.remove()` was called without checking if the entry was a file (could fail on subdirectories like `logs/`), and had no error handling for permission issues.
+- **Fix:** Added `os.path.isdir()` guard, `os.path.isfile()` check, and try/except OSError wrapper.
 - **Status:** ✅ Fixed

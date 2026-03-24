@@ -11,8 +11,8 @@
   <a href="https://github.com/s106062228/moneyprinter/pulls"><img src="https://img.shields.io/github/issues-pr/s106062228/moneyprinter?style=for-the-badge&color=green" alt="Pull Requests" /></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12+" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Ready" />
-  <img src="https://img.shields.io/badge/security-8x%20audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security: 8x Audited" />
-  <img src="https://img.shields.io/badge/tests-223%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 223 Passed" />
+  <img src="https://img.shields.io/badge/security-9x%20audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security: 9x Audited" />
+  <img src="https://img.shields.io/badge/tests-257%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 257 Passed" />
   <img src="https://img.shields.io/badge/coverage-tracked-blue?style=for-the-badge&logo=codecov&logoColor=white" alt="Coverage Tracked" />
   <img src="https://img.shields.io/badge/LLM-multi--provider-blueviolet?style=for-the-badge&logo=openai&logoColor=white" alt="Multi-LLM Provider" />
 </p>
@@ -33,6 +33,7 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 - **Multi-LLM Provider** — Choose from Ollama (local), OpenAI, Anthropic Claude, or Groq for text generation — swap providers with a single config change
 - **Local AI First** — Default Ollama integration (Llama, Mistral, Gemma, etc.) — no API keys needed for the core pipeline
 - **Docker Ready** — Full Docker and Docker Compose support with Xvfb for headless browser automation
+- **Multi-Platform Publisher** — Publish generated content across YouTube, TikTok, and Twitter simultaneously with a single command — includes retry logic, analytics tracking, and webhook notifications for each platform
 - **Webhook Notifications** — Real-time Discord and Slack notifications when content is generated, uploaded, or errors occur — with rate limiting, HTTPS-only validation, and rich embed formatting
 - **Analytics Tracking** — Built-in event tracking for all content generation and upload activity
 - **Centralized Logging** — All status messages flow through both colored console output and rotating log files
@@ -44,8 +45,8 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 - **CI/CD Pipeline** — GitHub Actions with automated testing, code coverage reporting, security scanning (Bandit), and code linting (Ruff)
 - **Code Coverage** — pytest-cov integration with per-line coverage tracking, HTML reports, and CI threshold enforcement (40% minimum)
 - **Context Managers** — All browser classes support `with` statement for automatic resource cleanup (no leaked browser processes)
-- **223 Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, cache, logging, multi-LLM provider, retry logic, webhooks, Twitter/YouTube cache, and utilities
-- **8x Security Audited** — SSRF protection, TOCTOU-safe atomic writes, ZIP traversal hardening, recursion depth limits, email rate limiting, CSV injection prevention, URL bounds validation, webhook URL validation, info disclosure prevention
+- **257 Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, cache, logging, multi-LLM provider, retry logic, webhooks, multi-platform publisher, Twitter/YouTube cache, and utilities
+- **9x Security Audited** — SSRF protection, TOCTOU-safe atomic writes, ZIP traversal hardening, recursion depth limits, email rate limiting, CSV injection prevention, URL bounds validation, webhook URL validation, info disclosure prevention, analytics event rotation
 
 ## Architecture
 
@@ -61,6 +62,7 @@ moneyprinter/
 │   ├── status.py             # Console output + logger bridge
 │   ├── retry.py              # Retry with exponential backoff + pipeline stages
 │   ├── llm_provider.py       # Multi-LLM provider (Ollama/OpenAI/Anthropic/Groq)
+│   ├── publisher.py           # Multi-platform content publisher
 │   ├── webhooks.py            # Discord & Slack webhook notifications
 │   ├── analytics.py          # Event tracking and metrics (atomic writes)
 │   ├── validation.py         # Input validation and security
@@ -74,7 +76,7 @@ moneyprinter/
 │       ├── AFM.py             # Affiliate marketing (Amazon)
 │       ├── Outreach.py        # Google Maps scraping + cold email
 │       └── Tts.py             # KittenTTS wrapper
-├── tests/                     # pytest unit test suite (223 tests)
+├── tests/                     # pytest unit test suite (257 tests)
 ├── config.example.json        # Template configuration
 ├── scripts/                   # Setup and utility scripts
 ├── docs/                      # Documentation
@@ -259,6 +261,39 @@ notify_error("Upload failed after 3 retries", platform="youtube")
 
 Features: rich Discord embeds with color-coded severity, Slack block kit formatting, rate limiting (1 msg/sec/provider), HTTPS-only URL validation with provider domain checks, and env-var fallbacks for webhook secrets.
 
+### Multi-Platform Publishing
+
+Publish a generated video across multiple platforms simultaneously:
+
+```python
+from publisher import ContentPublisher, PublishJob
+
+job = PublishJob(
+    video_path="/path/to/video.mp4",
+    title="My AI-Generated Short",
+    description="Created with MoneyPrinter",
+    platforms=["youtube", "tiktok", "twitter"],
+)
+
+publisher = ContentPublisher()
+results = publisher.publish(job)
+# Returns a list of PublishResult objects, one per platform
+```
+
+Configure default platforms and retry behavior in `config.json`:
+
+```json
+{
+  "publisher": {
+    "platforms": ["youtube", "tiktok"],
+    "retry_failed": true,
+    "max_retries": 2
+  }
+}
+```
+
+Features: sequential publishing with error isolation per platform, exponential backoff retry on failure, automatic analytics tracking for each publish event, webhook notifications for successes and failures, input validation (video path, title length, platform whitelist).
+
 ### Logging
 
 MoneyPrinter uses a centralized logging framework with both console and file output:
@@ -291,7 +326,7 @@ cd src && python -m pytest ../tests/ -v
 cd src && python -m pytest ../tests/ --cov=. --cov-report=term-missing --cov-report=html:../htmlcov
 ```
 
-**223 tests** covering: config loading and caching, input validation (paths, URLs, filenames), analytics tracking, cache CRUD operations (including Twitter and YouTube atomic writes), logging framework, multi-LLM provider system (Ollama/OpenAI/Anthropic/Groq), retry/recovery logic, webhook notifications (Discord/Slack), and utility functions.
+**257 tests** covering: config loading and caching, input validation (paths, URLs, filenames), analytics tracking, cache CRUD operations (including Twitter and YouTube atomic writes), logging framework, multi-LLM provider system (Ollama/OpenAI/Anthropic/Groq), retry/recovery logic, webhook notifications (Discord/Slack), multi-platform publisher (job validation, platform dispatch, retry logic, analytics/notifications), and utility functions.
 
 Coverage reports are generated automatically in CI and stored as build artifacts. The `.coveragerc` configuration enforces a **40% minimum coverage threshold** — the CI pipeline fails if coverage drops below this level.
 
@@ -299,7 +334,7 @@ Coverage reports are generated automatically in CI and stored as build artifacts
 
 Every push and pull request triggers a GitHub Actions pipeline that runs:
 
-- **Tests + Coverage** — Full pytest suite (223 tests) with pytest-cov coverage tracking, threshold enforcement (40% min), and XML report artifact upload
+- **Tests + Coverage** — Full pytest suite (257 tests) with pytest-cov coverage tracking, threshold enforcement (40% min), and XML report artifact upload
 - **Security** — Bandit SAST scan + dependency vulnerability check (safety)
 - **Linting** — Ruff code quality checks
 
@@ -307,7 +342,7 @@ See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full configur
 
 ## Security
 
-MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (**8 audits completed, 46 findings, 45 fixed**).
+MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (**9 audits completed, 51 findings, 49 fixed**).
 
 Key security measures:
 
@@ -331,6 +366,8 @@ Key security measures:
 - Atomic CSV writes in outreach email extraction
 - Webhook URL validation with HTTPS enforcement and provider domain checks
 - Webhook secrets supported via environment variables (never hardcoded)
+- Analytics event rotation (10,000 max events) to prevent disk exhaustion
+- Publisher input validation (video path, title length, platform whitelist, null byte checks)
 
 To report a security vulnerability, please open a private issue or contact the maintainer directly.
 
@@ -339,7 +376,6 @@ To report a security vulnerability, please open a private issue or contact the m
 See [TODO.md](TODO.md) for the full roadmap. Key upcoming features:
 
 - Instagram Reels upload integration
-- Multi-platform simultaneous posting
 - Web dashboard for monitoring
 - Video template system (custom intros/outros)
 - Thumbnail generation

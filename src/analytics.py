@@ -15,6 +15,9 @@ from config import ROOT_DIR
 
 ANALYTICS_FILE = os.path.join(ROOT_DIR, ".mp", "analytics.json")
 
+# Maximum number of events to keep (prevents unbounded disk usage)
+_MAX_EVENTS = 10000
+
 
 def _load_analytics() -> dict:
     """Loads the analytics data from disk (TOCTOU-safe)."""
@@ -66,6 +69,10 @@ def track_event(
         "details": details or {},
     }
     data["events"].append(event)
+
+    # Rotate old events to prevent unbounded disk usage
+    if len(data["events"]) > _MAX_EVENTS:
+        data["events"] = data["events"][-_MAX_EVENTS:]
 
     # Update summary counters
     summary = data.setdefault("summary", {})

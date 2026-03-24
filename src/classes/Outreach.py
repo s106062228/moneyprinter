@@ -281,7 +281,7 @@ class Outreach:
 
         if not os.path.exists(output_path):
             error(
-                f" => Scraper output not found at {output_path}. Check scraper logs and configuration."
+                " => Scraper output not found. Check scraper logs and configuration."
             )
             os.remove(niche_path)
             return

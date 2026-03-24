@@ -64,7 +64,7 @@ def main():
             valid_input = True
         except ValueError as e:
             print("\n" * 100)
-            print(f"Invalid input: {e}")
+            print("Invalid input. Please enter a valid number.")
 
 
     # Start the selected option

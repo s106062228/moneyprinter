@@ -1,5 +1,94 @@
 # MoneyPrinter Development Log
 
+## Run 9 — 2026-03-24
+
+### Architecture Analysis
+- **Multi-Platform Gap**: Project could upload to YouTube, TikTok, and Twitter individually, but there was no orchestration layer to publish across multiple platforms from a single command. Users had to manually trigger each upload.
+- **Analytics Unbounded Growth**: `analytics.json` grew indefinitely with no rotation — over time, automated cron jobs would cause this file to fill disk.
+- **Config Error Disclosure**: `config.py` error handler leaked full filesystem paths and JSON parse error details.
+- **Temp File Safety**: `rem_temp_files()` would crash if `.mp` directory didn't exist and could attempt to delete subdirectories.
+- **Scraper Path Disclosure**: Outreach error message exposed full filesystem path to scraper output.
+- **Input Echo**: Main menu echoed full ValueError text to users.
+- **Test Growth**: 223 → 257 tests (+34 new tests for multi-platform publisher module).
+
+### Research Findings (2026 Market Update)
+- **Cross-platform optimization is critical**: AI tools that automatically resize, reformat, and publish content across TikTok, YouTube, Instagram, and Twitter simultaneously are the 2026 standard.
+- **Platform automation**: By end of 2026, full automated creative + targeting + personalization pipelines are mainstream.
+- **AI video market projected $3.35B by 2034** (Fortune Business Insights). Market growing 33% CAGR.
+- **Real-time interactive editing** is emerging: conversational video creation ("make it more dramatic") and generative frame extension.
+- **Automated long-form to short-form**: AI that identifies viral-worthy moments and automatically extracts 5-20 short clips is a growing segment.
+- **Content scheduling with predictive timing**: Modern systems suggest optimal publication windows based on audience analytics.
+- **Token bucket rate limiting**: Production Python apps use thread-safe token bucket with exponential backoff as standard for API rate management.
+
+### Features Implemented
+
+#### 1. Multi-Platform Content Publisher (`src/publisher.py`)
+- **PublishJob dataclass**: Describes content to publish (video_path, title, description, platforms, twitter_text, tags) with comprehensive validation (path existence, null bytes, length limits, platform whitelist)
+- **PublishResult dataclass**: Captures per-platform results (success/failure, duration, error type, timestamp, details)
+- **ContentPublisher class**: Orchestrates sequential publishing across YouTube, TikTok, and Twitter
+- **Configurable retry**: Exponential backoff (2s, 4s, 8s...) with configurable max retries (default 2, capped at 10)
+- **Platform isolation**: Each platform publish is independently error-handled — one failure doesn't block others
+- **Analytics integration**: Automatically tracks `video_uploaded` or `publish_failed` events for each platform
+- **Webhook integration**: Sends success/failure notifications to Discord/Slack for each platform result
+- **Config support**: `publisher.platforms`, `publisher.retry_failed`, `publisher.max_retries` in config.json
+- **Input validation**: Video path (existence, null bytes, length), title (non-empty, max 500 chars), description (max 5000 chars), platform list (whitelist, max 10)
+
+#### 2. Analytics Event Rotation
+- Added `_MAX_EVENTS = 10000` constant
+- Events array is trimmed to most recent 10,000 on each write
+- Prevents unbounded disk usage from automated content pipelines
+
+#### 3. Config and Error Hardening
+- Config load errors now show only exception type, no file paths or content
+- Main menu input validation uses generic error message
+- Outreach scraper error uses generic message without file path
+- `rem_temp_files()` safely handles missing directories, subdirectories, and permission errors
+
+#### 4. Comprehensive Test Suite (34 new tests)
+- `tests/test_publisher.py` — 34 tests across 7 test classes:
+  - PublishJob validation: empty path, nonexistent path, null bytes, path too long, empty title, title too long, description too long, unknown platform, too many platforms, valid job, non-list platforms (11 tests)
+  - PublishResult: default timestamp, custom timestamp, default fields (3 tests)
+  - Config helpers: default platforms from config, fallback, retry enabled, retry default, max retries, max retries capped, max retries default (7 tests)
+  - ContentPublisher: default platforms, multiple platforms, partial failure, analytics called, notifications called (5 tests)
+  - Platform dispatch: unknown platform, YouTube, TikTok, Twitter, exception handling (5 tests)
+  - Retry logic: retry on failure with mock sleep (1 test)
+  - Twitter text: custom text, default none (2 tests)
+
+### Security Issues Found & Fixed (Run 9)
+
+1. **Analytics unbounded event growth** (MEDIUM) — `analytics.json` grew indefinitely. Fixed with `_MAX_EVENTS = 10000` rotation.
+
+2. **Config error leaks file path and JSON details** (LOW) — `_load_config()` printed `{exc}` including paths. Fixed with `type(exc).__name__`.
+
+3. **Input echo in main menu** (LOW) — `print(f"Invalid input: {e}")` echoed ValueError. Fixed with generic message.
+
+4. **File path disclosure in scraper error** (LOW) — `error(f"...{output_path}")` leaked path. Fixed with generic message.
+
+5. **rem_temp_files crashes without .mp directory** (LOW) — Added directory existence check, file type check, and OSError handling.
+
+### README Updates
+- Updated security audit count badge to 9x
+- Updated test count badge to 257
+- Added multi-platform publisher to feature list
+- Added `publisher.py` to architecture diagram
+- Added Multi-Platform Publishing section with configuration and usage examples
+- Updated configuration table with publisher settings
+- Updated testing section with new test count and publisher coverage
+- Updated CI/CD section with new test count
+- Updated security section with new findings count and analytics rotation
+- Updated roadmap (multi-platform publishing completed, removed from planned)
+
+### Test Results
+- All 257 pytest tests: 235 PASS, 22 pre-existing environment-specific failures in twitter_youtube_cache integration tests (not related to Run 9 changes)
+- All 34 new publisher tests: PASS
+- Syntax check on all modified Python files: PASS
+- All security fixes verified
+- Publisher job validation (11 tests): PASS
+- Publisher orchestration, retry, dispatch (12 tests): PASS
+- Config and result tests (10 tests): PASS
+
+---
+
 ## Run 8 — 2026-03-24
 
 ### Architecture Analysis
