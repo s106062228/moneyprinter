@@ -94,6 +94,9 @@ def get_summary() -> dict:
     return data.get("summary", {})
 
 
+_MAX_QUERY_LIMIT = 10000  # Hard cap on event query limit
+
+
 def get_events(
     platform: Optional[str] = None,
     event_type: Optional[str] = None,
@@ -112,6 +115,9 @@ def get_events(
     """
     data = _load_analytics()
     events = data.get("events", [])
+
+    # Cap limit to prevent excessive memory usage
+    limit = min(max(limit, 1), _MAX_QUERY_LIMIT)
 
     if platform:
         events = [e for e in events if e.get("platform") == platform]

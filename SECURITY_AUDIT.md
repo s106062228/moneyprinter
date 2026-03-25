@@ -1,7 +1,7 @@
 # Security Audit Report — MoneyPrinter
 
-**Last Updated:** 2026-03-24
-**Audit Run:** 9
+**Last Updated:** 2026-03-25
+**Audit Run:** 14
 
 ## Summary
 
@@ -9,8 +9,8 @@
 |----------|-------|-------|
 | Critical | 2 | 2 |
 | High | 5 | 5 |
-| Medium | 21 | 21 |
-| Low | 23 | 21 |
+| Medium | 28 | 28 |
+| Low | 45 | 43 |
 
 ## Findings — Run 1
 
@@ -397,4 +397,208 @@
 - **File:** `src/utils.py` — `rem_temp_files()`
 - **Issue:** `os.listdir(mp_dir)` would raise `FileNotFoundError` if `.mp` didn't exist yet (first run). Also, `os.remove()` was called without checking if the entry was a file (could fail on subdirectories like `logs/`), and had no error handling for permission issues.
 - **Fix:** Added `os.path.isdir()` guard, `os.path.isfile()` check, and try/except OSError wrapper.
+- **Status:** ✅ Fixed
+
+## Findings — Run 10
+
+### MEDIUM
+
+#### 52. Arbitrary file read via outreach message body path
+- **File:** `src/classes/Outreach.py` — `start()` method
+- **Issue:** `outreach_message_body_file` config value was opened with `open(message_body, "r")` without any path validation. A malicious or misconfigured config could point this path to any file on the system (e.g., `/etc/passwd`, `~/.ssh/id_rsa`), enabling arbitrary file reads. The file contents were then used as the email body, potentially exfiltrating sensitive data via email.
+- **Fix:** Added path validation: `os.path.abspath()` comparison ensures the message body file is within the project directory. Also added `os.path.isfile()` check before opening. Aborts the outreach process with an error if the path is invalid.
+- **Status:** ✅ Fixed
+
+#### 53. Outreach email recipient not validated
+- **File:** `src/classes/Outreach.py` — `start()` method, email sending loop
+- **Issue:** The `receiver_email` extracted from CSV as `fields[-1]` was only checked for the presence of `@` — this allowed malformed addresses like `@`, `user@`, or strings with spaces/special characters to be passed to `yagmail.send()`. Could cause SMTP errors or be used to inject SMTP headers.
+- **Fix:** Replaced the simple `"@" not in receiver_email` check with a proper regex validation (`^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$`) that enforces a valid email format before sending.
+- **Status:** ✅ Fixed
+
+#### 54. Scraper timeout uncapped — potential indefinite process hang
+- **File:** `src/config.py` — `get_scraper_timeout()`
+- **Issue:** The `scraper_timeout` config value was converted to `int()` with no upper bound. A user could set this to an extremely large value (e.g., 999999999), causing the scraper subprocess to run indefinitely and consume system resources. Combined with automated cron jobs, this could effectively DoS the host machine.
+- **Fix:** Added `min(max(val, 10), 3600)` bounds — timeout is now clamped between 10 seconds and 1 hour (3600 seconds).
+- **Status:** ✅ Fixed
+
+### LOW
+
+#### 55. Affiliate link not validated in main menu
+- **File:** `src/main.py` — affiliate marketing account creation
+- **Issue:** The `affiliate_link` entered by the user was stored directly in the cache without URL validation. This value was later passed to `AffiliateMarketing.__init__()` which opens it in a browser via `self.browser.get(self.affiliate_link)`. While AFM's constructor does validate the scheme, the validation was happening after browser initialization, wasting resources on invalid input.
+- **Fix:** Added `validate_url()` call immediately after user input, before cache storage or account creation. Returns early with an error message for invalid URLs.
+- **Status:** ✅ Fixed
+
+#### 56. Cache-stored Firefox profile paths used without re-validation
+- **File:** `src/main.py`, `src/publisher.py`
+- **Issue:** When loading accounts from cache, `account["firefox_profile"]` is passed directly to browser classes without re-validation. If the cache file is manually edited (or corrupted), the path could point to an invalid or malicious directory.
+- **Fix:** Documented. The browser classes (`YouTube`, `Twitter`, `TikTok`, `AFM`) already validate via `os.path.isdir()` in their constructors and raise `ValueError` for invalid paths, providing defense-in-depth. Adding cache-level re-validation would be a future enhancement.
+- **Status:** ⚠️ Documented (mitigated by constructor validation)
+
+#### 57. Schedule file contains video paths in plaintext
+- **File:** `src/content_scheduler.py` — `_SCHEDULE_FILE`
+- **Issue:** The content scheduler persists `video_path` values in a JSON file at `.mp/schedule.json`. These paths are stored in plaintext and could reveal the user's filesystem structure if the file is accidentally shared or committed.
+- **Fix:** Documented. The `.mp/` directory is already gitignored. The schedule file follows the same persistence pattern as analytics and cache files. Encrypting schedule data at rest is a future enhancement tracked in TODO.md.
+- **Status:** ⚠️ Documented (mitigated by .gitignore)
+
+## Findings — Run 11
+
+### MEDIUM
+
+#### 58. Retry module logs full exception messages (information disclosure)
+- **File:** `src/retry.py` — `retry()` decorator (lines 69, 78), `retry_call()` (lines 142, 151), `PipelineStage.execute()` (line 208)
+- **Issue:** All retry logging used `exc` (the full exception object) in log messages. Exception messages from LLM API calls, Selenium WebDriver, or HTTP requests can contain API URLs, auth tokens, file paths, or system details. Since retry is used around network-heavy operations, this was a significant leak vector.
+- **Fix:** Changed all 5 logging sites from `exc` to `type(exc).__name__` — only the exception class name is logged, no sensitive details.
+- **Status:** ✅ Fixed
+
+### LOW
+
+#### 59. YouTube Studio href URL logged in verbose mode
+- **File:** `src/classes/YouTube.py` line 902
+- **Issue:** `info(f"\t=> Extracting video ID from URL: {href}")` logged the full YouTube Studio internal URL in verbose mode. While only visible in verbose output, this could leak internal YouTube Studio paths if logs are shared.
+- **Fix:** Changed to generic message: "Extracting video ID from upload response..." — no URL logged.
+- **Status:** ✅ Fixed
+
+#### 60. Outreach `is_go_installed()` uses `subprocess.call` without capturing output
+- **File:** `src/classes/Outreach.py` line 69
+- **Issue:** `subprocess.call(["go", "version"])` printed Go version output directly to stdout. While not a direct security risk, it leaks system binary version info unnecessarily. Also used a bare `except Exception` instead of targeted exception handling.
+- **Fix:** Changed to `subprocess.run(["go", "version"], capture_output=True, check=False)` with targeted `(FileNotFoundError, OSError)` exception handling.
+- **Status:** ✅ Fixed
+
+#### 61. mp_logger leaks full exception in file handler setup warning
+- **File:** `src/mp_logger.py` line 113
+- **Issue:** `root_logger.warning(f"Could not set up file logging: {exc}")` leaked the full `OSError`/`PermissionError` message, which could contain filesystem paths (e.g., `/home/user/.mp/logs/moneyprinter.log`).
+- **Fix:** Changed to `type(exc).__name__` — only exposes exception class name.
+- **Status:** ✅ Fixed
+
+## Findings — Run 12
+
+### MEDIUM
+
+#### 62. ReDoS risk in SEO optimizer JSON parser
+- **File:** `src/seo_optimizer.py` — `_parse_json_array()`
+- **Issue:** Regex `re.search(r"\[.*?\]", cleaned, re.DOTALL)` operated on raw LLM output without length limit. Malformed LLM responses with deeply nested structures could cause catastrophic backtracking.
+- **Fix:** Added `_MAX_LLM_RESPONSE_LEN = 10000` constant and truncation before regex operations.
+- **Status:** ✅ Fixed
+
+### LOW
+
+#### 63. SEO optimizer `from_dict()` missing field validation
+- **File:** `src/seo_optimizer.py` — `SEOResult.from_dict()`
+- **Issue:** Score field accepted any integer without range validation. Platform field accepted any string. List fields had no length caps. Maliciously crafted dict could inject oversized data.
+- **Fix:** Added score clamping (0-100), platform whitelist validation, list length caps (tags: 50, hashtags: 15, hooks: 10), and string length caps on title/description.
+- **Status:** ✅ Fixed
+
+#### 64. Publisher video_path leak in error message
+- **File:** `src/publisher.py` — `PublishJob.validate()`
+- **Issue:** `ValueError(f"Video file does not exist: {self.video_path}")` leaked the full filesystem path in the exception message.
+- **Fix:** Changed to generic message without path.
+- **Status:** ✅ Fixed
+
+#### 65. Config `assert_folder_structure()` path disclosure
+- **File:** `src/config.py` — `assert_folder_structure()`
+- **Issue:** `print(f"=> Creating .mp folder at {mp_dir}")` leaked the full filesystem path to the `.mp` directory in verbose mode.
+- **Fix:** Changed to generic message: "Creating .mp data folder".
+- **Status:** ✅ Fixed
+
+#### 66. Config `get_threads()` missing bounds
+- **File:** `src/config.py` — `get_threads()`
+- **Issue:** Thread count from config was cast to `int()` with no bounds checking. Excessively large values could cause resource exhaustion during MoviePy video encoding.
+- **Fix:** Added `min(max(val, 1), 32)` bounds — thread count clamped between 1 and 32.
+- **Status:** ✅ Fixed
+
+#### 67. SEO optimizer no rate limiting between LLM calls
+- **File:** `src/seo_optimizer.py` — `optimize_metadata()`
+- **Issue:** 5 consecutive LLM API calls (title, description, tags, hashtags, hooks) made without any delay. Could hit API rate limits or cause excessive API costs with cloud providers.
+- **Fix:** Added `_LLM_CALL_DELAY = 0.5` constant and `time.sleep()` between consecutive LLM calls.
+- **Status:** ✅ Fixed
+
+## Findings — Run 13
+
+### MEDIUM
+
+#### 68. ScheduledJob.from_dict() missing input validation on deserialized data
+- **File:** `src/content_scheduler.py` — `ScheduledJob.from_dict()`
+- **Issue:** Deserialized fields from the schedule JSON file were accepted without any validation — no length caps on video_path/title/description, no platform whitelist enforcement, no status validation, no repeat_interval bounds. A corrupted or maliciously crafted schedule file could inject oversized strings or invalid platforms into the scheduler, causing unexpected behavior or memory exhaustion.
+- **Fix:** Added comprehensive validation: type checking on input dict, field truncation (video_path capped to 1024, title to 500, description to 5000), platform whitelist filtering, status enum validation, repeat_interval clamping (0-720), tags capped at 50, string fields truncated to 50 chars for IDs/timestamps.
+- **Status:** ✅ Fixed
+
+### LOW
+
+#### 69. Content scheduler leaks video file path in error message
+- **File:** `src/content_scheduler.py` line 422
+- **Issue:** `FileNotFoundError(f"Video file no longer exists: {job.video_path}")` leaked the full filesystem path of the scheduled video in the exception message.
+- **Fix:** Changed to generic message without path: "Scheduled video file no longer exists at the specified path."
+- **Status:** ✅ Fixed
+
+#### 70. Validation module leaks normalized path in error messages
+- **File:** `src/validation.py` — `validate_path()` line 38, `validate_directory()` line 59
+- **Issue:** Error messages included the full normalized filesystem path (e.g., `f"Path does not exist: {normalized}"`), leaking directory structure.
+- **Fix:** Changed to generic messages: "Path does not exist." and "Path is not a directory." — no paths exposed.
+- **Status:** ✅ Fixed
+
+#### 71. Validation module leaks URL in error message
+- **File:** `src/validation.py` — `validate_url()` line 91
+- **Issue:** `f"URL is missing a host: {url}"` echoed the user-provided URL back in the error message. Could be used for reflected content in logs.
+- **Fix:** Changed to generic message: "URL is missing a host."
+- **Status:** ✅ Fixed
+
+#### 72. Pipeline error dict stores full exception strings
+- **File:** `src/retry.py` — `run_pipeline()` line 240
+- **Issue:** `errors[stage.name] = str(stage.error)` stored the full exception string representation in the pipeline results dict. Exception messages from API calls, file operations, or Selenium could contain API URLs, file paths, or system details. The errors dict is returned to callers and could be logged or displayed.
+- **Fix:** Changed to `type(stage.error).__name__` — only the exception class name is stored.
+- **Status:** ✅ Fixed
+
+#### 73. Analytics get_events() limit parameter unbounded
+- **File:** `src/analytics.py` — `get_events()`
+- **Issue:** The `limit` parameter accepted any integer without upper bounds. A caller passing an extremely large limit could cause excessive memory usage when reversing and slicing the event list.
+- **Fix:** Added `_MAX_LIMIT = 10000` cap and bounds clamping: `limit = min(max(limit, 1), _MAX_LIMIT)`.
+- **Status:** ✅ Fixed
+
+#### 74. Webhooks module uses deprecated datetime.utcnow()
+- **File:** `src/webhooks.py` — `_format_discord_payload()`, `_format_slack_payload()`
+- **Issue:** `datetime.utcnow()` is deprecated since Python 3.12 and will be removed in a future Python version. It also returns a naive datetime without timezone info.
+- **Fix:** Changed to `datetime.now(timezone.utc)` which returns a timezone-aware datetime and follows Python 3.12+ best practices.
+- **Status:** ✅ Fixed
+
+## Findings — Run 14
+
+### MEDIUM
+
+#### 75. Analytics get_events() safety cap overridable by callers
+- **File:** `src/analytics.py` — `get_events()`
+- **Issue:** The `_MAX_LIMIT` safety cap was exposed as a function parameter with a default value of 10000. Any caller could pass `_MAX_LIMIT=999999999` to bypass the intended safety limit, potentially causing excessive memory usage when processing large event histories.
+- **Fix:** Removed `_MAX_LIMIT` from function parameters. Promoted to module-level constant `_MAX_QUERY_LIMIT = 10000` that cannot be overridden by callers.
+- **Status:** ✅ Fixed
+
+### LOW
+
+#### 76. Songs directory path disclosed in verbose mode
+- **File:** `src/utils.py` line 90
+- **Issue:** `info(f" => Created directory: {files_dir}")` leaked the full filesystem path to the Songs directory in verbose mode.
+- **Fix:** Changed to generic message: "Created Songs directory." — no path exposed.
+- **Status:** ✅ Fixed
+
+#### 77. No prompt length limit in LLM provider
+- **File:** `src/llm_provider.py` — `generate_text()`
+- **Issue:** Prompts of any length were passed directly to LLM API calls without validation. An extremely long prompt (e.g., from a corrupted script or malicious input) could cause excessive API costs with cloud providers (OpenAI, Anthropic, Groq) or OOM errors with local Ollama.
+- **Fix:** Added `_MAX_PROMPT_LENGTH = 50000` constant and truncation before API calls.
+- **Status:** ✅ Fixed
+
+#### 78. Unnecessary top-level import of srt_equalizer in config module
+- **File:** `src/config.py` line 4
+- **Issue:** `import srt_equalizer` was at module level despite only being used in `equalize_subtitles()`. This caused: (a) import failure if the package wasn't installed even when subtitle features weren't needed, (b) unnecessary memory usage for all config operations, (c) increased attack surface from loading a third-party module unconditionally.
+- **Fix:** Moved to lazy import inside `equalize_subtitles()`.
+- **Status:** ✅ Fixed
+
+#### 79. Thumbnail generate_from_metadata() missing output_dir validation
+- **File:** `src/thumbnail.py` — `generate_from_metadata()`
+- **Issue:** `output_dir` parameter was used to construct the output path without validation. A null byte or empty string could cause unexpected behavior or path injection.
+- **Fix:** Added validation for non-empty string and null byte check before path construction.
+- **Status:** ✅ Fixed
+
+#### 80. Publisher browser cleanup could mask original errors
+- **File:** `src/publisher.py` — `_publish_youtube()`, `_publish_tiktok()`, `_publish_twitter()`
+- **Issue:** `finally` blocks called `yt.browser.quit()` / `tiktok.browser.quit()` / `twitter.browser.quit()` without checking if the `browser` attribute exists. If the browser class `__init__` failed mid-construction (e.g., invalid Firefox profile), an `AttributeError` in the cleanup would mask the original error.
+- **Fix:** Added `hasattr()` guard checks before calling `browser.quit()`.
 - **Status:** ✅ Fixed

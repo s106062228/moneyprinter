@@ -61,6 +61,7 @@ jobs:
           python -m py_compile src/llm_provider.py
           python -m py_compile src/status.py
           python -m py_compile src/retry.py
+          python -m py_compile src/content_scheduler.py
 
   security:
     name: Security Scan

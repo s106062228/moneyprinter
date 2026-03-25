@@ -9,7 +9,6 @@ to force a re-read from disk.
 import os
 import sys
 import json
-import srt_equalizer
 
 from termcolor import colored
 
@@ -63,7 +62,7 @@ def assert_folder_structure() -> None:
     mp_dir = os.path.join(ROOT_DIR, ".mp")
     if not os.path.exists(mp_dir):
         if get_verbose():
-            print(colored(f"=> Creating .mp folder at {mp_dir}", "green"))
+            print(colored("=> Creating .mp data folder", "green"))
         os.makedirs(mp_dir)
 
 
@@ -186,8 +185,9 @@ def get_nanobanana2_aspect_ratio() -> str:
 
 
 def get_threads() -> int:
-    """Gets the thread count for video encoding (MoviePy)."""
-    return int(_get("threads", 2))
+    """Gets the thread count for video encoding (MoviePy). Clamped 1-32."""
+    val = int(_get("threads", 2) or 2)
+    return min(max(val, 1), 32)
 
 
 def get_zip_url() -> str:
@@ -211,8 +211,10 @@ def get_google_maps_scraper_niche() -> str:
 
 
 def get_scraper_timeout() -> int:
-    """Gets the timeout for the scraper."""
-    return int(_get("scraper_timeout", 300) or 300)
+    """Gets the timeout for the scraper. Capped at 3600 seconds (1 hour)."""
+    val = int(_get("scraper_timeout", 300) or 300)
+    # Cap at 1 hour to prevent indefinite process hangs
+    return min(max(val, 10), 3600)
 
 
 def get_outreach_message_subject() -> str:
@@ -271,6 +273,7 @@ def equalize_subtitles(srt_path: str, max_chars: int = 10) -> None:
     Returns:
         None
     """
+    import srt_equalizer
     srt_equalizer.equalize_srt_file(srt_path, srt_path, max_chars)
 
 
@@ -356,3 +359,22 @@ def get_webhook_notify_events() -> list:
         "pitch_shared", "error",
     ]
     return get_webhook_config().get("notify_on", default_events)
+
+
+# ---------------------------------------------------------------------------
+# SEO optimizer configuration
+# ---------------------------------------------------------------------------
+
+def get_seo_config() -> dict:
+    """Gets the SEO optimizer configuration block."""
+    return _get("seo", {})
+
+
+def get_seo_enabled() -> bool:
+    """Checks if SEO optimization is enabled."""
+    return bool(get_seo_config().get("enabled", True))
+
+
+def get_seo_platforms() -> list:
+    """Gets the list of platforms to optimize SEO for."""
+    return get_seo_config().get("platforms", ["youtube"])

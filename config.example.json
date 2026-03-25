@@ -39,6 +39,10 @@
   "font": "bold_font.ttf",
   "imagemagick_path": "Path to magick.exe or on linux/macOS just /usr/bin/convert",
   "script_sentence_length": 4,
+  "instagram": {
+    "username": "",
+    "password": ""
+  },
   "webhooks": {
     "enabled": false,
     "discord_url": "",
@@ -49,5 +53,33 @@
     "platforms": ["youtube"],
     "retry_failed": true,
     "max_retries": 2
+  },
+  "scheduler": {
+    "enabled": false,
+    "max_pending_jobs": 100,
+    "optimal_times": {
+      "youtube": ["10:00", "14:00", "18:00"],
+      "tiktok": ["09:00", "12:00", "19:00"],
+      "twitter": ["08:00", "12:00", "17:00"],
+      "instagram": ["09:00", "13:00", "18:00"]
+    }
+  },
+  "thumbnail": {
+    "width": 1280,
+    "height": 720,
+    "style": "bold",
+    "font": "bold_font.ttf",
+    "text_color": "#FFFFFF",
+    "outline_color": "#000000",
+    "outline_width": 4,
+    "gradient_colors": ["#FF0000", "#FF6600"]
+  },
+  "seo": {
+    "enabled": true,
+    "platforms": ["youtube"],
+    "language": "en",
+    "include_tags": true,
+    "include_hooks": true,
+    "hashtag_count": 8
   }
 }

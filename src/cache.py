@@ -41,12 +41,21 @@ def get_youtube_cache_path() -> str:
     """
     return os.path.join(get_cache_path(), 'youtube.json')
 
+def get_instagram_cache_path() -> str:
+    """
+    Gets the path to the Instagram cache file.
+
+    Returns:
+        path (str): The path to the Instagram cache folder
+    """
+    return os.path.join(get_cache_path(), 'instagram.json')
+
 def get_provider_cache_path(provider: str) -> str:
     """
     Gets the cache path for a supported account provider.
 
     Args:
-        provider (str): The provider name ("twitter" or "youtube")
+        provider (str): The provider name ("twitter", "youtube", or "instagram")
 
     Returns:
         path (str): The provider-specific cache path
@@ -58,8 +67,10 @@ def get_provider_cache_path(provider: str) -> str:
         return get_twitter_cache_path()
     if provider == "youtube":
         return get_youtube_cache_path()
+    if provider == "instagram":
+        return get_instagram_cache_path()
 
-    raise ValueError(f"Unsupported provider '{provider}'. Expected 'twitter' or 'youtube'.")
+    raise ValueError(f"Unsupported provider '{provider}'. Expected 'twitter', 'youtube', or 'instagram'.")
 
 
 def _safe_write_json(path: str, data: dict) -> None:

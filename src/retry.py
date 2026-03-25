@@ -66,7 +66,7 @@ def retry(
                             "Function '%s' failed after %d attempts. Last error: %s",
                             func.__name__,
                             max_retries + 1,
-                            exc,
+                            type(exc).__name__,
                         )
                         raise
 
@@ -75,7 +75,7 @@ def retry(
                         func.__name__,
                         attempt,
                         max_retries + 1,
-                        exc,
+                        type(exc).__name__,
                         delay,
                     )
 
@@ -139,7 +139,7 @@ def retry_call(
                     "Function '%s' failed after %d attempts. Last error: %s",
                     func.__name__,
                     max_retries + 1,
-                    exc,
+                    type(exc).__name__,
                 )
                 raise
 
@@ -148,7 +148,7 @@ def retry_call(
                 func.__name__,
                 attempt,
                 max_retries + 1,
-                exc,
+                type(exc).__name__,
                 delay,
             )
 
@@ -204,7 +204,7 @@ class PipelineStage:
             return True
         except Exception as exc:
             self.error = exc
-            logger.error("Pipeline stage '%s' failed: %s", self.name, exc)
+            logger.error("Pipeline stage '%s' failed: %s", self.name, type(exc).__name__)
             return False
 
 
@@ -237,7 +237,7 @@ def run_pipeline(stages: list) -> dict:
             completed += 1
             logger.info("Pipeline: Stage '%s' completed successfully.", stage.name)
         else:
-            errors[stage.name] = str(stage.error)
+            errors[stage.name] = type(stage.error).__name__
             if stage.required:
                 logger.error(
                     "Pipeline: Required stage '%s' failed. Aborting pipeline.",

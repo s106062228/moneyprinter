@@ -110,7 +110,7 @@ def _setup_root_logger() -> None:
         root_logger.addHandler(file_handler)
     except (OSError, PermissionError) as exc:
         # If we can't write to log file, continue with console only
-        root_logger.warning(f"Could not set up file logging: {exc}")
+        root_logger.warning(f"Could not set up file logging: {type(exc).__name__}")
 
     _initialized = True
 

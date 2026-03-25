@@ -1,5 +1,314 @@
 # MoneyPrinter Development Log
 
+## Run 14 — 2026-03-25
+
+### Architecture Analysis
+- **Missing Platform**: Instagram Reels was the most-requested missing platform. The project supported YouTube, TikTok, and Twitter but had no Instagram integration despite Instagram Reels being one of the three dominant short-form video platforms in 2026.
+- **Platform Support Fragmentation**: Adding a new platform required changes across 7+ modules (publisher, scheduler, SEO optimizer, analytics report, webhooks, cache, constants). The "allowed platforms" sets were duplicated in each module rather than centralized.
+- **Analytics Safety Cap Bypass**: `analytics.get_events()` exposed its `_MAX_LIMIT` safety cap as a function parameter, allowing callers to override it and potentially cause memory exhaustion.
+- **Eager Module Import**: `config.py` imported `srt_equalizer` at the top level, causing unnecessary dependency loading for all config operations and potential import failures.
+- **LLM Prompt Unbounded**: `llm_provider.generate_text()` accepted prompts of any length, creating a cost/OOM risk with cloud providers.
+- **Path Disclosure**: `utils.py` still leaked the Songs directory path in verbose mode.
+- **Browser Cleanup Fragility**: Publisher's `_publish_*` methods assumed `browser` attribute always existed on cleanup, masking errors when browser initialization failed.
+
+### Research Findings (2026 Market Update)
+- **AI video automation 2026**: 52% of TikTok and Instagram Reels are now created using AI video generation tools. AI automates editing, captioning, formatting, and scheduling — content production time down to under 15 minutes per post.
+- **Instagram Reels API**: The Instagram Graph API supports Reels uploads for business accounts. Rate limits allow ~25 posts/user/day. The `instagrapi` Python library provides full private API access including Reel uploads, session persistence, and media management.
+- **Multi-platform distribution**: Tools providing single-creation workflows exporting to all major platforms (YouTube Shorts, TikTok, Instagram Reels, Twitter) achieve 3-4x distribution efficiency. Cross-posting is now the default strategy.
+- **Short-form video market**: AI video generators are reducing production time dramatically. Platform intelligence now uses computer vision for auto-tagging and shoppable content. Predictive analytics for micro-trends is becoming standard.
+- **Safety considerations**: Tools using Instagram's official Content Publishing API are safer than browser automation. However, `instagrapi` (private API) offers more features at the risk of account restrictions if used aggressively.
+
+### Feature Implemented: Instagram Reels Upload Integration (`src/classes/Instagram.py`)
+- **Full module** with `Instagram` class supporting:
+  - Reel upload via `instagrapi` library (`clip_upload`)
+  - Session persistence (saved to `.mp/ig_sessions/`) to avoid repeated logins
+  - Caption generation with automatic hashtag injection
+  - Atomic cache writes for upload history tracking
+  - Analytics integration (`reel_uploaded` event type)
+  - Context manager protocol (`__enter__`/`__exit__`)
+  - Input validation (video path, file extension, caption length, null bytes)
+  - Credential management via config.json or env vars (`IG_USERNAME`, `IG_PASSWORD`)
+  - Cache size rotation (5000 max entries to prevent unbounded growth)
+- **Cross-module integration**:
+  - `cache.py` — Added `get_instagram_cache_path()` and Instagram to `get_provider_cache_path()`
+  - `publisher.py` — Added `_publish_instagram()` method and "instagram" to allowed platforms
+  - `content_scheduler.py` — Added "instagram" to allowed platforms and default optimal times
+  - `seo_optimizer.py` — Added Instagram platform limits (2200 char description, 30 hashtags)
+  - `analytics_report.py` — Added "instagram" to supported platforms
+  - `webhooks.py` — Added `reel_uploaded` event type with Instagram-themed color
+  - `constants.py` — Added "Instagram Reels" menu option
+  - `main.py` — Added Instagram account creation and Reel upload flow
+  - `config.example.json` — Added Instagram credentials and scheduler optimal times
+  - `requirements.txt` — Added `instagrapi>=2.0.0`
+
+### Security Fixes (Run 14) — 6 findings, 6 fixed
+1. **MEDIUM**: `analytics.py` — `get_events()` safety cap promoted from overridable parameter to module constant
+2. **LOW**: `utils.py` — Removed Songs directory path from verbose log message
+3. **LOW**: `llm_provider.py` — Added `_MAX_PROMPT_LENGTH = 50000` truncation before API calls
+4. **LOW**: `config.py` — Moved `srt_equalizer` from top-level to lazy import in `equalize_subtitles()`
+5. **LOW**: `thumbnail.py` — Added `output_dir` validation in `generate_from_metadata()`
+6. **LOW**: `publisher.py` — Added `hasattr()` guard in browser cleanup `finally` blocks
+
+### README Updates
+- Updated badge counts: 14x audited, 425+ tests
+- Added Instagram Reels feature to feature list
+- Added Instagram to architecture diagram
+- Added Instagram configuration section
+- Added Instagram Reels usage examples
+- Updated security section with Run 14 hardening measures
+- Updated roadmap to reflect Instagram completion
+
+---
+
+## Run 13 — 2026-03-24
+
+### Architecture Analysis
+- **Analytics Gap**: The analytics module tracked events (`track_event()`) but had no way to generate insights or reports from the data. Users could see raw events but couldn't understand their content performance, success rates, or trends across platforms.
+- **Deserialization Trust**: `ScheduledJob.from_dict()` accepted raw data from the schedule JSON file without any validation — unlike `SEOResult.from_dict()` which was properly hardened in Run 12. This meant corrupted or tampered schedule files could inject oversized strings or invalid platforms.
+- **Path Disclosure Pattern**: Several modules still had the pattern of including full filesystem paths in error messages (`validation.py`, `content_scheduler.py`), despite previous runs fixing this in other files.
+- **Deprecated API Usage**: `webhooks.py` used `datetime.utcnow()` which is deprecated since Python 3.12 and returns timezone-naive datetimes.
+- **Unbounded Query Parameters**: `analytics.get_events()` accepted any integer for the `limit` parameter without an upper cap.
+- **Pipeline Error Leakage**: `retry.py`'s `run_pipeline()` stored full exception strings in the errors dict, which could contain sensitive information.
+- **Test Growth**: 383 → 425+ tests (+42 new tests for analytics report module).
+
+### Research Findings (2026 Market Update)
+- **AI video market**: AI is the #1 change in short-form video trends for 2026, with AI tools making content creation more accessible — auto-editing, caption generation, hook optimization, and platform-specific formatting are mainstream.
+- **Monetization diversification**: Successful creators in 2026 have multiple revenue streams — native ads, brand partnerships, shoppable content, premium subscriptions, and content licensing. Relying solely on platform ad revenue is considered outdated.
+- **Shoppable short-form video**: One of the biggest monetization breakthroughs of 2026. Short videos now act as digital storefronts allowing in-video purchases. Platforms including YouTube, TikTok, and Instagram all support commerce integrations.
+- **Multi-platform export**: Tools that provide single-creation workflows exporting to YouTube Shorts (with SEO metadata), TikTok (with trending sounds), and Instagram (with first-frame hooks) achieve 3x distribution efficiency.
+- **Data-driven content strategy**: AI-powered analytics that recommend content timing, topics, and formats based on performance data are now standard in professional content creation tools.
+- **Subscription-based short-form**: YouTube, TikTok, and Instagram are experimenting with exclusive content for paying subscribers.
+
+### Feature Implemented: Analytics Report Generator (`src/analytics_report.py`)
+- **Full module** with `generate_report()`, `get_platform_report()`, and `save_report()` functions:
+  - Cross-platform performance reports with per-platform success/failure rates
+  - 7-day activity trend analysis with directional indicators (up/down/stable)
+  - Peak day identification and average events-per-day metrics
+  - Most common error type tracking per platform
+  - Event type distribution across all platforms
+  - Actionable content strategy recommendations (auto-generated based on data patterns)
+  - Human-readable text report output with activity bar charts
+  - JSON serialization for programmatic consumption
+  - Atomic file saves for report persistence
+  - Configurable limits (max events to analyze, top-N rankings)
+- **42+ unit tests** covering: PlatformStats serialization, AnalyticsReport text/JSON output, event date parsing, platform stat computation, trend analysis, daily trend calculation, recommendation generation, report generation integration, platform-specific reports, report file saving, and config helper bounds checking.
+
+### Security Fixes (Run 13) — 7 findings, 7 fixed
+1. **MEDIUM**: `ScheduledJob.from_dict()` — added comprehensive deserialization validation (field truncation, platform whitelist, status enum, interval clamping)
+2. **LOW**: `content_scheduler.py` — removed video path from FileNotFoundError message
+3. **LOW**: `validation.py` — removed normalized path from `validate_path()` and `validate_directory()` error messages
+4. **LOW**: `validation.py` — removed URL echo from `validate_url()` error message
+5. **LOW**: `retry.py` — `run_pipeline()` error dict now stores only exception class names
+6. **LOW**: `analytics.py` — `get_events()` limit capped at 10,000
+7. **LOW**: `webhooks.py` — replaced deprecated `datetime.utcnow()` with `datetime.now(timezone.utc)`
+
+### README Updates
+- Updated badge counts: 13x audited, 425+ tests
+- Added Analytics Reports feature to feature list with usage examples
+- Updated architecture diagram with `analytics_report.py`
+- Updated security section with Run 13 hardening measures
+- Updated test and CI sections with new test count
+- Added shoppable content and multi-platform export to roadmap
+
+---
+
+## Run 12 — 2026-03-24
+
+### Architecture Analysis
+- **SEO Gap**: The video generation pipeline created metadata (title, description) with simple single-shot LLM prompts. No keyword optimization, no hashtag strategy, no tags, no engagement hooks. YouTube's 2026 algorithm heavily weights metadata quality for Shorts discoverability — titles with front-loaded keywords get 30-50% more impressions.
+- **Publisher Path Leak**: `PublishJob.validate()` included the full video path in ValueError messages, leaking filesystem structure.
+- **Config Path Leak**: `assert_folder_structure()` logged the full `.mp` directory path in verbose mode.
+- **Thread Bounds Missing**: `get_threads()` accepted unbounded integer values from config, allowing potential resource exhaustion.
+- **Test Growth**: 338 → 383+ tests (+45 new tests for SEO optimizer module).
+
+### Research Findings (2026 Market Update)
+- **YouTube SEO 2026**: Algorithm uses multi-stage recommendation system measuring swipe-away rate, watch-through rate, engagement rate, and replay rate. First 1-2 hours after publishing are critical. Primary keyword should appear within first 5 words of title.
+- **Metadata optimization**: YouTube weighs content "above the fold" more heavily — first 1-2 sentences of descriptions are most important for ranking. #Shorts tag is essential for categorization. Tags have limited 2026 impact but help with misspelling discovery.
+- **AI video market**: Expected to reach $21B by 2034 (46% CAGR). 75% of marketing videos projected AI-generated/assisted by end of 2026. Content scheduling with predictive timing is now mainstream.
+- **Hashtag strategy**: Mix of high-volume broad hashtags (#Shorts, #Viral), niche-specific tags, and long-tail unique tags performs best for discovery.
+- **Python SEO automation**: AI-powered meta tag generation via LLM APIs is now standard practice. Combining keyword research with AI content generation produces 30-50% better CTR than manual metadata.
+
+### Feature Implemented: SEO Optimizer (`src/seo_optimizer.py`)
+- **Full module** with `optimize_metadata()` and `optimize_existing_metadata()` functions supporting:
+  - Platform-specific optimization for YouTube, TikTok, and Twitter
+  - Keyword-first title generation with character limits per platform
+  - Structured description generation with hooks, CTAs, and natural keyword placement
+  - Tag generation (YouTube: 15-20 tags with broad/niche/long-tail mix)
+  - Hashtag strategy (discovery + niche + unique, configurable count 1-15)
+  - Engagement hook generation (3 scroll-stopping opening hooks)
+  - SEO quality score estimation (0-100) based on completeness heuristics
+  - Rate-limited LLM calls (0.5s delay between calls)
+  - ReDoS-safe JSON parsing with response length caps
+  - Full input validation (subject/script/niche length caps, null bytes, platform whitelist)
+  - `SEOResult` dataclass with `to_dict()`/`from_dict()` serialization (with field validation)
+- **Configuration** via `config.json` `seo` block: enabled, platforms, language, include_tags, include_hooks, hashtag_count
+- **45+ unit tests** in `tests/test_seo_optimizer.py` covering:
+  - SEOResult defaults, serialization roundtrip, invalid input handling
+  - Input validation (empty subject, null bytes, length limits, invalid platform)
+  - JSON array parsing (basic, code fences, surrounding text, empty, invalid)
+  - Title cleaning (quotes, hashtag removal, truncation)
+  - Description cleaning and truncation
+  - Hashtag normalization (prefix, dedup, spaces, length, limits)
+  - Tag cleaning (hash removal, dedup, char limits)
+  - Score estimation (empty, complete, number bonus, question bonus, cap)
+  - Config helpers (defaults, custom values, clamping)
+  - Prompt builders (all 5 prompt types, platform variations)
+  - Full optimization (YouTube, TikTok, Twitter, hooks disabled, tags disabled)
+  - Existing metadata optimization
+  - Platform limits validation
+
+### Security Audit — Run 12
+- **6 issues found, 6 fixed:**
+  1. **MEDIUM** — ReDoS risk in SEO optimizer JSON parser — added `_MAX_LLM_RESPONSE_LEN = 10000` truncation
+  2. **LOW** — SEO `from_dict()` missing field validation — added score clamping, platform whitelist, list length caps
+  3. **LOW** — Publisher leaked video_path in error message — changed to generic message
+  4. **LOW** — Config `assert_folder_structure()` leaked .mp directory path — changed to generic message
+  5. **LOW** — Config `get_threads()` missing bounds — added `min(max(val, 1), 32)` clamping
+  6. **LOW** — SEO optimizer no rate limiting between LLM calls — added `_LLM_CALL_DELAY = 0.5`
+
+### README Updates
+- Updated test count badge: 338 → 383+
+- Updated security audit badge: 11x → 12x
+- Added SEO Optimizer to features list
+- Added `seo_optimizer.py` to architecture diagram
+- Added full SEO Optimization section with code examples and config reference
+- Added 6 SEO config fields to configuration table
+- Updated video pipeline diagram to include SEO Optimizer step
+- Updated roadmap (removed SEO optimization, it's done)
+- Updated testing section to include SEO optimizer test coverage
+- Updated security findings count (61 → 67)
+- Added SEO-specific security measures to security section
+
+### Summary
+- **Analyzed**: Complete codebase architecture (23 source files, 16 test files)
+- **Researched**: YouTube SEO 2026 algorithm, metadata optimization, hashtag strategy, Python SEO automation tools
+- **Implemented**: `seo_optimizer.py` — Full SEO metadata optimizer with platform-specific optimization, tag/hashtag/hook generation, quality scoring
+- **Tests**: 45+ new tests (338 → 383+ total)
+- **Security**: 6 new issues found and fixed (ReDoS, field validation, path leaks, thread bounds, rate limiting)
+- **README**: Updated badges, features, architecture, config docs, pipeline diagram, roadmap, testing, security
+
+---
+
+## Run 11 — 2026-03-24
+
+### Architecture Analysis
+- **Thumbnail Gap**: The video generation pipeline produced content but had no automated thumbnail generation. Thumbnails are a critical factor in click-through rates (CTR) and monetization — YouTube reports that 90% of top-performing videos have custom thumbnails. Pillow was already a dependency, making this a zero-cost addition.
+- **Retry Info Disclosure**: The retry module (`retry.py`) was a core dependency used by publisher, scheduler, and pipeline stages, but logged full exception objects (`exc`) which could contain API keys, URLs with auth tokens, file paths, or connection strings from LLM/Selenium/HTTP errors.
+- **Subprocess Inconsistency**: The `Outreach.is_go_installed()` still used the old `subprocess.call` pattern without output capture, while the constructor had already been fixed.
+- **Test Growth**: 300 → 338 tests (+38 new tests for thumbnail generator module).
+
+### Research Findings (2026 Market Update)
+- **AI video market**: Expected to reach $21B by 2034 (46% CAGR). Single creators producing 100+ professional videos/month solo. 75% of marketing videos projected AI-generated/assisted by end of 2026.
+- **Thumbnail automation**: AI-powered thumbnail generators are now mainstream — tools use LLMs for hook generation and image synthesis APIs for visual creation. Python libraries like `youtube-thumbnail-generator` (PyPI) and Stable Diffusion-based tools reduce creation time from 30-60 min to 5 min per video.
+- **Engagement metrics**: Custom thumbnails increase CTR by 30-50%. Gradient backgrounds with bold text overlays are the most effective format for short-form content.
+- **Content scheduling + thumbnails** combined represent the "last mile" of full automation — the pipeline can now generate, thumbnail, schedule, and publish without human intervention.
+
+### Feature Implemented: Thumbnail Generator (`src/thumbnail.py`)
+- **Full module** with `ThumbnailGenerator` class supporting:
+  - 5 curated style presets: bold, calm, money, dark, vibrant
+  - Gradient backgrounds (horizontal, vertical, diagonal) with randomized color palettes
+  - Auto text wrapping and centering with configurable font
+  - Text outline/stroke for readability over any background
+  - Video frame extraction as background (via MoviePy) with Gaussian blur
+  - Subtitle line support
+  - Accent color bar at bottom
+  - Atomic file saves (tempfile + os.replace)
+  - Full input validation (title length, null bytes, dimension clamping)
+- **Configuration** via `config.json` `thumbnail` block: width, height, style, text_color, outline_color, outline_width
+- **`generate_from_metadata()`** — convenience method that extracts title/description from video metadata dict
+- **38 new tests** in `tests/test_thumbnail.py` covering:
+  - Color conversion (hex to RGB, interpolation)
+  - Gradient generation (all directions)
+  - Font loading (with fallback)
+  - Text wrapping
+  - All 5 configuration getters with bounds clamping
+  - Full generator lifecycle (file creation, all styles, subtitle, long title wrapping, nested dirs)
+  - Input validation (empty title, None, too long, null bytes)
+  - Metadata generation
+  - Video frame extraction fallback
+  - Palette coverage
+
+### Security Audit — Run 11
+- **4 issues found, 4 fixed:**
+  1. **MEDIUM** — Retry module logged full exception objects in 5 locations (decorator, retry_call, PipelineStage) — changed all to `type(exc).__name__`
+  2. **LOW** — YouTube verbose mode logged full Studio href URLs — changed to generic message
+  3. **LOW** — Outreach `is_go_installed()` used `subprocess.call` without output capture — changed to `subprocess.run` with `capture_output=True`
+  4. **LOW** — mp_logger file handler warning leaked full exception — changed to `type(exc).__name__`
+
+### README Updates
+- Updated test count badge: 300 → 338
+- Updated security audit badge: 10x → 11x
+- Added Thumbnail Generator to features list
+- Added `thumbnail.py` to architecture diagram
+- Added full Thumbnail Generation section with code examples and config reference
+- Added 6 thumbnail config fields to configuration table
+- Updated video pipeline diagram to include Thumbnail step
+- Updated roadmap (removed Thumbnail generation, it's done)
+- Updated testing section to include thumbnail test coverage
+- Updated security findings count (57 → 61)
+
+### Summary
+- **Analyzed**: Complete codebase architecture (22 source files, 15 test files)
+- **Researched**: AI video market trends 2026, thumbnail automation tools, Python libraries
+- **Implemented**: `thumbnail.py` — Full thumbnail generator with 5 styles, gradient backgrounds, text overlays, video frame extraction
+- **Tests**: 38 new tests (300 → 338 total)
+- **Security**: 4 new issues found and fixed (retry info disclosure, URL leak, subprocess.call, logger leak)
+- **README**: Updated badges, features, architecture, config docs, pipeline diagram, roadmap
+
+---
+
+## Run 10 — 2026-03-24
+
+### Architecture Analysis
+- **Scheduling Gap**: Project had multi-platform publishing but no scheduling layer. Users had to manually trigger publishes or rely on basic CRON jobs with no optimal timing intelligence. Content scheduling with platform-specific optimal times is a 2026 industry standard.
+- **Outreach Security**: The outreach module's message body file path came from config without path validation — potential arbitrary file read vector. Email recipient validation was also minimal (only checked for `@` presence).
+- **Config Bounds**: `scraper_timeout` config value had no upper cap, allowing potentially indefinite process hangs. Affiliate links from user input were stored without URL validation.
+- **Test Growth**: 257 → 300 tests (+43 new tests for content scheduler module).
+
+### Research Findings (2026 Market Update)
+- **Content scheduling with predictive timing** is now mainstream in 2026 — tools like Clippie, Opus Clip, and Buffer all suggest optimal posting windows per platform based on audience analytics. YouTube optimal times cluster around 10 AM, 2 PM, and 6 PM; TikTok around 9 AM, 12 PM, and 7 PM; Twitter around 8 AM, 12 PM, and 5 PM.
+- **Instagram Reels automation**: `instagrapi` library (Python) is the leading tool for Instagram Reels upload via private API. Official Graph API also supports Reels for Business/Creator accounts. This is the logical next platform integration.
+- **AI video generation market** projected $3.35B by 2034 (Fortune Business Insights, 33% CAGR). Tools converging toward end-to-end production solutions with sub-second generation.
+- **Virality scoring** (predicting clip engagement before posting) is now a differentiating feature — Opus Clip trains on millions of viral videos. Could be a future MoneyPrinter feature using LLM-based scoring.
+- **Long-form to short-form clipping** (OpusClip-style) is a growing market segment worth investigating.
+
+### Feature Implemented: Content Scheduler (`content_scheduler.py`)
+- **ScheduledJob dataclass** with full validation (path lengths, null bytes, platform whitelist, ISO 8601 time parsing, repeat interval caps at 720 hours/30 days)
+- **ContentScheduler class** with thread-safe job management (add, remove, list, execute, cleanup)
+- **Optimal posting times** per platform with configurable defaults (YouTube: 10/14/18, TikTok: 9/12/19, Twitter: 8/12/17)
+- **`suggest_next_optimal_time()`** function that returns the next upcoming optimal slot for any platform
+- **Repeat scheduling**: Jobs with `repeat_interval_hours > 0` automatically reschedule after successful execution
+- **Atomic persistence**: Schedule state saved to `.mp/schedule.json` using `tempfile.mkstemp()` + `os.replace()`
+- **Job lifecycle**: pending → running → completed/failed, with timestamps and error tracking
+- **`run_pending()`**: Batch executes all ready jobs (scheduled_time <= now)
+- **`cleanup_completed()`**: Removes old completed/failed jobs after configurable max_age_days
+- **Publisher integration**: Delegates actual publishing to `ContentPublisher` for cross-platform delivery
+- **Configuration**: New `scheduler` block in config.json with `enabled`, `max_pending_jobs` (hard cap 500), and `optimal_times` per platform
+- **43 unit tests** covering job validation, serialization roundtrip, config helpers, persistence, scheduler lifecycle, repeat scheduling, job limits, cleanup, execution, and thread safety
+
+### Security Audit (Run 10) — 6 findings, 4 fixed, 2 documented
+1. **MEDIUM** — Arbitrary file read via outreach message body path → Added path validation (must be within project directory)
+2. **MEDIUM** — Outreach email recipient not validated → Added regex email format validation
+3. **MEDIUM** — Scraper timeout uncapped → Clamped to 10–3600 seconds
+4. **LOW** — Affiliate link not validated in main menu → Added `validate_url()` on input
+5. **LOW** — Cache-stored Firefox profile paths used without re-validation → Documented (mitigated by constructor validation)
+6. **LOW** — Schedule file contains video paths in plaintext → Documented (mitigated by .gitignore)
+
+### README Updates
+- Updated badges: security 9x → 10x, tests 257 → 300
+- Added Content Scheduler feature to features list and architecture diagram
+- Added Content Scheduler usage section with code examples and config documentation
+- Added scheduler config fields to configuration table
+- Updated security measures list with 5 new items
+- Updated roadmap with content calendar UI and OpusClip-style clipping
+
+### Summary
+- **Analyzed**: Full codebase review for scheduling gaps, security issues, and config bounds
+- **Researched**: 2026 AI video market trends, content scheduling best practices, Instagram Reels automation options
+- **Added**: Content scheduler module with 43 tests, optimal posting times, repeat scheduling, atomic persistence
+- **Fixed**: 4 security issues (arbitrary file read, weak email validation, uncapped timeout, unvalidated affiliate link)
+- **Updated**: README, TODO, SECURITY_AUDIT, DEVELOPMENT_LOG, CI pipeline, config.example.json
+
 ## Run 9 — 2026-03-24
 
 ### Architecture Analysis

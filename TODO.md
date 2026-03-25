@@ -47,22 +47,38 @@
 - [x] Security audit (Run 9) — analytics unbounded growth, config path disclosure, input echo, scraper path disclosure, temp file safety
 - [x] Analytics event rotation (10,000 max events to prevent disk exhaustion)
 - [x] Unit tests for publisher module (34 new tests, 257 total)
+- [x] Content scheduler (`content_scheduler.py`) with optimal posting times, repeat scheduling, job persistence, and publisher integration
+- [x] Security audit (Run 10) — arbitrary file read via message body path, email recipient validation, scraper timeout cap, affiliate link validation
+- [x] Unit tests for content scheduler (43 new tests, 300 total)
+- [x] Thumbnail generator module (`thumbnail.py`) with gradient backgrounds, text overlays, video frame extraction, 5 style presets
+- [x] Security audit (Run 11) — retry module info disclosure (5 locations), YouTube URL leak, Outreach subprocess.call fix, mp_logger exception leak
+- [x] Unit tests for thumbnail module (38 new tests, 338 total)
+- [x] SEO optimizer module (`seo_optimizer.py`) with platform-specific optimization for YouTube, TikTok, Twitter
+- [x] Security audit (Run 12) — ReDoS fix, from_dict validation, path disclosure fixes, thread bounds, LLM rate limiting
+- [x] Unit tests for SEO optimizer (45+ new tests, 383+ total)
+- [x] Analytics report generator (`analytics_report.py`) with cross-platform insights, trend analysis, success rates, and recommendations
+- [x] Security audit (Run 13) — ScheduledJob.from_dict() validation, path/URL disclosure fixes, pipeline error string fix, analytics limit bounds, deprecated datetime fix
+- [x] Unit tests for analytics report (42+ new tests, 425+ total)
+- [x] Instagram Reels upload integration (`src/classes/Instagram.py`) via instagrapi with session persistence, atomic cache, analytics tracking
+- [x] Instagram platform support across publisher, scheduler, SEO optimizer, analytics report, webhooks, and cache modules
+- [x] Security audit (Run 14) — analytics limit bypass fix, path disclosure fix, prompt length cap, lazy import fix, output_dir validation, browser cleanup safety
 
 ## In Progress
-- [ ] Instagram Reels upload integration
+- [ ] Unit tests for Instagram Reels module
 
 ## Planned — High Priority
 - [ ] Web dashboard for monitoring content generation
+- [ ] Content calendar UI (frontend for content scheduler)
 
 ## Planned — Medium Priority
 - [ ] Video template system (custom intros/outros)
-- [ ] Thumbnail generation
-- [ ] SEO optimization for generated titles/descriptions
-- [ ] Content calendar / scheduling UI
 - [ ] A/B testing for video titles and thumbnails
 - [ ] AI hook optimization (trending hooks for better engagement)
 - [ ] Auto-caption styling (animated captions like CapCut)
 - [ ] Virality scoring (predict clip engagement before posting)
+- [ ] OpusClip-style smart clipping from long-form content
+- [ ] Shoppable content integration (product links in video descriptions)
+- [ ] Multi-platform export optimizer (platform-specific aspect ratios and formats)
 
 ## Planned — Low Priority
 - [ ] Plugin system for custom platform integrations
@@ -70,6 +86,5 @@
 - [ ] Video analytics dashboard (views, engagement tracking)
 - [ ] Auto-niche detection from trending topics
 - [ ] Batch video generation mode
-- [ ] OpusClip-style smart clipping from long-form content
 - [ ] Encrypt cache files containing account data at rest
 - [ ] Kubernetes Helm chart for scaled deployment

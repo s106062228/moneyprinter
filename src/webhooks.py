@@ -27,7 +27,7 @@ import json
 import time
 import threading
 import requests as _requests
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -149,6 +149,7 @@ _EVENT_EMOJIS = {
     "error": "\u274c",                # ❌
     "outreach_sent": "\U0001f4e7",    # 📧
     "tiktok_uploaded": "\U0001f3b5",  # 🎵
+    "reel_uploaded": "\U0001f4f7",    # 📷
 }
 
 
@@ -173,13 +174,14 @@ def _format_discord_payload(
         "error": 0xFF0000,            # red
         "outreach_sent": 0x9B59B6,    # purple
         "tiktok_uploaded": 0xFF0050,   # tiktok pink
+        "reel_uploaded": 0xE1306C,     # instagram gradient
     }
 
     embed = {
         "title": f"{emoji} {event_type.replace('_', ' ').title()}",
         "description": message,
         "color": color_map.get(event_type, 0x808080),
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "footer": {"text": f"MoneyPrinter • {platform}"},
     }
 
@@ -249,7 +251,7 @@ def _format_slack_payload(
         "elements": [
             {
                 "type": "mrkdwn",
-                "text": f"MoneyPrinter • {platform} • {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+                "text": f"MoneyPrinter • {platform} • {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
             }
         ],
     })

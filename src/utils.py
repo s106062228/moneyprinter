@@ -87,7 +87,7 @@ def fetch_songs() -> None:
         if not os.path.exists(files_dir):
             os.mkdir(files_dir)
             if get_verbose():
-                info(f" => Created directory: {files_dir}")
+                info(" => Created Songs directory.")
         else:
             existing_audio_files = [
                 name

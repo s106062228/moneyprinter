@@ -62,11 +62,10 @@ class Outreach:
         Returns:
             bool: True if go is installed, False otherwise.
         """
-        # Check if go is installed
         try:
-            subprocess.call(["go", "version"])
+            subprocess.run(["go", "version"], capture_output=True, check=False)
             return True
-        except Exception as e:
+        except (FileNotFoundError, OSError):
             return False
 
     def unzip_file(self, zip_link: str) -> None:
@@ -274,6 +273,19 @@ class Outreach:
         message_subject = get_outreach_message_subject()
         message_body = get_outreach_message_body_file()
 
+        # Validate message body file path to prevent arbitrary file read
+        if message_body:
+            abs_body = os.path.abspath(message_body)
+            abs_root = os.path.abspath(os.path.join(os.getcwd(), ".."))
+            if not abs_body.startswith(abs_root):
+                error(" => Message body file path is outside project directory. Aborting.")
+                os.remove(niche_path)
+                return
+            if not os.path.isfile(abs_body):
+                error(" => Message body file not found. Check outreach_message_body_file in config.")
+                os.remove(niche_path)
+                return
+
         # Run
         self.run_scraper_with_args_for_30_seconds(
             f'-input niche.txt -results "{output_path}"', timeout=get_scraper_timeout()
@@ -335,7 +347,10 @@ class Outreach:
                         # Send emails using the existing SMTP connection
                         receiver_email = fields[-1].strip() if fields else ""
 
-                        if "@" not in receiver_email:
+                        # Validate email format before sending
+                        import re as _re
+                        _email_re = r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
+                        if not _re.match(_email_re, receiver_email):
                             warning(f" => No email provided. Skipping...")
                             continue
 

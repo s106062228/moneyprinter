@@ -92,7 +92,7 @@ class PublishJob:
         if "\x00" in self.video_path:
             raise ValueError("video_path contains null bytes.")
         if not os.path.isfile(self.video_path):
-            raise ValueError(f"Video file does not exist: {self.video_path}")
+            raise ValueError("Video file does not exist at the specified path.")
 
         if not self.title or not isinstance(self.title, str):
             raise ValueError("title must be a non-empty string.")
@@ -113,7 +113,7 @@ class PublishJob:
                 f"Too many platforms specified (max {_MAX_PLATFORMS})."
             )
 
-        allowed_platforms = {"youtube", "tiktok", "twitter"}
+        allowed_platforms = {"youtube", "tiktok", "twitter", "instagram"}
         for p in self.platforms:
             if not isinstance(p, str) or p.lower() not in allowed_platforms:
                 raise ValueError(
@@ -254,6 +254,8 @@ class ContentPublisher:
                 return self._publish_tiktok(job, start_time)
             elif platform == "twitter":
                 return self._publish_twitter(job, start_time)
+            elif platform == "instagram":
+                return self._publish_instagram(job, start_time)
             else:
                 return PublishResult(
                     platform=platform,
@@ -321,7 +323,8 @@ class ContentPublisher:
             )
         finally:
             try:
-                yt.browser.quit()
+                if hasattr(yt, "browser") and yt.browser:
+                    yt.browser.quit()
             except Exception:
                 pass
 
@@ -367,7 +370,8 @@ class ContentPublisher:
             )
         finally:
             try:
-                tiktok.browser.quit()
+                if hasattr(tiktok, "browser") and tiktok.browser:
+                    tiktok.browser.quit()
             except Exception:
                 pass
 
@@ -421,9 +425,70 @@ class ContentPublisher:
             )
         finally:
             try:
-                twitter.browser.quit()
+                if hasattr(twitter, "browser") and twitter.browser:
+                    twitter.browser.quit()
             except Exception:
                 pass
+
+    def _publish_instagram(
+        self, job: PublishJob, start_time: float
+    ) -> PublishResult:
+        """Publishes video to Instagram Reels."""
+        from classes.Instagram import Instagram
+        from cache import get_accounts
+
+        accounts = get_accounts("instagram")
+        if not accounts:
+            return PublishResult(
+                platform="instagram",
+                success=False,
+                error_type="NoAccountConfigured",
+                duration_seconds=time.monotonic() - start_time,
+            )
+
+        account = accounts[0]
+
+        try:
+            ig = Instagram(
+                account_id=account["id"],
+                nickname=account["nickname"],
+                username=account.get("username", ""),
+                password=account.get("password", ""),
+            )
+
+            caption = job.title
+            if job.description:
+                caption += "\n\n" + job.description
+            if job.tags:
+                caption += "\n\n" + " ".join(
+                    f"#{t}" if not t.startswith("#") else t
+                    for t in job.tags[:30]
+                )
+
+            upload_success = ig.upload_reel(
+                video_path=job.video_path,
+                caption=caption,
+            )
+            duration = time.monotonic() - start_time
+
+            return PublishResult(
+                platform="instagram",
+                success=upload_success,
+                error_type="" if upload_success else "UploadFailed",
+                duration_seconds=duration,
+                details={
+                    "title": job.title,
+                    "account": account.get("nickname", ""),
+                },
+            )
+        except Exception as e:
+            duration = time.monotonic() - start_time
+            return PublishResult(
+                platform="instagram",
+                success=False,
+                error_type=type(e).__name__,
+                duration_seconds=duration,
+            )
 
     def _track_analytics(
         self, result: PublishResult, job: PublishJob

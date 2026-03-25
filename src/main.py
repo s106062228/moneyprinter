@@ -1,5 +1,7 @@
+import time
 import schedule
 import subprocess
+import threading
 
 from art import *
 from cache import *
@@ -205,7 +207,12 @@ def main():
                         command = ["python", cron_script_path, "youtube", selected_account['id'], get_active_model()]
 
                         def job():
-                            subprocess.run(command)
+                            try:
+                                subprocess.run(command, timeout=1800)
+                            except subprocess.TimeoutExpired:
+                                warning("CRON job timed out after 30 minutes.")
+                            except Exception as e:
+                                error(f"CRON job failed: {type(e).__name__}")
 
                         if user_input == 1:
                             # Upload Once
@@ -341,7 +348,12 @@ def main():
                         command = ["python", cron_script_path, "twitter", selected_account['id'], get_active_model()]
 
                         def job():
-                            subprocess.run(command)
+                            try:
+                                subprocess.run(command, timeout=600)
+                            except subprocess.TimeoutExpired:
+                                warning("CRON job timed out after 10 minutes.")
+                            except Exception as e:
+                                error(f"CRON job failed: {type(e).__name__}")
 
                         if user_input == 1:
                             # Post Once a day
@@ -375,6 +387,15 @@ def main():
 
             if user_input.lower() == "yes":
                 affiliate_link = question(" => Enter the affiliate link: ")
+
+                # Validate affiliate link
+                from validation import validate_url as _val_url
+                try:
+                    _val_url(affiliate_link, allowed_schemes=("http", "https"))
+                except ValueError:
+                    error("Invalid affiliate link. Please enter a valid URL (http/https).")
+                    return
+
                 twitter_uuid = question(" => Enter the Twitter Account UUID: ")
 
                 # Find the account
@@ -432,6 +453,80 @@ def main():
 
         outreach.start()
     elif user_input == 5:
+        info("Starting Instagram Reels...")
+
+        cached_accounts = get_accounts("instagram")
+
+        if len(cached_accounts) == 0:
+            warning("No Instagram accounts found in cache. Create one now?")
+            user_input = question("Yes/No: ")
+
+            if user_input.lower() == "yes":
+                generated_uuid = str(uuid4())
+
+                success(f" => Generated ID: {generated_uuid}")
+                nickname = question(" => Enter a nickname for this account: ")
+                ig_username = question(" => Enter your Instagram username: ")
+                ig_password = question(" => Enter your Instagram password: ")
+
+                account_data = {
+                    "id": generated_uuid,
+                    "nickname": nickname,
+                    "username": ig_username,
+                    "password": ig_password,
+                    "reels": [],
+                }
+
+                add_account("instagram", account_data)
+                success("Instagram account configured successfully!")
+        else:
+            table = PrettyTable()
+            table.field_names = ["ID", "UUID", "Nickname"]
+
+            for account in cached_accounts:
+                table.add_row([
+                    cached_accounts.index(account) + 1,
+                    colored(account["id"], "cyan"),
+                    colored(account["nickname"], "blue"),
+                ])
+
+            print(table)
+
+            user_input = question("Select an account to upload a Reel: ").strip()
+
+            selected_account = None
+            for account in cached_accounts:
+                if str(cached_accounts.index(account) + 1) == user_input:
+                    selected_account = account
+
+            if selected_account is None:
+                error("Invalid account selected. Please try again.", "red")
+                main()
+            else:
+                from classes.Instagram import Instagram
+
+                ig = Instagram(
+                    selected_account["id"],
+                    selected_account["nickname"],
+                    selected_account.get("username", ""),
+                    selected_account.get("password", ""),
+                )
+
+                video_path = question(" => Enter the path to the video file: ").strip()
+                try:
+                    validate_path(video_path)
+                except ValueError:
+                    error("Invalid video path. Please check the path and try again.")
+                    return
+
+                caption = question(" => Enter the reel caption (or press Enter for default): ").strip()
+
+                ig.upload_reel(
+                    video_path=video_path,
+                    caption=caption,
+                )
+
+    elif user_input == 6:
         if get_verbose():
             print(colored(" => Quitting...", "blue"))
         sys.exit(0)
@@ -505,6 +600,16 @@ if __name__ == "__main__":
 
         select_model(model_choice)
         success(f"Using model: {model_choice}")
+
+    # Run the scheduler in a background thread so scheduled jobs
+    # actually execute while the interactive menu is active.
+    def _scheduler_loop():
+        while True:
+            schedule.run_pending()
+            time.sleep(30)
+
+    scheduler_thread = threading.Thread(target=_scheduler_loop, daemon=True)
+    scheduler_thread.start()
 
     while True:
         main()

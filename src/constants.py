@@ -10,6 +10,7 @@ OPTIONS = [
     "Twitter Bot",
     "Affiliate Marketing",
     "Outreach",
+    "Instagram Reels",
     "Quit"
 ]
 

@@ -35,7 +35,7 @@ def validate_path(path: str, must_exist: bool = True) -> str:
         raise ValueError("Path contains null bytes.")
 
     if must_exist and not os.path.exists(normalized):
-        raise ValueError(f"Path does not exist: {normalized}")
+        raise ValueError("Path does not exist.")
 
     return normalized
 
@@ -57,7 +57,7 @@ def validate_directory(path: str, must_exist: bool = True) -> str:
     normalized = validate_path(path, must_exist=must_exist)
 
     if must_exist and not os.path.isdir(normalized):
-        raise ValueError(f"Path is not a directory: {normalized}")
+        raise ValueError("Path is not a directory.")
 
     return normalized
 
@@ -88,7 +88,7 @@ def validate_url(url: str, allowed_schemes: tuple = ("http", "https")) -> str:
         )
 
     if not parsed.netloc:
-        raise ValueError(f"URL is missing a host: {url}")
+        raise ValueError("URL is missing a host.")
 
     return url.strip()
 
