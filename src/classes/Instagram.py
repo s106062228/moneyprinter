@@ -32,6 +32,7 @@ Security:
     - Session files are stored in .mp/ directory (gitignored)
 """
 
+import hashlib
 import os
 import json
 import tempfile
@@ -216,7 +217,11 @@ class Instagram:
         # Use account_id as filename to avoid path injection
         safe_id = "".join(c for c in self.account_id if c.isalnum() or c in ("-", "_"))
         if not safe_id:
-            safe_id = "default"
+            # Avoid session collision when account_id has no safe chars:
+            # use a short hash of the raw account_id to ensure uniqueness.
+            safe_id = "acct_" + hashlib.sha256(
+                self.account_id.encode("utf-8", errors="replace")
+            ).hexdigest()[:12]
         return os.path.join(_SESSION_DIR, f"{safe_id[:50]}_session.json")
 
     def _save_session(self, client, session_path: str) -> None:
@@ -293,8 +298,11 @@ class Instagram:
                 "caption": caption or "",
             }
 
-            if thumbnail_path and os.path.isfile(thumbnail_path):
-                kwargs["thumbnail"] = thumbnail_path
+            if thumbnail_path:
+                if not isinstance(thumbnail_path, str) or "\x00" in thumbnail_path:
+                    raise ValueError("thumbnail_path contains null bytes or is not a string.")
+                if os.path.isfile(thumbnail_path):
+                    kwargs["thumbnail"] = thumbnail_path
 
             media = client.clip_upload(**kwargs)
 
@@ -345,8 +353,8 @@ class Instagram:
         data["reels"].append({
             "account_id": self.account_id,
             "date": datetime.now().isoformat(),
-            "caption": caption[:200],  # Truncate for cache storage
-            "reel_id": reel_id,
+            "caption": caption[:200],   # Truncate for cache storage
+            "reel_id": str(reel_id)[:64],  # Cap to prevent unbounded writes
         })
 
         # Cap cache size to prevent unbounded growth
