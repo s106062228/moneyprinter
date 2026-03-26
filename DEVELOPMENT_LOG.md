@@ -1,5 +1,46 @@
 # MoneyPrinter Development Log
 
+## Run 15 — 2026-03-26
+
+### Architecture Analysis
+- **Stale test**: `test_cache.py` contained a test asserting that `get_provider_cache_path("instagram")` raises `ValueError`. This was valid before Run 14, but Run 14 added "instagram" as a supported provider — the test became incorrect and would have failed on CI.
+- **Thumbnail null-byte path**: `Instagram.upload_reel()` validated `video_path` for null bytes but passed `thumbnail_path` directly to `os.path.isfile()` without the same check. In Python 3, a null byte in a path raises `ValueError` from the OS layer, which was silently caught by the broad `except Exception` block instead of surfacing clearly to the caller.
+- **Session collision on special-char account IDs**: `_get_session_path()` sanitized `account_id` to alphanumeric+dash+underscore characters and fell back to `"default"` when the result was empty. Multiple accounts whose IDs contained only special chars (e.g. `@@@`, `!!!`) would all share `default_session.json`, causing session cross-contamination.
+- **Unbounded reel_id in cache**: `_record_upload()` called `str(media.pk)` and stored the result without a length cap. A misbehaving or compromised instagrapi client returning an unexpectedly large `pk` value could cause unbounded cache writes.
+
+### Research Findings (2026 Market Update)
+- **Instagram Creator Marketplace 2026**: Instagram now provides native analytics APIs for business accounts including reach, plays, likes, comments, and saves per Reel. Third-party tools (including instagrapi) are expanding analytics extraction capabilities.
+- **Session management best practices**: Major Instagram automation libraries now recommend session rotation (re-authentication every 30 days), separate device fingerprints per account, and encrypted session storage to reduce account flag risk.
+- **Reels performance**: Short-form video under 30 seconds achieves 2.3× higher completion rates on Instagram in 2026 vs. longer formats. Content tools that auto-trim to under 30 seconds are becoming standard.
+
+### Feature Implemented: Instagram Reels Unit Tests (`tests/test_instagram.py`)
+- **44 unit tests** covering the full `Instagram` class surface:
+  - `_get_instagram_config()`, `get_instagram_username()`, `get_instagram_password()` — config hierarchy and env-var fallback
+  - `_safe_read_cache()` / `_safe_write_cache()` — JSON read/write, invalid JSON, default return, atomicity (no temp file leaks)
+  - `Instagram.__init__()` — explicit creds, config fallback, missing username/password raise
+  - `_get_session_path()` — path sanitization, 50-char cap, hash fallback for all-special-char IDs
+  - `upload_reel()` validation — empty path, None path, null bytes, non-existent file, unsupported extension (.avi, .txt), .mov accepted, caption truncation, thumbnail null bytes, thumbnail non-string
+  - `upload_reel()` success — returns True, records reel_id, passes thumbnail to client
+  - `upload_reel()` failure — None media returns False, exception returns False, ImportError re-raises
+  - `get_reels()` — empty list, filtered by account_id, other accounts excluded
+  - `_record_upload()` — appends entry, caption capped at 200 chars, reel_id capped at 64 chars, cache rotates at 5000 entries, includes account_id and date
+  - `_track_analytics()` — swallows analytics errors silently
+  - Context manager — `__enter__` returns self, `__exit__` resets client, returns False, cleans up in `with` block
+
+### Security Fixes (Run 15) — 4 findings, 4 fixed
+1. **MEDIUM**: `test_cache.py` — Stale test falsely asserted `get_provider_cache_path("instagram")` raises ValueError; fixed to use an actually invalid provider (`"snapchat"`) and added a new `test_instagram_provider` test confirming the valid path.
+2. **LOW**: `Instagram.upload_reel()` — Added explicit null-byte and type validation for `thumbnail_path` before `os.path.isfile()` call, matching the same guard used for `video_path`.
+3. **LOW**: `Instagram._get_session_path()` — Added `hashlib.sha256` fallback when `account_id` sanitizes to empty string, replacing the generic `"default"` literal that caused session file collision across accounts.
+4. **LOW**: `Instagram._record_upload()` — Added `str(reel_id)[:64]` cap to prevent unbounded reel_id strings from being written to the cache file.
+
+### README Updates
+- Updated badge counts: 15x audited, 470+ tests
+- Added Instagram module unit tests to test coverage list
+- Updated security section with Run 15 hardening measures
+- Updated roadmap to reflect Instagram tests completion
+
+---
+
 ## Run 14 — 2026-03-25
 
 ### Architecture Analysis

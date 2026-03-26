@@ -11,8 +11,8 @@
   <a href="https://github.com/s106062228/moneyprinter/pulls"><img src="https://img.shields.io/github/issues-pr/s106062228/moneyprinter?style=for-the-badge&color=green" alt="Pull Requests" /></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12+" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Ready" />
-  <img src="https://img.shields.io/badge/security-14x%20audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security: 14x Audited" />
-  <img src="https://img.shields.io/badge/tests-425%2B%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 425+ Passed" />
+  <img src="https://img.shields.io/badge/security-15x%20audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security: 15x Audited" />
+  <img src="https://img.shields.io/badge/tests-470%2B%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 470+ Passed" />
   <img src="https://img.shields.io/badge/coverage-tracked-blue?style=for-the-badge&logo=codecov&logoColor=white" alt="Coverage Tracked" />
   <img src="https://img.shields.io/badge/LLM-multi--provider-blueviolet?style=for-the-badge&logo=openai&logoColor=white" alt="Multi-LLM Provider" />
 </p>
@@ -50,8 +50,8 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 - **CI/CD Pipeline** — GitHub Actions with automated testing, code coverage reporting, security scanning (Bandit), and code linting (Ruff)
 - **Code Coverage** — pytest-cov integration with per-line coverage tracking, HTML reports, and CI threshold enforcement (40% minimum)
 - **Context Managers** — All browser classes support `with` statement for automatic resource cleanup (no leaked browser processes)
-- **425+ Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, analytics reports, cache, logging, multi-LLM provider, retry logic, webhooks, multi-platform publisher, content scheduler, thumbnail generator, SEO optimizer, Twitter/YouTube cache, and utilities
-- **14x Security Audited** — SSRF protection, TOCTOU-safe atomic writes, ZIP traversal hardening, recursion depth limits, email rate limiting, CSV injection prevention, URL bounds validation, webhook URL validation, info disclosure prevention, analytics event rotation, arbitrary file read prevention, email format validation, timeout caps, retry module info disclosure fixes, deserialization validation, path/URL disclosure prevention
+- **470+ Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, analytics reports, cache, logging, multi-LLM provider, retry logic, webhooks, multi-platform publisher, content scheduler, thumbnail generator, SEO optimizer, Twitter/YouTube cache, Instagram Reels, and utilities
+- **15x Security Audited** — SSRF protection, TOCTOU-safe atomic writes, ZIP traversal hardening, recursion depth limits, email rate limiting, CSV injection prevention, URL bounds validation, webhook URL validation, info disclosure prevention, analytics event rotation, arbitrary file read prevention, email format validation, timeout caps, retry module info disclosure fixes, deserialization validation, path/URL disclosure prevention, thumbnail null-byte validation, session collision prevention, cache size caps
 
 ## Architecture
 

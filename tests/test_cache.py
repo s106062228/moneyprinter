@@ -54,9 +54,13 @@ class TestProviderCachePath:
         result = cache_module.get_provider_cache_path("youtube")
         assert "youtube.json" in result
 
+    def test_instagram_provider(self, isolate_cache):
+        result = cache_module.get_provider_cache_path("instagram")
+        assert "instagram.json" in result
+
     def test_invalid_provider_raises(self):
         with pytest.raises(ValueError, match="Unsupported provider"):
-            cache_module.get_provider_cache_path("instagram")
+            cache_module.get_provider_cache_path("snapchat")
 
 
 class TestAccounts:

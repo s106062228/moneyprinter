@@ -62,9 +62,8 @@
 - [x] Instagram Reels upload integration (`src/classes/Instagram.py`) via instagrapi with session persistence, atomic cache, analytics tracking
 - [x] Instagram platform support across publisher, scheduler, SEO optimizer, analytics report, webhooks, and cache modules
 - [x] Security audit (Run 14) — analytics limit bypass fix, path disclosure fix, prompt length cap, lazy import fix, output_dir validation, browser cleanup safety
-
-## In Progress
-- [ ] Unit tests for Instagram Reels module
+- [x] Unit tests for Instagram Reels module (44 new tests, 470+ total)
+- [x] Security audit (Run 15) — stale cache test fix, thumbnail null-byte validation, session path collision fix, reel_id length cap
 
 ## Planned — High Priority
 - [ ] Web dashboard for monitoring content generation
