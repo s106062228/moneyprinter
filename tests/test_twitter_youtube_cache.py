@@ -18,101 +18,118 @@ from pathlib import Path
 import cache as cache_module
 
 
+# Pre-import Twitter and YouTube classes once with mocked heavy deps.
+# This avoids repeated patch.dict(sys.modules) calls and ensures consistent
+# module state across all tests.
+_HEAVY_MOCKS = {
+    'ollama': MagicMock(),
+    'llm_provider': MagicMock(),
+    'selenium_firefox': MagicMock(),
+    'selenium': MagicMock(),
+    'selenium.webdriver': MagicMock(),
+    'selenium.webdriver.firefox': MagicMock(),
+    'selenium.webdriver.firefox.service': MagicMock(),
+    'selenium.webdriver.firefox.options': MagicMock(),
+    'selenium.webdriver.common.by': MagicMock(),
+    'selenium.webdriver.support': MagicMock(),
+    'selenium.webdriver.support.ui': MagicMock(),
+    'selenium.webdriver.support.expected_conditions': MagicMock(),
+    'webdriver_manager': MagicMock(),
+    'webdriver_manager.firefox': MagicMock(),
+    'status': MagicMock(),
+    'assemblyai': MagicMock(),
+    'assemblyai.aai': MagicMock(),
+    'requests': MagicMock(),
+    'soundfile': MagicMock(),
+    'numpy': MagicMock(),
+    'pydub': MagicMock(),
+    'pydub.AudioSegment': MagicMock(),
+    'kittentts': MagicMock(),
+    'moviepy': MagicMock(),
+    'moviepy.editor': MagicMock(),
+    'moviepy.video': MagicMock(),
+    'moviepy.video.fx': MagicMock(),
+    'moviepy.video.fx.all': MagicMock(),
+    'moviepy.video.tools': MagicMock(),
+    'moviepy.video.tools.subtitles': MagicMock(),
+    'moviepy.config': MagicMock(),
+    'faster_whisper': MagicMock(),
+    'constants': MagicMock(),
+    'utils': MagicMock(),
+}
+
+with patch.dict(sys.modules, _HEAVY_MOCKS):
+    from classes.Twitter import Twitter as _Twitter
+    from classes.YouTube import YouTube as _YouTube
+
+# Get references to the method __globals__ dicts (these are the module namespaces
+# where _safe_read_cache / _safe_write_cache look up get_twitter_cache_path etc.)
+_tw_globals = _Twitter._safe_read_cache.__globals__
+_yt_globals = _YouTube._safe_read_cache.__globals__
+
+
 @pytest.fixture(autouse=True)
 def isolate_cache(tmp_path):
-    """Redirect cache to use temp directory."""
+    """Redirect cache to use temp directory.
+
+    Patches ROOT_DIR in the cache module AND directly in the Twitter/YouTube
+    method globals (which have separate copies due to namespace package imports).
+    """
     mp_dir = str(tmp_path / ".mp")
     os.makedirs(mp_dir, exist_ok=True)
-    with patch.object(cache_module, "ROOT_DIR", str(tmp_path)):
-        yield tmp_path
+    root = str(tmp_path)
+
+    # Save originals and patch
+    orig_cache_root = cache_module.ROOT_DIR
+    orig_tw_gtp = _tw_globals.get('get_twitter_cache_path')
+    orig_tw_gcp = _tw_globals.get('get_cache_path')
+    orig_yt_gtp = _yt_globals.get('get_youtube_cache_path')
+    orig_yt_gcp = _yt_globals.get('get_cache_path')
+
+    cache_module.ROOT_DIR = root
+    _tw_globals['get_twitter_cache_path'] = cache_module.get_twitter_cache_path
+    _tw_globals['get_cache_path'] = cache_module.get_cache_path
+    _yt_globals['get_youtube_cache_path'] = cache_module.get_youtube_cache_path
+    _yt_globals['get_cache_path'] = cache_module.get_cache_path
+
+    yield tmp_path
+
+    # Restore
+    cache_module.ROOT_DIR = orig_cache_root
+    if orig_tw_gtp is not None:
+        _tw_globals['get_twitter_cache_path'] = orig_tw_gtp
+    if orig_tw_gcp is not None:
+        _tw_globals['get_cache_path'] = orig_tw_gcp
+    if orig_yt_gtp is not None:
+        _yt_globals['get_youtube_cache_path'] = orig_yt_gtp
+    if orig_yt_gcp is not None:
+        _yt_globals['get_cache_path'] = orig_yt_gcp
 
 
 def create_twitter_instance(account_uuid, account_nickname, topic):
     """
     Create a Twitter instance without starting Firefox.
     Uses __new__ to bypass __init__ which requires Selenium.
-    Mocks out all heavy dependencies.
     """
-    # Mock out heavy dependencies before importing
-    with patch.dict(sys.modules, {
-        'ollama': MagicMock(),
-        'llm_provider': MagicMock(),
-        'selenium_firefox': MagicMock(),
-        'selenium': MagicMock(),
-        'selenium.webdriver': MagicMock(),
-        'selenium.webdriver.firefox': MagicMock(),
-        'selenium.webdriver.firefox.service': MagicMock(),
-        'selenium.webdriver.firefox.options': MagicMock(),
-        'selenium.webdriver.common.by': MagicMock(),
-        'selenium.webdriver.support': MagicMock(),
-        'selenium.webdriver.support.ui': MagicMock(),
-        'selenium.webdriver.support.expected_conditions': MagicMock(),
-        'webdriver_manager': MagicMock(),
-        'webdriver_manager.firefox': MagicMock(),
-        'status': MagicMock(),
-    }):
-        from classes.Twitter import Twitter
-
-        # Create instance without calling __init__
-        instance = Twitter.__new__(Twitter)
-        instance.account_uuid = account_uuid
-        instance.account_nickname = account_nickname
-        instance.topic = topic
-
-        return instance
+    instance = _Twitter.__new__(_Twitter)
+    instance.account_uuid = account_uuid
+    instance.account_nickname = account_nickname
+    instance.topic = topic
+    return instance
 
 
 def create_youtube_instance(account_uuid, account_nickname, niche, language):
     """
     Create a YouTube instance without starting Firefox.
     Uses __new__ to bypass __init__ which requires Selenium.
-    Mocks out all heavy dependencies.
     """
-    # Mock out heavy dependencies before importing
-    with patch.dict(sys.modules, {
-        'assemblyai': MagicMock(),
-        'assemblyai.aai': MagicMock(),
-        'requests': MagicMock(),
-        'soundfile': MagicMock(),
-        'numpy': MagicMock(),
-        'pydub': MagicMock(),
-        'pydub.AudioSegment': MagicMock(),
-        'kittentts': MagicMock(),
-        'ollama': MagicMock(),
-        'llm_provider': MagicMock(),
-        'selenium_firefox': MagicMock(),
-        'selenium': MagicMock(),
-        'selenium.webdriver': MagicMock(),
-        'selenium.webdriver.firefox': MagicMock(),
-        'selenium.webdriver.firefox.service': MagicMock(),
-        'selenium.webdriver.firefox.options': MagicMock(),
-        'selenium.webdriver.common.by': MagicMock(),
-        'webdriver_manager': MagicMock(),
-        'webdriver_manager.firefox': MagicMock(),
-        'moviepy': MagicMock(),
-        'moviepy.editor': MagicMock(),
-        'moviepy.video': MagicMock(),
-        'moviepy.video.fx': MagicMock(),
-        'moviepy.video.fx.all': MagicMock(),
-        'moviepy.video.tools': MagicMock(),
-        'moviepy.video.tools.subtitles': MagicMock(),
-        'moviepy.config': MagicMock(),
-        'faster_whisper': MagicMock(),
-        'status': MagicMock(),
-        'constants': MagicMock(),
-        'utils': MagicMock(),
-    }):
-        from classes.YouTube import YouTube
-
-        # Create instance without calling __init__
-        instance = YouTube.__new__(YouTube)
-        instance._account_uuid = account_uuid
-        instance._account_nickname = account_nickname
-        instance._niche = niche
-        instance._language = language
-        instance.images = []
-
-        return instance
+    instance = _YouTube.__new__(_YouTube)
+    instance._account_uuid = account_uuid
+    instance._account_nickname = account_nickname
+    instance._niche = niche
+    instance._language = language
+    instance.images = []
+    return instance
 
 
 class TestTwitterSafeReadCache:

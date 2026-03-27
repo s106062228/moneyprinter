@@ -1,0 +1,1023 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0 -- /Users/chengwen/LLM/moneyprinter/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/chengwen/LLM/moneyprinter
+configfile: pytest.ini
+plugins: cov-7.1.0, anyio-4.13.0
+collecting ... collected 734 items
+
+tests/test_analytics.py::TestTrackEvent::test_track_single_event PASSED  [  0%]
+tests/test_analytics.py::TestTrackEvent::test_track_multiple_events PASSED [  0%]
+tests/test_analytics.py::TestTrackEvent::test_track_event_no_details PASSED [  0%]
+tests/test_analytics.py::TestGetSummary::test_empty_summary PASSED       [  0%]
+tests/test_analytics.py::TestGetSummary::test_summary_after_events PASSED [  0%]
+tests/test_analytics.py::TestGetEvents::test_get_events_empty PASSED     [  0%]
+tests/test_analytics.py::TestGetEvents::test_get_events_returns_recent_first PASSED [  0%]
+tests/test_analytics.py::TestGetEvents::test_filter_by_platform PASSED   [  1%]
+tests/test_analytics.py::TestGetEvents::test_filter_by_event_type PASSED [  1%]
+tests/test_analytics.py::TestGetEvents::test_limit_parameter PASSED      [  1%]
+tests/test_analytics.py::TestGetPlatformStats::test_unknown_platform PASSED [  1%]
+tests/test_analytics.py::TestGetPlatformStats::test_known_platform PASSED [  1%]
+tests/test_analytics_report.py::TestPlatformStats::test_default_values PASSED [  1%]
+tests/test_analytics_report.py::TestPlatformStats::test_to_dict PASSED   [  1%]
+tests/test_analytics_report.py::TestPlatformStats::test_to_dict_rounds_floats PASSED [  2%]
+tests/test_analytics_report.py::TestAnalyticsReport::test_default_generated_at PASSED [  2%]
+tests/test_analytics_report.py::TestAnalyticsReport::test_to_dict PASSED [  2%]
+tests/test_analytics_report.py::TestAnalyticsReport::test_to_json PASSED [  2%]
+tests/test_analytics_report.py::TestAnalyticsReport::test_to_text_empty PASSED [  2%]
+tests/test_analytics_report.py::TestAnalyticsReport::test_to_text_with_data PASSED [  2%]
+tests/test_analytics_report.py::TestAnalyticsReport::test_to_text_with_recommendations PASSED [  2%]
+tests/test_analytics_report.py::TestAnalyticsReport::test_to_text_with_daily_trend PASSED [  2%]
+tests/test_analytics_report.py::TestAnalyticsReport::test_to_text_truncated PASSED [  3%]
+tests/test_analytics_report.py::TestAnalyticsReport::test_to_dict_with_platform_stats PASSED [  3%]
+tests/test_analytics_report.py::TestParseEventDate::test_valid_timestamp PASSED [  3%]
+tests/test_analytics_report.py::TestParseEventDate::test_empty_timestamp PASSED [  3%]
+tests/test_analytics_report.py::TestParseEventDate::test_missing_timestamp PASSED [  3%]
+tests/test_analytics_report.py::TestParseEventDate::test_non_string_timestamp PASSED [  3%]
+tests/test_analytics_report.py::TestComputePlatformStats::test_empty_events PASSED [  3%]
+tests/test_analytics_report.py::TestComputePlatformStats::test_all_successful PASSED [  4%]
+tests/test_analytics_report.py::TestComputePlatformStats::test_mixed_success_failure PASSED [  4%]
+tests/test_analytics_report.py::TestComputePlatformStats::test_filters_by_platform PASSED [  4%]
+tests/test_analytics_report.py::TestComputePlatformStats::test_tracks_error_types PASSED [  4%]
+tests/test_analytics_report.py::TestComputePlatformStats::test_peak_day PASSED [  4%]
+tests/test_analytics_report.py::TestComputePlatformStats::test_event_type_distribution PASSED [  4%]
+tests/test_analytics_report.py::TestComputePlatformStats::test_twitter_events PASSED [  4%]
+tests/test_analytics_report.py::TestComputePlatformStats::test_tiktok_events PASSED [  5%]
+tests/test_analytics_report.py::TestComputeTrend::test_empty_counter PASSED [  5%]
+tests/test_analytics_report.py::TestComputeTrend::test_single_day PASSED [  5%]
+tests/test_analytics_report.py::TestComputeTrend::test_increasing_trend PASSED [  5%]
+tests/test_analytics_report.py::TestComputeTrend::test_decreasing_trend PASSED [  5%]
+tests/test_analytics_report.py::TestComputeDailyTrend::test_returns_7_days PASSED [  5%]
+tests/test_analytics_report.py::TestComputeDailyTrend::test_today_included PASSED [  5%]
+tests/test_analytics_report.py::TestComputeDailyTrend::test_counts_events PASSED [  5%]
+tests/test_analytics_report.py::TestGenerateRecommendations::test_empty_report PASSED [  6%]
+tests/test_analytics_report.py::TestGenerateRecommendations::test_low_activity PASSED [  6%]
+tests/test_analytics_report.py::TestGenerateRecommendations::test_single_platform PASSED [  6%]
+tests/test_analytics_report.py::TestGenerateRecommendations::test_low_success_rate PASSED [  6%]
+tests/test_analytics_report.py::TestGenerateRecommendations::test_perfect_rate PASSED [  6%]
+tests/test_analytics_report.py::TestGenerateRecommendations::test_recommendations_capped PASSED [  6%]
+tests/test_analytics_report.py::TestGenerateReport::test_empty_analytics PASSED [  6%]
+tests/test_analytics_report.py::TestGenerateReport::test_with_events PASSED [  7%]
+tests/test_analytics_report.py::TestGenerateReport::test_overall_success_rate PASSED [  7%]
+tests/test_analytics_report.py::TestGenerateReport::test_busiest_platform PASSED [  7%]
+tests/test_analytics_report.py::TestGenerateReport::test_event_type_distribution PASSED [  7%]
+tests/test_analytics_report.py::TestGenerateReport::test_daily_trend_populated PASSED [  7%]
+tests/test_analytics_report.py::TestGenerateReport::test_max_events_limit PASSED [  7%]
+tests/test_analytics_report.py::TestGenerateReport::test_json_roundtrip PASSED [  7%]
+tests/test_analytics_report.py::TestGetPlatformReport::test_valid_platform PASSED [  8%]
+tests/test_analytics_report.py::TestGetPlatformReport::test_invalid_platform FAILED [  8%]
+tests/test_analytics_report.py::TestGetPlatformReport::test_case_insensitive PASSED [  8%]
+tests/test_analytics_report.py::TestSaveReport::test_save_report PASSED  [  8%]
+tests/test_analytics_report.py::TestSaveReport::test_save_creates_directory PASSED [  8%]
+tests/test_analytics_report.py::TestSaveReport::test_save_invalid_path PASSED [  8%]
+tests/test_analytics_report.py::TestSaveReport::test_save_null_byte_path PASSED [  8%]
+tests/test_analytics_report.py::TestConfigHelpers::test_get_report_max_events PASSED [  8%]
+tests/test_analytics_report.py::TestConfigHelpers::test_max_events_capped PASSED [  9%]
+tests/test_analytics_report.py::TestConfigHelpers::test_get_report_top_n PASSED [  9%]
+tests/test_analytics_report.py::TestConfigHelpers::test_top_n_capped PASSED [  9%]
+tests/test_analytics_report.py::TestConfigHelpers::test_top_n_min PASSED [  9%]
+tests/test_batch_generator.py::TestBatchJobValidation::test_valid_job_passes PASSED [  9%]
+tests/test_batch_generator.py::TestBatchJobValidation::test_empty_topics_raises PASSED [  9%]
+tests/test_batch_generator.py::TestBatchJobValidation::test_non_list_topics_raises PASSED [  9%]
+tests/test_batch_generator.py::TestBatchJobValidation::test_too_many_topics_raises PASSED [ 10%]
+tests/test_batch_generator.py::TestBatchJobValidation::test_50_topics_passes PASSED [ 10%]
+tests/test_batch_generator.py::TestBatchJobValidation::test_empty_string_topic_raises PASSED [ 10%]
+tests/test_batch_generator.py::TestBatchJobValidation::test_null_byte_in_topic_raises PASSED [ 10%]
+tests/test_batch_generator.py::TestBatchJobValidation::test_topic_too_long_raises PASSED [ 10%]
+tests/test_batch_generator.py::TestBatchJobValidation::test_niche_too_long_raises PASSED [ 10%]
+tests/test_batch_generator.py::TestBatchJobValidation::test_language_too_long_raises PASSED [ 10%]
+tests/test_batch_generator.py::TestBatchJobValidation::test_invalid_platform_raises PASSED [ 11%]
+tests/test_batch_generator.py::TestBatchJobValidation::test_valid_platforms_pass PASSED [ 11%]
+tests/test_batch_generator.py::TestBatchConfigHelpers::test_get_max_videos_per_run_default PASSED [ 11%]
+tests/test_batch_generator.py::TestBatchConfigHelpers::test_get_max_videos_per_run_capped PASSED [ 11%]
+tests/test_batch_generator.py::TestBatchConfigHelpers::test_get_max_videos_per_run_minimum PASSED [ 11%]
+tests/test_batch_generator.py::TestBatchConfigHelpers::test_get_delay_default PASSED [ 11%]
+tests/test_batch_generator.py::TestBatchConfigHelpers::test_get_delay_capped_high PASSED [ 11%]
+tests/test_batch_generator.py::TestBatchConfigHelpers::test_get_delay_capped_low PASSED [ 11%]
+tests/test_batch_generator.py::TestBatchResult::test_to_dict PASSED      [ 12%]
+tests/test_batch_generator.py::TestBatchResult::test_to_text PASSED      [ 12%]
+tests/test_batch_generator.py::TestBatchResult::test_to_dict_truncates_long_topics PASSED [ 12%]
+tests/test_batch_generator.py::TestBatchGeneratorRun::test_run_returns_batch_result PASSED [ 12%]
+tests/test_batch_generator.py::TestBatchGeneratorRun::test_run_caps_topics_to_max_per_run PASSED [ 12%]
+tests/test_batch_generator.py::TestBatchGeneratorRun::test_run_counts_failures PASSED [ 12%]
+tests/test_batch_generator.py::TestBatchGeneratorRun::test_run_tracks_analytics PASSED [ 12%]
+tests/test_batch_generator.py::TestBatchJobEdgeCases::test_whitespace_only_topic_raises PASSED [ 13%]
+tests/test_batch_generator.py::TestBatchJobEdgeCases::test_none_topic_raises PASSED [ 13%]
+tests/test_batch_generator.py::TestBatchJobEdgeCases::test_integer_topic_raises PASSED [ 13%]
+tests/test_batch_generator.py::TestBatchJobEdgeCases::test_niche_non_string_raises PASSED [ 13%]
+tests/test_batch_generator.py::TestBatchJobEdgeCases::test_language_non_string_raises PASSED [ 13%]
+tests/test_batch_generator.py::TestBatchJobEdgeCases::test_duplicate_topics_passes PASSED [ 13%]
+tests/test_batch_generator.py::TestBatchJobEdgeCases::test_topic_at_exact_max_length_passes PASSED [ 13%]
+tests/test_batch_generator.py::TestBatchJobEdgeCases::test_single_topic_passes PASSED [ 14%]
+tests/test_batch_generator.py::TestDataClassDefaults::test_batch_video_result_defaults PASSED [ 14%]
+tests/test_batch_generator.py::TestDataClassDefaults::test_batch_result_empty_videos_to_dict PASSED [ 14%]
+tests/test_batch_generator.py::TestDataClassDefaults::test_batch_result_zero_duration_to_text PASSED [ 14%]
+tests/test_batch_generator.py::TestBatchGeneratorIntegration::test_auto_publish_when_job_flag_true PASSED [ 14%]
+tests/test_batch_generator.py::TestBatchGeneratorIntegration::test_auto_publish_when_config_flag_true PASSED [ 14%]
+tests/test_batch_generator.py::TestBatchGeneratorIntegration::test_auto_publish_skipped_on_failure PASSED [ 14%]
+tests/test_batch_generator.py::TestBatchGeneratorIntegration::test_auto_publish_skipped_when_no_platforms PASSED [ 14%]
+tests/test_batch_generator.py::TestBatchGeneratorIntegration::test_generate_single_no_accounts PASSED [ 15%]
+tests/test_batch_generator.py::TestBatchGeneratorIntegration::test_generate_single_exception PASSED [ 15%]
+tests/test_batch_generator.py::TestBatchGeneratorIntegration::test_auto_publish_exception_handling PASSED [ 15%]
+tests/test_batch_generator.py::TestBatchGeneratorIntegration::test_track_batch_analytics_success PASSED [ 15%]
+tests/test_batch_generator.py::TestBatchGeneratorIntegration::test_track_batch_analytics_silent_failure PASSED [ 15%]
+tests/test_batch_generator.py::TestBatchGeneratorIntegration::test_run_calls_sleep_between_videos PASSED [ 15%]
+tests/test_batch_generator.py::TestBatchGeneratorIntegration::test_run_all_failures_shows_warning PASSED [ 15%]
+tests/test_cache.py::TestCachePaths::test_get_cache_path PASSED          [ 16%]
+tests/test_cache.py::TestCachePaths::test_get_twitter_cache_path PASSED  [ 16%]
+tests/test_cache.py::TestCachePaths::test_get_youtube_cache_path PASSED  [ 16%]
+tests/test_cache.py::TestCachePaths::test_get_afm_cache_path PASSED      [ 16%]
+tests/test_cache.py::TestCachePaths::test_get_results_cache_path PASSED  [ 16%]
+tests/test_cache.py::TestProviderCachePath::test_twitter_provider PASSED [ 16%]
+tests/test_cache.py::TestProviderCachePath::test_youtube_provider PASSED [ 16%]
+tests/test_cache.py::TestProviderCachePath::test_instagram_provider PASSED [ 17%]
+tests/test_cache.py::TestProviderCachePath::test_invalid_provider_raises PASSED [ 17%]
+tests/test_cache.py::TestAccounts::test_get_accounts_empty PASSED        [ 17%]
+tests/test_cache.py::TestAccounts::test_add_and_get_account PASSED       [ 17%]
+tests/test_cache.py::TestAccounts::test_add_multiple_accounts PASSED     [ 17%]
+tests/test_cache.py::TestAccounts::test_remove_account PASSED            [ 17%]
+tests/test_cache.py::TestAccounts::test_remove_nonexistent_account PASSED [ 17%]
+tests/test_cache.py::TestProducts::test_get_products_empty PASSED        [ 17%]
+tests/test_cache.py::TestProducts::test_add_and_get_product PASSED       [ 18%]
+tests/test_cache.py::TestProducts::test_add_multiple_products PASSED     [ 18%]
+tests/test_config.py::TestConfigLoading::test_load_config_caches PASSED  [ 18%]
+tests/test_config.py::TestConfigLoading::test_reload_config_refreshes PASSED [ 18%]
+tests/test_config.py::TestConfigLoading::test_missing_config_returns_empty PASSED [ 18%]
+tests/test_config.py::TestConfigLoading::test_invalid_json_returns_empty PASSED [ 18%]
+tests/test_config.py::TestConfigGetters::test_get_verbose PASSED         [ 18%]
+tests/test_config.py::TestConfigGetters::test_get_headless PASSED        [ 19%]
+tests/test_config.py::TestConfigGetters::test_get_firefox_profile_path PASSED [ 19%]
+tests/test_config.py::TestConfigGetters::test_get_ollama_model PASSED    [ 19%]
+tests/test_config.py::TestConfigGetters::test_get_ollama_base_url PASSED [ 19%]
+tests/test_config.py::TestConfigGetters::test_get_threads PASSED         [ 19%]
+tests/test_config.py::TestConfigGetters::test_get_is_for_kids PASSED     [ 19%]
+tests/test_config.py::TestConfigGetters::test_get_twitter_language PASSED [ 19%]
+tests/test_config.py::TestConfigGetters::test_get_tts_voice PASSED       [ 20%]
+tests/test_config.py::TestConfigGetters::test_get_stt_provider PASSED    [ 20%]
+tests/test_config.py::TestConfigGetters::test_get_whisper_model PASSED   [ 20%]
+tests/test_config.py::TestConfigGetters::test_get_whisper_device PASSED  [ 20%]
+tests/test_config.py::TestConfigGetters::test_get_whisper_compute_type PASSED [ 20%]
+tests/test_config.py::TestConfigGetters::test_get_font PASSED            [ 20%]
+tests/test_config.py::TestConfigGetters::test_get_imagemagick_path PASSED [ 20%]
+tests/test_config.py::TestConfigGetters::test_get_script_sentence_length PASSED [ 20%]
+tests/test_config.py::TestConfigGetters::test_get_scraper_timeout PASSED [ 21%]
+tests/test_config.py::TestConfigGetters::test_get_zip_url PASSED         [ 21%]
+tests/test_config.py::TestConfigGetters::test_get_nanobanana2_api_key PASSED [ 21%]
+tests/test_config.py::TestConfigGetters::test_get_nanobanana2_model PASSED [ 21%]
+tests/test_config.py::TestConfigGetters::test_get_nanobanana2_aspect_ratio PASSED [ 21%]
+tests/test_config.py::TestConfigDefaults::test_default_verbose PASSED    [ 21%]
+tests/test_config.py::TestConfigDefaults::test_default_ollama_base_url PASSED [ 21%]
+tests/test_config.py::TestConfigDefaults::test_default_threads PASSED    [ 22%]
+tests/test_config.py::TestConfigDefaults::test_default_whisper_model PASSED [ 22%]
+tests/test_config.py::TestConfigDefaults::test_default_script_sentence_length PASSED [ 22%]
+tests/test_config.py::TestEnvVarFallbacks::test_gemini_api_key_env_fallback PASSED [ 22%]
+tests/test_config.py::TestEnvVarFallbacks::test_assemblyai_key_env_fallback PASSED [ 22%]
+tests/test_config.py::TestEnvVarFallbacks::test_email_env_fallback PASSED [ 22%]
+tests/test_config.py::TestEnvVarFallbacks::test_config_value_takes_precedence_over_env PASSED [ 22%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_creation_defaults PASSED [ 23%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_validate_empty_video_path PASSED [ 23%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_validate_null_byte_in_path PASSED [ 23%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_validate_path_too_long PASSED [ 23%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_validate_empty_title PASSED [ 23%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_validate_title_too_long PASSED [ 23%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_validate_description_too_long PASSED [ 23%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_validate_unknown_platform PASSED [ 23%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_validate_invalid_scheduled_time PASSED [ 24%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_validate_negative_repeat_interval PASSED [ 24%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_validate_excessive_repeat_interval PASSED [ 24%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_validate_platforms_not_list PASSED [ 24%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_validate_success PASSED [ 24%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_serialization_roundtrip PASSED [ 24%]
+tests/test_content_scheduler.py::TestScheduledJob::test_job_to_dict_keys PASSED [ 24%]
+tests/test_content_scheduler.py::TestSchedulerConfig::test_get_scheduler_enabled_default PASSED [ 25%]
+tests/test_content_scheduler.py::TestSchedulerConfig::test_get_scheduler_enabled_true PASSED [ 25%]
+tests/test_content_scheduler.py::TestSchedulerConfig::test_get_max_pending_jobs_default PASSED [ 25%]
+tests/test_content_scheduler.py::TestSchedulerConfig::test_get_max_pending_jobs_capped PASSED [ 25%]
+tests/test_content_scheduler.py::TestSchedulerConfig::test_get_optimal_times_defaults PASSED [ 25%]
+tests/test_content_scheduler.py::TestSchedulerConfig::test_get_optimal_times_configured PASSED [ 25%]
+tests/test_content_scheduler.py::TestSchedulerConfig::test_get_optimal_times_unknown_platform PASSED [ 25%]
+tests/test_content_scheduler.py::TestSchedulerConfig::test_suggest_next_optimal_time_returns_iso PASSED [ 26%]
+tests/test_content_scheduler.py::TestSchedulerPersistence::test_load_schedule_missing_file PASSED [ 26%]
+tests/test_content_scheduler.py::TestSchedulerPersistence::test_load_schedule_corrupt_file PASSED [ 26%]
+tests/test_content_scheduler.py::TestSchedulerPersistence::test_save_and_load_roundtrip PASSED [ 26%]
+tests/test_content_scheduler.py::TestSchedulerPersistence::test_save_creates_directory PASSED [ 26%]
+tests/test_content_scheduler.py::TestContentScheduler::test_add_job PASSED [ 26%]
+tests/test_content_scheduler.py::TestContentScheduler::test_add_job_returns_in_list PASSED [ 26%]
+tests/test_content_scheduler.py::TestContentScheduler::test_remove_job PASSED [ 26%]
+tests/test_content_scheduler.py::TestContentScheduler::test_remove_nonexistent_job PASSED [ 27%]
+tests/test_content_scheduler.py::TestContentScheduler::test_remove_job_invalid_input PASSED [ 27%]
+tests/test_content_scheduler.py::TestContentScheduler::test_list_jobs_filter_by_status PASSED [ 27%]
+tests/test_content_scheduler.py::TestContentScheduler::test_get_pending_jobs_time_check PASSED [ 27%]
+tests/test_content_scheduler.py::TestContentScheduler::test_get_pending_jobs_no_scheduled_time PASSED [ 27%]
+tests/test_content_scheduler.py::TestContentScheduler::test_max_pending_jobs_limit PASSED [ 27%]
+tests/test_content_scheduler.py::TestContentScheduler::test_cleanup_completed_removes_old PASSED [ 27%]
+tests/test_content_scheduler.py::TestContentScheduler::test_cleanup_completed_keeps_recent PASSED [ 28%]
+tests/test_content_scheduler.py::TestContentScheduler::test_execute_job_file_not_found PASSED [ 28%]
+tests/test_content_scheduler.py::TestContentScheduler::test_execute_job_success PASSED [ 28%]
+tests/test_content_scheduler.py::TestContentScheduler::test_execute_job_reschedules_on_repeat PASSED [ 28%]
+tests/test_content_scheduler.py::TestContentScheduler::test_run_pending PASSED [ 28%]
+tests/test_content_scheduler.py::TestSchedulerThreadSafety::test_concurrent_add_jobs PASSED [ 28%]
+tests/test_content_scheduler.py::TestOptimalTimingUpdate::test_youtube_default_times_updated PASSED [ 28%]
+tests/test_content_scheduler.py::TestOptimalTimingUpdate::test_tiktok_default_times_updated PASSED [ 29%]
+tests/test_content_scheduler.py::TestOptimalTimingUpdate::test_twitter_default_times PASSED [ 29%]
+tests/test_content_scheduler.py::TestOptimalTimingUpdate::test_instagram_default_times_updated PASSED [ 29%]
+tests/test_content_scheduler.py::TestOptimalTimingUpdate::test_day_weights_exist_for_all_platforms PASSED [ 29%]
+tests/test_content_scheduler.py::TestOptimalTimingUpdate::test_day_weights_cover_all_days PASSED [ 29%]
+tests/test_content_scheduler.py::TestOptimalTimingUpdate::test_day_weights_bounded_0_to_1 PASSED [ 29%]
+tests/test_content_scheduler.py::TestOptimalTimingUpdate::test_midweek_weights_highest PASSED [ 29%]
+tests/test_content_scheduler.py::TestGetBestPostingTime::test_returns_dict_with_expected_keys PASSED [ 29%]
+tests/test_content_scheduler.py::TestGetBestPostingTime::test_returns_valid_time_format PASSED [ 30%]
+tests/test_content_scheduler.py::TestGetBestPostingTime::test_weight_is_float_in_range PASSED [ 30%]
+tests/test_content_scheduler.py::TestGetBestPostingTime::test_platform_name_returned PASSED [ 30%]
+tests/test_content_scheduler.py::TestGetBestPostingTime::test_unknown_platform_raises PASSED [ 30%]
+tests/test_content_scheduler.py::TestGetBestPostingTime::test_weekday_vs_weekend_different_weights PASSED [ 30%]
+tests/test_content_scheduler.py::TestGetBestPostingTime::test_each_platform_returns_result PASSED [ 30%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_valid_template_passes PASSED [ 30%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_empty_name_raises PASSED [ 31%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_name_too_long_raises PASSED [ 31%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_name_null_bytes_raises PASSED [ 31%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_name_invalid_chars_raises PASSED [ 31%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_name_starts_with_hyphen_raises PASSED [ 31%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_name_with_underscores_passes PASSED [ 31%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_name_with_hyphens_passes PASSED [ 31%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_description_too_long_raises PASSED [ 32%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_description_null_bytes_raises PASSED [ 32%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_niche_too_long_raises PASSED [ 32%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_niche_null_bytes_raises PASSED [ 32%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_language_too_long_raises PASSED [ 32%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_unknown_platform_raises PASSED [ 32%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_all_valid_platforms_pass PASSED [ 32%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_invalid_thumbnail_style_raises PASSED [ 32%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_valid_thumbnail_styles_pass PASSED [ 33%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_too_many_tags_raises PASSED [ 33%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_tag_too_long_raises PASSED [ 33%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_tag_null_bytes_raises PASSED [ 33%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_too_many_topics_raises PASSED [ 33%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_topic_too_long_raises PASSED [ 33%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_topic_null_bytes_raises PASSED [ 33%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_too_many_schedule_times_raises PASSED [ 34%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_invalid_schedule_time_format_raises PASSED [ 34%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_non_time_string_raises PASSED [ 34%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_valid_schedule_times_pass PASSED [ 34%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_batch_size_zero_raises PASSED [ 34%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_batch_size_too_large_raises PASSED [ 34%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_delay_too_small_raises PASSED [ 34%]
+tests/test_content_templates.py::TestContentTemplateValidation::test_delay_too_large_raises PASSED [ 35%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_round_trip PASSED [ 35%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_from_dict_truncates_long_name PASSED [ 35%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_from_dict_clamps_batch_size PASSED [ 35%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_from_dict_clamps_delay PASSED [ 35%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_from_dict_filters_invalid_platforms PASSED [ 35%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_from_dict_defaults_invalid_style PASSED [ 35%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_from_dict_non_dict_raises PASSED [ 35%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_from_dict_filters_null_byte_tags PASSED [ 36%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_from_dict_filters_null_byte_topics PASSED [ 36%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_from_dict_filters_invalid_schedule_times PASSED [ 36%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_from_dict_handles_non_int_batch_size PASSED [ 36%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_from_dict_handles_non_int_delay PASSED [ 36%]
+tests/test_content_templates.py::TestContentTemplateSerialization::test_to_dict_contains_all_fields PASSED [ 36%]
+tests/test_content_templates.py::TestContentTemplateToBatchJob::test_uses_default_topics FAILED [ 36%]
+tests/test_content_templates.py::TestContentTemplateToBatchJob::test_overrides_topics PASSED [ 37%]
+tests/test_content_templates.py::TestContentTemplateToBatchJob::test_no_topics_raises PASSED [ 37%]
+tests/test_content_templates.py::TestContentTemplateToBatchJob::test_respects_batch_size_cap PASSED [ 37%]
+tests/test_content_templates.py::TestContentTemplateToBatchJob::test_sets_niche_and_language PASSED [ 37%]
+tests/test_content_templates.py::TestContentTemplateToBatchJob::test_sets_publish_platforms PASSED [ 37%]
+tests/test_content_templates.py::TestTemplateManager::test_save_and_get_template PASSED [ 37%]
+tests/test_content_templates.py::TestTemplateManager::test_list_templates_empty PASSED [ 37%]
+tests/test_content_templates.py::TestTemplateManager::test_list_templates_returns_all PASSED [ 38%]
+tests/test_content_templates.py::TestTemplateManager::test_list_templates_sorted PASSED [ 38%]
+tests/test_content_templates.py::TestTemplateManager::test_delete_template PASSED [ 38%]
+tests/test_content_templates.py::TestTemplateManager::test_delete_nonexistent_returns_false PASSED [ 38%]
+tests/test_content_templates.py::TestTemplateManager::test_get_nonexistent_raises PASSED [ 38%]
+tests/test_content_templates.py::TestTemplateManager::test_template_exists PASSED [ 38%]
+tests/test_content_templates.py::TestTemplateManager::test_save_updates_timestamp PASSED [ 38%]
+tests/test_content_templates.py::TestTemplateManager::test_duplicate_template PASSED [ 38%]
+tests/test_content_templates.py::TestTemplateManager::test_duplicate_nonexistent_raises PASSED [ 39%]
+tests/test_content_templates.py::TestTemplateManager::test_get_with_null_bytes_raises PASSED [ 39%]
+tests/test_content_templates.py::TestTemplateManager::test_delete_with_null_bytes_returns_false PASSED [ 39%]
+tests/test_content_templates.py::TestTemplateManager::test_save_invalid_template_raises PASSED [ 39%]
+tests/test_content_templates.py::TestTemplateManager::test_corrupted_template_file_skipped_in_list PASSED [ 39%]
+tests/test_content_templates.py::TestTemplateManager::test_max_templates_enforced PASSED [ 39%]
+tests/test_content_templates.py::TestTemplateManager::test_overwrite_existing_template_allowed PASSED [ 39%]
+tests/test_content_templates.py::TestContentTemplatePostInit::test_created_at_auto_generated PASSED [ 40%]
+tests/test_content_templates.py::TestContentTemplatePostInit::test_updated_at_auto_generated PASSED [ 40%]
+tests/test_content_templates.py::TestContentTemplatePostInit::test_created_at_preserved_when_set PASSED [ 40%]
+tests/test_content_templates.py::TestContentTemplatePostInit::test_timestamps_are_utc PASSED [ 40%]
+tests/test_instagram.py::TestInstagramConfigHelpers::test_get_instagram_config_returns_dict PASSED [ 40%]
+tests/test_instagram.py::TestInstagramConfigHelpers::test_get_instagram_config_default_empty PASSED [ 40%]
+tests/test_instagram.py::TestInstagramConfigHelpers::test_get_instagram_username_from_config PASSED [ 40%]
+tests/test_instagram.py::TestInstagramConfigHelpers::test_get_instagram_username_env_fallback PASSED [ 41%]
+tests/test_instagram.py::TestInstagramConfigHelpers::test_get_instagram_username_empty_when_not_set PASSED [ 41%]
+tests/test_instagram.py::TestInstagramConfigHelpers::test_get_instagram_password_from_config PASSED [ 41%]
+tests/test_instagram.py::TestInstagramConfigHelpers::test_get_instagram_password_env_fallback PASSED [ 41%]
+tests/test_instagram.py::TestInstagramCacheHelpers::test_get_ig_cache_path PASSED [ 41%]
+tests/test_instagram.py::TestInstagramCacheHelpers::test_safe_read_cache_missing_file PASSED [ 41%]
+tests/test_instagram.py::TestInstagramCacheHelpers::test_safe_read_cache_invalid_json PASSED [ 41%]
+tests/test_instagram.py::TestInstagramCacheHelpers::test_safe_read_cache_valid_data PASSED [ 41%]
+tests/test_instagram.py::TestInstagramCacheHelpers::test_safe_read_cache_non_dict_returns_default PASSED [ 42%]
+tests/test_instagram.py::TestInstagramCacheHelpers::test_safe_write_cache_creates_file PASSED [ 42%]
+tests/test_instagram.py::TestInstagramCacheHelpers::test_safe_write_cache_overwrites_existing PASSED [ 42%]
+tests/test_instagram.py::TestInstagramInit::test_init_with_explicit_credentials PASSED [ 42%]
+tests/test_instagram.py::TestInstagramInit::test_init_fallback_to_config PASSED [ 42%]
+tests/test_instagram.py::TestInstagramInit::test_init_no_credentials_raises PASSED [ 42%]
+tests/test_instagram.py::TestInstagramInit::test_init_missing_password_raises PASSED [ 42%]
+tests/test_instagram.py::TestSessionPath::test_session_path_uses_account_id PASSED [ 43%]
+tests/test_instagram.py::TestSessionPath::test_session_path_sanitizes_special_chars PASSED [ 43%]
+tests/test_instagram.py::TestSessionPath::test_session_path_empty_id_uses_default FAILED [ 43%]
+tests/test_instagram.py::TestSessionPath::test_session_path_truncates_long_id PASSED [ 43%]
+tests/test_instagram.py::TestUploadReelValidation::test_empty_video_path_raises PASSED [ 43%]
+tests/test_instagram.py::TestUploadReelValidation::test_none_video_path_raises PASSED [ 43%]
+tests/test_instagram.py::TestUploadReelValidation::test_null_byte_in_path_raises PASSED [ 43%]
+tests/test_instagram.py::TestUploadReelValidation::test_nonexistent_file_raises PASSED [ 44%]
+tests/test_instagram.py::TestUploadReelValidation::test_unsupported_extension_raises PASSED [ 44%]
+tests/test_instagram.py::TestUploadReelValidation::test_mp4_extension_accepted PASSED [ 44%]
+tests/test_instagram.py::TestUploadReelValidation::test_mov_extension_accepted PASSED [ 44%]
+tests/test_instagram.py::TestUploadReelCaption::test_long_caption_truncated PASSED [ 44%]
+tests/test_instagram.py::TestUploadReelCaption::test_empty_caption_allowed PASSED [ 44%]
+tests/test_instagram.py::TestUploadReelResult::test_successful_upload_returns_true PASSED [ 44%]
+tests/test_instagram.py::TestUploadReelResult::test_upload_returns_false_when_no_media PASSED [ 44%]
+tests/test_instagram.py::TestUploadReelResult::test_upload_exception_returns_false PASSED [ 45%]
+tests/test_instagram.py::TestUploadReelResult::test_import_error_propagates PASSED [ 45%]
+tests/test_instagram.py::TestUploadReelResult::test_thumbnail_path_passed_when_valid PASSED [ 45%]
+tests/test_instagram.py::TestUploadReelResult::test_invalid_thumbnail_path_ignored PASSED [ 45%]
+tests/test_instagram.py::TestGetReels::test_returns_only_matching_account_reels PASSED [ 45%]
+tests/test_instagram.py::TestGetReels::test_returns_empty_list_when_no_reels PASSED [ 45%]
+tests/test_instagram.py::TestGetReels::test_handles_missing_reels_key PASSED [ 45%]
+tests/test_instagram.py::TestRecordUpload::test_appends_reel_to_cache PASSED [ 46%]
+tests/test_instagram.py::TestRecordUpload::test_truncates_caption_in_cache PASSED [ 46%]
+tests/test_instagram.py::TestRecordUpload::test_caps_cache_at_5000_entries PASSED [ 46%]
+tests/test_instagram.py::TestTrackAnalytics::test_tracks_reel_uploaded_event FAILED [ 46%]
+tests/test_instagram.py::TestTrackAnalytics::test_analytics_failure_does_not_raise FAILED [ 46%]
+tests/test_instagram.py::TestInstagramContextManager::test_enter_returns_self PASSED [ 46%]
+tests/test_instagram.py::TestInstagramContextManager::test_exit_clears_client PASSED [ 46%]
+tests/test_instagram.py::TestInstagramContextManager::test_exit_returns_false PASSED [ 47%]
+tests/test_instagram.py::TestInstagramContextManager::test_works_as_context_manager PASSED [ 47%]
+tests/test_instagram.py::TestGetClient::test_returns_cached_client PASSED [ 47%]
+tests/test_instagram.py::TestGetClient::test_import_error_when_instagrapi_missing PASSED [ 47%]
+tests/test_instagram.py::TestGetClient::test_fresh_login_when_no_session PASSED [ 47%]
+tests/test_instagram.py::TestGetClient::test_login_failure_raises_runtime_error PASSED [ 47%]
+tests/test_instagram.py::TestSaveSession::test_save_session_calls_dump_settings PASSED [ 47%]
+tests/test_instagram.py::TestSaveSession::test_save_session_failure_logs_warning PASSED [ 47%]
+tests/test_llm_provider.py::TestProviderRegistry::test_get_available_providers PASSED [ 48%]
+tests/test_llm_provider.py::TestProviderRegistry::test_create_provider_unknown_raises PASSED [ 48%]
+tests/test_llm_provider.py::TestProviderRegistry::test_create_ollama_provider PASSED [ 48%]
+tests/test_llm_provider.py::TestProviderRegistry::test_create_openai_provider PASSED [ 48%]
+tests/test_llm_provider.py::TestProviderRegistry::test_create_openai_no_key_raises PASSED [ 48%]
+tests/test_llm_provider.py::TestProviderRegistry::test_create_anthropic_provider PASSED [ 48%]
+tests/test_llm_provider.py::TestProviderRegistry::test_create_anthropic_no_key_raises PASSED [ 48%]
+tests/test_llm_provider.py::TestProviderRegistry::test_create_groq_provider PASSED [ 49%]
+tests/test_llm_provider.py::TestProviderRegistry::test_create_groq_no_key_raises PASSED [ 49%]
+tests/test_llm_provider.py::TestSelectModel::test_select_model PASSED    [ 49%]
+tests/test_llm_provider.py::TestSelectModel::test_get_active_model_default PASSED [ 49%]
+tests/test_llm_provider.py::TestSelectModel::test_select_model_overwrite PASSED [ 49%]
+tests/test_llm_provider.py::TestGenerateText::test_no_model_raises PASSED [ 49%]
+tests/test_llm_provider.py::TestGenerateText::test_generate_with_ollama PASSED [ 49%]
+tests/test_llm_provider.py::TestGenerateText::test_generate_strips_whitespace PASSED [ 50%]
+tests/test_llm_provider.py::TestGenerateText::test_generate_with_override_model PASSED [ 50%]
+tests/test_llm_provider.py::TestProviderSwitching::test_set_provider PASSED [ 50%]
+tests/test_llm_provider.py::TestProviderSwitching::test_switch_to_openai PASSED [ 50%]
+tests/test_llm_provider.py::TestProviderSwitching::test_set_provider_invalid_raises PASSED [ 50%]
+tests/test_llm_provider.py::TestListModels::test_openai_list_models PASSED [ 50%]
+tests/test_llm_provider.py::TestListModels::test_anthropic_list_models PASSED [ 50%]
+tests/test_llm_provider.py::TestListModels::test_groq_list_models PASSED [ 50%]
+tests/test_llm_provider.py::TestListModels::test_ollama_list_models PASSED [ 51%]
+tests/test_llm_provider.py::TestOllamaNoModel::test_generate_no_model_raises PASSED [ 51%]
+tests/test_mp_logger.py::TestGetLogger::test_returns_logger_instance PASSED [ 51%]
+tests/test_mp_logger.py::TestGetLogger::test_logger_name_prefixed PASSED [ 51%]
+tests/test_mp_logger.py::TestGetLogger::test_root_logger_name PASSED     [ 51%]
+tests/test_mp_logger.py::TestGetLogger::test_already_prefixed_name PASSED [ 51%]
+tests/test_mp_logger.py::TestGetLogger::test_logger_can_log PASSED       [ 51%]
+tests/test_mp_logger.py::TestSetLogLevel::test_set_level_by_int PASSED   [ 52%]
+tests/test_mp_logger.py::TestSetLogLevel::test_set_level_by_string PASSED [ 52%]
+tests/test_mp_logger.py::TestSetLogLevel::test_set_level_case_insensitive PASSED [ 52%]
+tests/test_mp_logger.py::TestColoredFormatter::test_format_adds_color PASSED [ 52%]
+tests/test_publisher.py::TestPublishJobValidation::test_empty_video_path_raises PASSED [ 52%]
+tests/test_publisher.py::TestPublishJobValidation::test_nonexistent_video_path_raises PASSED [ 52%]
+tests/test_publisher.py::TestPublishJobValidation::test_null_byte_in_video_path_raises PASSED [ 52%]
+tests/test_publisher.py::TestPublishJobValidation::test_video_path_too_long_raises PASSED [ 52%]
+tests/test_publisher.py::TestPublishJobValidation::test_empty_title_raises PASSED [ 53%]
+tests/test_publisher.py::TestPublishJobValidation::test_title_too_long_raises PASSED [ 53%]
+tests/test_publisher.py::TestPublishJobValidation::test_description_too_long_raises PASSED [ 53%]
+tests/test_publisher.py::TestPublishJobValidation::test_unknown_platform_raises PASSED [ 53%]
+tests/test_publisher.py::TestPublishJobValidation::test_too_many_platforms_raises PASSED [ 53%]
+tests/test_publisher.py::TestPublishJobValidation::test_valid_job_passes PASSED [ 53%]
+tests/test_publisher.py::TestPublishJobValidation::test_platforms_not_list_raises PASSED [ 53%]
+tests/test_publisher.py::TestPublishResult::test_default_timestamp PASSED [ 54%]
+tests/test_publisher.py::TestPublishResult::test_custom_timestamp PASSED [ 54%]
+tests/test_publisher.py::TestPublishResult::test_default_fields PASSED   [ 54%]
+tests/test_publisher.py::TestPublisherConfig::test_get_default_platforms_from_config PASSED [ 54%]
+tests/test_publisher.py::TestPublisherConfig::test_get_default_platforms_fallback PASSED [ 54%]
+tests/test_publisher.py::TestPublisherConfig::test_get_retry_failed_true PASSED [ 54%]
+tests/test_publisher.py::TestPublisherConfig::test_get_retry_failed_default PASSED [ 54%]
+tests/test_publisher.py::TestPublisherConfig::test_get_max_retries PASSED [ 55%]
+tests/test_publisher.py::TestPublisherConfig::test_get_max_retries_capped PASSED [ 55%]
+tests/test_publisher.py::TestPublisherConfig::test_get_max_retries_default PASSED [ 55%]
+tests/test_publisher.py::TestContentPublisher::test_publish_uses_default_platforms PASSED [ 55%]
+tests/test_publisher.py::TestContentPublisher::test_publish_multiple_platforms PASSED [ 55%]
+tests/test_publisher.py::TestContentPublisher::test_publish_partial_failure PASSED [ 55%]
+tests/test_publisher.py::TestContentPublisher::test_analytics_called_for_each_platform PASSED [ 55%]
+tests/test_publisher.py::TestContentPublisher::test_notification_called_for_each_platform PASSED [ 55%]
+tests/test_publisher.py::TestPlatformDispatch::test_unknown_platform_returns_failure PASSED [ 56%]
+tests/test_publisher.py::TestPlatformDispatch::test_youtube_dispatch PASSED [ 56%]
+tests/test_publisher.py::TestPlatformDispatch::test_tiktok_dispatch PASSED [ 56%]
+tests/test_publisher.py::TestPlatformDispatch::test_twitter_dispatch PASSED [ 56%]
+tests/test_publisher.py::TestPlatformDispatch::test_exception_in_platform_returns_failure PASSED [ 56%]
+tests/test_publisher.py::TestRetryLogic::test_retry_on_failure PASSED    [ 56%]
+tests/test_publisher.py::TestTwitterTextTruncation::test_twitter_text_custom PASSED [ 56%]
+tests/test_publisher.py::TestTwitterTextTruncation::test_twitter_text_default_none PASSED [ 57%]
+tests/test_retry.py::TestRetryDecorator::test_succeeds_on_first_try PASSED [ 57%]
+tests/test_retry.py::TestRetryDecorator::test_retries_on_failure_then_succeeds PASSED [ 57%]
+tests/test_retry.py::TestRetryDecorator::test_raises_after_max_retries PASSED [ 57%]
+tests/test_retry.py::TestRetryDecorator::test_only_retries_specified_exceptions PASSED [ 57%]
+tests/test_retry.py::TestRetryDecorator::test_on_retry_callback_called PASSED [ 57%]
+tests/test_retry.py::TestRetryDecorator::test_backoff_factor PASSED      [ 57%]
+tests/test_retry.py::TestRetryDecorator::test_max_delay_cap PASSED       [ 58%]
+tests/test_retry.py::TestRetryCall::test_successful_call PASSED          [ 58%]
+tests/test_retry.py::TestRetryCall::test_call_with_args PASSED           [ 58%]
+tests/test_retry.py::TestRetryCall::test_call_with_kwargs PASSED         [ 58%]
+tests/test_retry.py::TestRetryCall::test_retries_and_succeeds PASSED     [ 58%]
+tests/test_retry.py::TestRetryCall::test_raises_after_exhaustion PASSED  [ 58%]
+tests/test_retry.py::TestPipelineStage::test_successful_stage PASSED     [ 58%]
+tests/test_retry.py::TestPipelineStage::test_failed_required_stage PASSED [ 58%]
+tests/test_retry.py::TestPipelineStage::test_failed_optional_stage PASSED [ 59%]
+tests/test_retry.py::TestRunPipeline::test_all_stages_succeed PASSED     [ 59%]
+tests/test_retry.py::TestRunPipeline::test_required_stage_failure_aborts PASSED [ 59%]
+tests/test_retry.py::TestRunPipeline::test_optional_stage_failure_continues PASSED [ 59%]
+tests/test_retry.py::TestRunPipeline::test_empty_pipeline PASSED         [ 59%]
+tests/test_seo_optimizer.py::TestSEOResult::test_default_values PASSED   [ 59%]
+tests/test_seo_optimizer.py::TestSEOResult::test_to_dict PASSED          [ 59%]
+tests/test_seo_optimizer.py::TestSEOResult::test_from_dict PASSED        [ 60%]
+tests/test_seo_optimizer.py::TestSEOResult::test_from_dict_invalid_input PASSED [ 60%]
+tests/test_seo_optimizer.py::TestSEOResult::test_from_dict_missing_fields PASSED [ 60%]
+tests/test_seo_optimizer.py::TestSEOResult::test_roundtrip PASSED        [ 60%]
+tests/test_seo_optimizer.py::TestValidation::test_valid_input PASSED     [ 60%]
+tests/test_seo_optimizer.py::TestValidation::test_empty_subject PASSED   [ 60%]
+tests/test_seo_optimizer.py::TestValidation::test_whitespace_subject PASSED [ 60%]
+tests/test_seo_optimizer.py::TestValidation::test_null_bytes_subject PASSED [ 61%]
+tests/test_seo_optimizer.py::TestValidation::test_null_bytes_script PASSED [ 61%]
+tests/test_seo_optimizer.py::TestValidation::test_null_bytes_niche PASSED [ 61%]
+tests/test_seo_optimizer.py::TestValidation::test_subject_too_long PASSED [ 61%]
+tests/test_seo_optimizer.py::TestValidation::test_script_too_long PASSED [ 61%]
+tests/test_seo_optimizer.py::TestValidation::test_niche_too_long PASSED  [ 61%]
+tests/test_seo_optimizer.py::TestValidation::test_invalid_platform FAILED [ 61%]
+tests/test_seo_optimizer.py::TestValidation::test_all_supported_platforms PASSED [ 61%]
+tests/test_seo_optimizer.py::TestParsers::test_parse_json_array_basic PASSED [ 62%]
+tests/test_seo_optimizer.py::TestParsers::test_parse_json_array_with_code_fences PASSED [ 62%]
+tests/test_seo_optimizer.py::TestParsers::test_parse_json_array_with_surrounding_text PASSED [ 62%]
+tests/test_seo_optimizer.py::TestParsers::test_parse_json_array_empty PASSED [ 62%]
+tests/test_seo_optimizer.py::TestParsers::test_parse_json_array_filters_empty PASSED [ 62%]
+tests/test_seo_optimizer.py::TestParsers::test_parse_json_array_invalid_json PASSED [ 62%]
+tests/test_seo_optimizer.py::TestCleanTitle::test_basic_cleaning PASSED  [ 62%]
+tests/test_seo_optimizer.py::TestCleanTitle::test_strips_hashtags PASSED [ 63%]
+tests/test_seo_optimizer.py::TestCleanTitle::test_truncates_long_title PASSED [ 63%]
+tests/test_seo_optimizer.py::TestCleanTitle::test_preserves_short_title PASSED [ 63%]
+tests/test_seo_optimizer.py::TestCleanDescription::test_basic PASSED     [ 63%]
+tests/test_seo_optimizer.py::TestCleanDescription::test_truncates PASSED [ 63%]
+tests/test_seo_optimizer.py::TestCleanHashtags::test_adds_hash_prefix PASSED [ 63%]
+tests/test_seo_optimizer.py::TestCleanHashtags::test_removes_duplicates PASSED [ 63%]
+tests/test_seo_optimizer.py::TestCleanHashtags::test_enforces_limit PASSED [ 64%]
+tests/test_seo_optimizer.py::TestCleanHashtags::test_removes_spaces PASSED [ 64%]
+tests/test_seo_optimizer.py::TestCleanHashtags::test_truncates_long_hashtag PASSED [ 64%]
+tests/test_seo_optimizer.py::TestCleanHashtags::test_filters_empty PASSED [ 64%]
+tests/test_seo_optimizer.py::TestCleanTags::test_basic PASSED            [ 64%]
+tests/test_seo_optimizer.py::TestCleanTags::test_removes_hash PASSED     [ 64%]
+tests/test_seo_optimizer.py::TestCleanTags::test_removes_duplicates PASSED [ 64%]
+tests/test_seo_optimizer.py::TestCleanTags::test_respects_char_limit PASSED [ 64%]
+tests/test_seo_optimizer.py::TestCleanTags::test_filters_empty PASSED    [ 65%]
+tests/test_seo_optimizer.py::TestScoreEstimation::test_empty_result_scores_zero PASSED [ 65%]
+tests/test_seo_optimizer.py::TestScoreEstimation::test_complete_result_scores_high PASSED [ 65%]
+tests/test_seo_optimizer.py::TestScoreEstimation::test_title_with_number_scores_higher PASSED [ 65%]
+tests/test_seo_optimizer.py::TestScoreEstimation::test_description_with_question_scores_higher PASSED [ 65%]
+tests/test_seo_optimizer.py::TestScoreEstimation::test_score_capped_at_100 PASSED [ 65%]
+tests/test_seo_optimizer.py::TestConfigHelpers::test_seo_enabled_default PASSED [ 65%]
+tests/test_seo_optimizer.py::TestConfigHelpers::test_seo_enabled_explicit PASSED [ 66%]
+tests/test_seo_optimizer.py::TestConfigHelpers::test_seo_platforms_default PASSED [ 66%]
+tests/test_seo_optimizer.py::TestConfigHelpers::test_seo_platforms_custom PASSED [ 66%]
+tests/test_seo_optimizer.py::TestConfigHelpers::test_seo_platforms_filters_invalid FAILED [ 66%]
+tests/test_seo_optimizer.py::TestConfigHelpers::test_seo_language_default PASSED [ 66%]
+tests/test_seo_optimizer.py::TestConfigHelpers::test_seo_include_tags_default PASSED [ 66%]
+tests/test_seo_optimizer.py::TestConfigHelpers::test_seo_include_hooks_default PASSED [ 66%]
+tests/test_seo_optimizer.py::TestConfigHelpers::test_seo_hashtag_count_default PASSED [ 67%]
+tests/test_seo_optimizer.py::TestConfigHelpers::test_seo_hashtag_count_clamped_low PASSED [ 67%]
+tests/test_seo_optimizer.py::TestConfigHelpers::test_seo_hashtag_count_clamped_high PASSED [ 67%]
+tests/test_seo_optimizer.py::TestPromptBuilders::test_title_prompt_contains_subject PASSED [ 67%]
+tests/test_seo_optimizer.py::TestPromptBuilders::test_description_prompt_contains_script PASSED [ 67%]
+tests/test_seo_optimizer.py::TestPromptBuilders::test_description_prompt_tiktok PASSED [ 67%]
+tests/test_seo_optimizer.py::TestPromptBuilders::test_description_prompt_twitter PASSED [ 67%]
+tests/test_seo_optimizer.py::TestPromptBuilders::test_tags_prompt PASSED [ 67%]
+tests/test_seo_optimizer.py::TestPromptBuilders::test_hashtags_prompt_count PASSED [ 68%]
+tests/test_seo_optimizer.py::TestPromptBuilders::test_hooks_prompt PASSED [ 68%]
+tests/test_seo_optimizer.py::TestOptimizeMetadata::test_youtube_full_optimization PASSED [ 68%]
+tests/test_seo_optimizer.py::TestOptimizeMetadata::test_tiktok_optimization PASSED [ 68%]
+tests/test_seo_optimizer.py::TestOptimizeMetadata::test_twitter_optimization PASSED [ 68%]
+tests/test_seo_optimizer.py::TestOptimizeMetadata::test_empty_subject_raises PASSED [ 68%]
+tests/test_seo_optimizer.py::TestOptimizeMetadata::test_invalid_platform_raises PASSED [ 68%]
+tests/test_seo_optimizer.py::TestOptimizeMetadata::test_null_byte_raises PASSED [ 69%]
+tests/test_seo_optimizer.py::TestOptimizeMetadata::test_long_subject_truncated PASSED [ 69%]
+tests/test_seo_optimizer.py::TestOptimizeMetadata::test_default_niche PASSED [ 69%]
+tests/test_seo_optimizer.py::TestOptimizeMetadata::test_tags_disabled PASSED [ 69%]
+tests/test_seo_optimizer.py::TestOptimizeMetadata::test_hooks_disabled PASSED [ 69%]
+tests/test_seo_optimizer.py::TestOptimizeMetadata::test_title_respects_platform_limit PASSED [ 69%]
+tests/test_seo_optimizer.py::TestOptimizeExistingMetadata::test_basic PASSED [ 69%]
+tests/test_seo_optimizer.py::TestOptimizeExistingMetadata::test_with_subject_key PASSED [ 70%]
+tests/test_seo_optimizer.py::TestOptimizeExistingMetadata::test_invalid_metadata_type PASSED [ 70%]
+tests/test_seo_optimizer.py::TestOptimizeExistingMetadata::test_empty_metadata PASSED [ 70%]
+tests/test_seo_optimizer.py::TestPlatformLimits::test_youtube_limits_exist PASSED [ 70%]
+tests/test_seo_optimizer.py::TestPlatformLimits::test_tiktok_limits_exist PASSED [ 70%]
+tests/test_seo_optimizer.py::TestPlatformLimits::test_twitter_limits_exist PASSED [ 70%]
+tests/test_seo_optimizer.py::TestPlatformLimits::test_supported_platforms FAILED [ 70%]
+tests/test_smart_clipper.py::TestClipCandidate::test_creation_with_required_fields PASSED [ 70%]
+tests/test_smart_clipper.py::TestClipCandidate::test_creation_with_scene_count PASSED [ 71%]
+tests/test_smart_clipper.py::TestClipCandidate::test_edge_values_zero_duration PASSED [ 71%]
+tests/test_smart_clipper.py::TestClipCandidate::test_edge_values_max_score PASSED [ 71%]
+tests/test_smart_clipper.py::TestClipCandidate::test_to_dict PASSED      [ 71%]
+tests/test_smart_clipper.py::TestClipCandidate::test_from_dict PASSED    [ 71%]
+tests/test_smart_clipper.py::TestClipCandidate::test_from_dict_ignores_extra_keys PASSED [ 71%]
+tests/test_smart_clipper.py::TestSmartClipperInit::test_default_params PASSED [ 71%]
+tests/test_smart_clipper.py::TestSmartClipperInit::test_custom_params PASSED [ 72%]
+tests/test_smart_clipper.py::TestSmartClipperInit::test_invalid_min_duration_zero PASSED [ 72%]
+tests/test_smart_clipper.py::TestSmartClipperInit::test_invalid_min_duration_negative PASSED [ 72%]
+tests/test_smart_clipper.py::TestSmartClipperInit::test_invalid_max_duration PASSED [ 72%]
+tests/test_smart_clipper.py::TestSmartClipperInit::test_min_greater_than_max PASSED [ 72%]
+tests/test_smart_clipper.py::TestSmartClipperInit::test_invalid_top_n PASSED [ 72%]
+tests/test_smart_clipper.py::TestDetectScenes::test_detects_scenes PASSED [ 72%]
+tests/test_smart_clipper.py::TestDetectScenes::test_no_scenes_detected PASSED [ 73%]
+tests/test_smart_clipper.py::TestDetectScenes::test_file_not_found PASSED [ 73%]
+tests/test_smart_clipper.py::TestDetectScenes::test_single_scene PASSED  [ 73%]
+tests/test_smart_clipper.py::TestTranscribe::test_transcribes_segments PASSED [ 73%]
+tests/test_smart_clipper.py::TestTranscribe::test_empty_audio PASSED     [ 73%]
+tests/test_smart_clipper.py::TestTranscribe::test_skips_whitespace_only_segments PASSED [ 73%]
+tests/test_smart_clipper.py::TestTranscribe::test_file_not_found PASSED  [ 73%]
+tests/test_smart_clipper.py::TestMergeSegments::test_merges_scenes_with_transcript PASSED [ 73%]
+tests/test_smart_clipper.py::TestMergeSegments::test_empty_scenes_and_transcript PASSED [ 74%]
+tests/test_smart_clipper.py::TestMergeSegments::test_transcript_only_no_scenes PASSED [ 74%]
+tests/test_smart_clipper.py::TestMergeSegments::test_scenes_only_no_transcript PASSED [ 74%]
+tests/test_smart_clipper.py::TestMergeSegments::test_respects_min_duration PASSED [ 74%]
+tests/test_smart_clipper.py::TestMergeSegments::test_respects_max_duration PASSED [ 74%]
+tests/test_smart_clipper.py::TestMergeSegments::test_no_transcript_overlap PASSED [ 74%]
+tests/test_smart_clipper.py::TestMergeSegments::test_splits_oversized_segments PASSED [ 74%]
+tests/test_smart_clipper.py::TestScoreSegments::test_scores_with_valid_json_response PASSED [ 75%]
+tests/test_smart_clipper.py::TestScoreSegments::test_handles_malformed_json PASSED [ 75%]
+tests/test_smart_clipper.py::TestScoreSegments::test_handles_llm_error PASSED [ 75%]
+tests/test_smart_clipper.py::TestScoreSegments::test_empty_transcript_gets_low_score PASSED [ 75%]
+tests/test_smart_clipper.py::TestScoreSegments::test_prompt_contains_transcript PASSED [ 75%]
+tests/test_smart_clipper.py::TestScoreSegments::test_score_clamped_to_range PASSED [ 75%]
+tests/test_smart_clipper.py::TestScoreSegments::test_multiple_segments_scored PASSED [ 75%]
+tests/test_smart_clipper.py::TestParseScoreResponse::test_valid_json PASSED [ 76%]
+tests/test_smart_clipper.py::TestParseScoreResponse::test_json_with_surrounding_text PASSED [ 76%]
+tests/test_smart_clipper.py::TestParseScoreResponse::test_plain_number PASSED [ 76%]
+tests/test_smart_clipper.py::TestParseScoreResponse::test_no_parseable_content PASSED [ 76%]
+tests/test_smart_clipper.py::TestParseScoreResponse::test_score_below_minimum_clamped PASSED [ 76%]
+tests/test_smart_clipper.py::TestParseScoreResponse::test_score_above_maximum_clamped PASSED [ 76%]
+tests/test_smart_clipper.py::TestParseScoreResponse::test_empty_response PASSED [ 76%]
+tests/test_smart_clipper.py::TestFindHighlights::test_full_pipeline_mocked PASSED [ 76%]
+tests/test_smart_clipper.py::TestFindHighlights::test_returns_top_n_sorted PASSED [ 77%]
+tests/test_smart_clipper.py::TestFindHighlights::test_file_not_found PASSED [ 77%]
+tests/test_smart_clipper.py::TestFindHighlights::test_scene_detection_fails_gracefully PASSED [ 77%]
+tests/test_smart_clipper.py::TestFindHighlights::test_transcription_fails_gracefully PASSED [ 77%]
+tests/test_smart_clipper.py::TestFindHighlights::test_no_scenes_no_transcript PASSED [ 77%]
+tests/test_smart_clipper.py::TestFindHighlights::test_config_integration PASSED [ 77%]
+tests/test_thumbnail.py::TestHexToRgb::test_valid_hex PASSED             [ 77%]
+tests/test_thumbnail.py::TestHexToRgb::test_without_hash PASSED          [ 78%]
+tests/test_thumbnail.py::TestHexToRgb::test_black_and_white PASSED       [ 78%]
+tests/test_thumbnail.py::TestHexToRgb::test_invalid_hex_returns_white PASSED [ 78%]
+tests/test_thumbnail.py::TestHexToRgb::test_mixed_case PASSED            [ 78%]
+tests/test_thumbnail.py::TestInterpolateColor::test_start PASSED         [ 78%]
+tests/test_thumbnail.py::TestInterpolateColor::test_end PASSED           [ 78%]
+tests/test_thumbnail.py::TestInterpolateColor::test_midpoint PASSED      [ 78%]
+tests/test_thumbnail.py::TestInterpolateColor::test_same_colors PASSED   [ 79%]
+tests/test_thumbnail.py::TestCreateGradient::test_horizontal_gradient PASSED [ 79%]
+tests/test_thumbnail.py::TestCreateGradient::test_vertical_gradient PASSED [ 79%]
+tests/test_thumbnail.py::TestCreateGradient::test_diagonal_gradient PASSED [ 79%]
+tests/test_thumbnail.py::TestCreateGradient::test_minimum_size PASSED    [ 79%]
+tests/test_thumbnail.py::TestLoadFont::test_returns_font_object PASSED   [ 79%]
+tests/test_thumbnail.py::TestLoadFont::test_different_sizes PASSED       [ 79%]
+tests/test_thumbnail.py::TestLoadFont::test_fallback_on_missing_font PASSED [ 79%]
+tests/test_thumbnail.py::TestWrapText::test_short_text_no_wrap PASSED    [ 80%]
+tests/test_thumbnail.py::TestWrapText::test_long_text_wraps PASSED       [ 80%]
+tests/test_thumbnail.py::TestWrapText::test_single_word PASSED           [ 80%]
+tests/test_thumbnail.py::TestWrapText::test_empty_text PASSED            [ 80%]
+tests/test_thumbnail.py::TestConfig::test_custom_dimensions PASSED       [ 80%]
+tests/test_thumbnail.py::TestConfig::test_width_clamped_to_max PASSED    [ 80%]
+tests/test_thumbnail.py::TestConfig::test_width_clamped_to_min PASSED    [ 80%]
+tests/test_thumbnail.py::TestConfig::test_default_dimensions PASSED      [ 81%]
+tests/test_thumbnail.py::TestConfig::test_valid_style PASSED             [ 81%]
+tests/test_thumbnail.py::TestConfig::test_invalid_style_falls_back PASSED [ 81%]
+tests/test_thumbnail.py::TestConfig::test_text_color PASSED              [ 81%]
+tests/test_thumbnail.py::TestConfig::test_default_text_color PASSED      [ 81%]
+tests/test_thumbnail.py::TestConfig::test_outline_width_clamped PASSED   [ 81%]
+tests/test_thumbnail.py::TestConfig::test_outline_width_min_zero PASSED  [ 81%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_init_defaults PASSED [ 82%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_generate_creates_file PASSED [ 82%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_generate_with_style PASSED [ 82%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_generate_with_subtitle PASSED [ 82%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_generate_all_styles PASSED [ 82%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_generate_long_title_wraps PASSED [ 82%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_generate_creates_output_dir PASSED [ 82%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_generate_empty_title_raises PASSED [ 82%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_generate_none_title_raises PASSED [ 83%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_generate_too_long_title_raises PASSED [ 83%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_generate_null_byte_title_raises PASSED [ 83%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_generate_null_byte_path_raises PASSED [ 83%]
+tests/test_thumbnail.py::TestThumbnailGenerator::test_generate_invalid_style_uses_default PASSED [ 83%]
+tests/test_thumbnail.py::TestGenerateFromMetadata::test_basic_metadata PASSED [ 83%]
+tests/test_thumbnail.py::TestGenerateFromMetadata::test_metadata_without_description PASSED [ 83%]
+tests/test_thumbnail.py::TestGenerateFromMetadata::test_metadata_without_title PASSED [ 84%]
+tests/test_thumbnail.py::TestGenerateFromMetadata::test_metadata_long_description_subtitle PASSED [ 84%]
+tests/test_thumbnail.py::TestExtractFrame::test_fallback_on_missing_video PASSED [ 84%]
+tests/test_thumbnail.py::TestExtractFrame::test_fallback_on_import_error FAILED [ 84%]
+tests/test_thumbnail.py::TestStyledBackground::test_all_styles_produce_images PASSED [ 84%]
+tests/test_thumbnail.py::TestDrawTextWithOutline::test_draws_without_error PASSED [ 84%]
+tests/test_thumbnail.py::TestDrawTextWithOutline::test_zero_outline_width PASSED [ 84%]
+tests/test_thumbnail.py::TestPalettes::test_all_styles_have_palettes PASSED [ 85%]
+tests/test_thumbnail.py::TestPalettes::test_palette_colors_are_valid_hex PASSED [ 85%]
+tests/test_twitter_youtube_cache.py::TestTwitterSafeReadCache::test_returns_default_when_file_missing PASSED [ 85%]
+tests/test_twitter_youtube_cache.py::TestTwitterSafeReadCache::test_returns_data_when_file_exists PASSED [ 85%]
+tests/test_twitter_youtube_cache.py::TestTwitterSafeReadCache::test_handles_corrupt_json PASSED [ 85%]
+tests/test_twitter_youtube_cache.py::TestTwitterSafeReadCache::test_handles_null_json PASSED [ 85%]
+tests/test_twitter_youtube_cache.py::TestTwitterSafeWriteCache::test_writes_atomically PASSED [ 85%]
+tests/test_twitter_youtube_cache.py::TestTwitterSafeWriteCache::test_file_contains_correct_data PASSED [ 85%]
+tests/test_twitter_youtube_cache.py::TestTwitterSafeWriteCache::test_creates_directory_if_missing PASSED [ 86%]
+tests/test_twitter_youtube_cache.py::TestTwitterGetPosts::test_returns_empty_list_when_no_account_found PASSED [ 86%]
+tests/test_twitter_youtube_cache.py::TestTwitterGetPosts::test_returns_posts_when_account_exists PASSED [ 86%]
+tests/test_twitter_youtube_cache.py::TestTwitterGetPosts::test_returns_empty_list_when_cache_missing PASSED [ 86%]
+tests/test_twitter_youtube_cache.py::TestTwitterGetPosts::test_returns_empty_when_posts_field_missing PASSED [ 86%]
+tests/test_twitter_youtube_cache.py::TestTwitterAddPost::test_adds_post_to_existing_account PASSED [ 86%]
+tests/test_twitter_youtube_cache.py::TestTwitterAddPost::test_adds_post_creates_account_if_missing PASSED [ 86%]
+tests/test_twitter_youtube_cache.py::TestTwitterAddPost::test_handles_missing_cache_on_add PASSED [ 87%]
+tests/test_twitter_youtube_cache.py::TestTwitterAddPost::test_preserves_other_accounts_when_adding_post PASSED [ 87%]
+tests/test_twitter_youtube_cache.py::TestYouTubeSafeReadCache::test_returns_default_when_file_missing PASSED [ 87%]
+tests/test_twitter_youtube_cache.py::TestYouTubeSafeReadCache::test_returns_data_when_file_exists PASSED [ 87%]
+tests/test_twitter_youtube_cache.py::TestYouTubeSafeReadCache::test_handles_corrupt_json PASSED [ 87%]
+tests/test_twitter_youtube_cache.py::TestYouTubeSafeReadCache::test_handles_null_json PASSED [ 87%]
+tests/test_twitter_youtube_cache.py::TestYouTubeSafeWriteCache::test_writes_atomically PASSED [ 87%]
+tests/test_twitter_youtube_cache.py::TestYouTubeSafeWriteCache::test_file_contains_correct_data PASSED [ 88%]
+tests/test_twitter_youtube_cache.py::TestYouTubeSafeWriteCache::test_creates_directory_if_missing PASSED [ 88%]
+tests/test_twitter_youtube_cache.py::TestYouTubeGetVideos::test_returns_empty_list_when_no_account_found PASSED [ 88%]
+tests/test_twitter_youtube_cache.py::TestYouTubeGetVideos::test_returns_videos_when_account_exists PASSED [ 88%]
+tests/test_twitter_youtube_cache.py::TestYouTubeGetVideos::test_returns_empty_list_when_cache_missing PASSED [ 88%]
+tests/test_twitter_youtube_cache.py::TestYouTubeGetVideos::test_returns_empty_when_videos_field_missing PASSED [ 88%]
+tests/test_twitter_youtube_cache.py::TestYouTubeAddVideo::test_adds_video_to_existing_account PASSED [ 88%]
+tests/test_twitter_youtube_cache.py::TestYouTubeAddVideo::test_adds_video_creates_account_if_missing PASSED [ 88%]
+tests/test_twitter_youtube_cache.py::TestYouTubeAddVideo::test_handles_missing_cache_on_add PASSED [ 89%]
+tests/test_twitter_youtube_cache.py::TestYouTubeAddVideo::test_preserves_other_accounts_when_adding_video PASSED [ 89%]
+tests/test_utils.py::TestBuildUrl::test_valid_video_id PASSED            [ 89%]
+tests/test_utils.py::TestBuildUrl::test_empty_video_id PASSED            [ 89%]
+tests/test_utils.py::TestRemTempFiles::test_removes_non_json_files PASSED [ 89%]
+tests/test_utils.py::TestRemTempFiles::test_preserves_json_files PASSED  [ 89%]
+tests/test_utils.py::TestChooseRandomSong::test_returns_song_path PASSED [ 89%]
+tests/test_utils.py::TestChooseRandomSong::test_raises_when_no_songs PASSED [ 90%]
+tests/test_utils.py::TestChooseRandomSong::test_ignores_non_audio_files PASSED [ 90%]
+tests/test_validation.py::TestValidatePath::test_valid_existing_path PASSED [ 90%]
+tests/test_validation.py::TestValidatePath::test_nonexistent_path_must_exist_raises PASSED [ 90%]
+tests/test_validation.py::TestValidatePath::test_nonexistent_path_must_exist_false PASSED [ 90%]
+tests/test_validation.py::TestValidatePath::test_empty_path_raises PASSED [ 90%]
+tests/test_validation.py::TestValidatePath::test_none_path_raises PASSED [ 90%]
+tests/test_validation.py::TestValidatePath::test_null_byte_raises PASSED [ 91%]
+tests/test_validation.py::TestValidatePath::test_path_traversal_normalized PASSED [ 91%]
+tests/test_validation.py::TestValidateDirectory::test_valid_directory PASSED [ 91%]
+tests/test_validation.py::TestValidateDirectory::test_file_not_directory_raises PASSED [ 91%]
+tests/test_validation.py::TestValidateUrl::test_valid_https_url PASSED   [ 91%]
+tests/test_validation.py::TestValidateUrl::test_valid_http_url PASSED    [ 91%]
+tests/test_validation.py::TestValidateUrl::test_invalid_scheme_raises PASSED [ 91%]
+tests/test_validation.py::TestValidateUrl::test_no_host_raises PASSED    [ 91%]
+tests/test_validation.py::TestValidateUrl::test_empty_url_raises PASSED  [ 92%]
+tests/test_validation.py::TestValidateUrl::test_none_url_raises PASSED   [ 92%]
+tests/test_validation.py::TestValidateUrl::test_strips_whitespace PASSED [ 92%]
+tests/test_validation.py::TestValidateUrl::test_custom_allowed_schemes PASSED [ 92%]
+tests/test_validation.py::TestSanitizeFilename::test_simple_filename PASSED [ 92%]
+tests/test_validation.py::TestSanitizeFilename::test_removes_path_separators PASSED [ 92%]
+tests/test_validation.py::TestSanitizeFilename::test_removes_dangerous_chars PASSED [ 92%]
+tests/test_validation.py::TestSanitizeFilename::test_removes_null_bytes PASSED [ 93%]
+tests/test_validation.py::TestSanitizeFilename::test_empty_after_sanitize_raises PASSED [ 93%]
+tests/test_validation.py::TestSanitizeFilename::test_preserves_spaces_dashes_underscores PASSED [ 93%]
+tests/test_validation.py::TestValidateConfigString::test_valid_string PASSED [ 93%]
+tests/test_validation.py::TestValidateConfigString::test_exceeds_max_length_raises PASSED [ 93%]
+tests/test_validation.py::TestValidateConfigString::test_custom_max_length PASSED [ 93%]
+tests/test_validation.py::TestValidateConfigString::test_dangerous_semicolon_raises PASSED [ 93%]
+tests/test_validation.py::TestValidateConfigString::test_dangerous_pipe_raises PASSED [ 94%]
+tests/test_validation.py::TestValidateConfigString::test_dangerous_ampersand_raises PASSED [ 94%]
+tests/test_validation.py::TestValidateConfigString::test_dangerous_dollar_raises PASSED [ 94%]
+tests/test_validation.py::TestValidateConfigString::test_dangerous_backtick_raises PASSED [ 94%]
+tests/test_validation.py::TestValidateConfigString::test_non_string_raises PASSED [ 94%]
+tests/test_webhooks.py::TestValidateWebhookUrl::test_valid_discord_url PASSED [ 94%]
+tests/test_webhooks.py::TestValidateWebhookUrl::test_valid_discord_url_discordapp PASSED [ 94%]
+tests/test_webhooks.py::TestValidateWebhookUrl::test_invalid_discord_url_wrong_host PASSED [ 94%]
+tests/test_webhooks.py::TestValidateWebhookUrl::test_valid_slack_url PASSED [ 95%]
+tests/test_webhooks.py::TestValidateWebhookUrl::test_invalid_slack_url_wrong_host PASSED [ 95%]
+tests/test_webhooks.py::TestValidateWebhookUrl::test_http_rejected PASSED [ 95%]
+tests/test_webhooks.py::TestValidateWebhookUrl::test_empty_string PASSED [ 95%]
+tests/test_webhooks.py::TestValidateWebhookUrl::test_none_value PASSED   [ 95%]
+tests/test_webhooks.py::TestValidateWebhookUrl::test_non_string PASSED   [ 95%]
+tests/test_webhooks.py::TestValidateWebhookUrl::test_no_netloc PASSED    [ 95%]
+tests/test_webhooks.py::TestFormatDiscordPayload::test_basic_payload_structure PASSED [ 96%]
+tests/test_webhooks.py::TestFormatDiscordPayload::test_embed_fields PASSED [ 96%]
+tests/test_webhooks.py::TestFormatDiscordPayload::test_with_details PASSED [ 96%]
+tests/test_webhooks.py::TestFormatDiscordPayload::test_details_truncated_at_10_fields PASSED [ 96%]
+tests/test_webhooks.py::TestFormatDiscordPayload::test_long_value_truncated PASSED [ 96%]
+tests/test_webhooks.py::TestFormatDiscordPayload::test_error_event_color PASSED [ 96%]
+tests/test_webhooks.py::TestFormatSlackPayload::test_basic_payload_structure PASSED [ 96%]
+tests/test_webhooks.py::TestFormatSlackPayload::test_header_block PASSED [ 97%]
+tests/test_webhooks.py::TestFormatSlackPayload::test_with_details PASSED [ 97%]
+tests/test_webhooks.py::TestFormatSlackPayload::test_context_block PASSED [ 97%]
+tests/test_webhooks.py::TestConfigHelpers::test_is_webhooks_enabled_true PASSED [ 97%]
+tests/test_webhooks.py::TestConfigHelpers::test_is_webhooks_enabled_false PASSED [ 97%]
+tests/test_webhooks.py::TestConfigHelpers::test_is_webhooks_enabled_missing PASSED [ 97%]
+tests/test_webhooks.py::TestConfigHelpers::test_get_discord_webhook_url_from_config PASSED [ 97%]
+tests/test_webhooks.py::TestConfigHelpers::test_get_discord_webhook_url_env_fallback PASSED [ 97%]
+tests/test_webhooks.py::TestConfigHelpers::test_get_notify_events_default PASSED [ 98%]
+tests/test_webhooks.py::TestConfigHelpers::test_get_notify_events_custom PASSED [ 98%]
+tests/test_webhooks.py::TestSendDiscord::test_successful_send PASSED     [ 98%]
+tests/test_webhooks.py::TestSendDiscord::test_failed_send_bad_status PASSED [ 98%]
+tests/test_webhooks.py::TestSendDiscord::test_network_error PASSED       [ 98%]
+tests/test_webhooks.py::TestSendDiscord::test_invalid_url_skipped PASSED [ 98%]
+tests/test_webhooks.py::TestSendSlack::test_successful_send PASSED       [ 98%]
+tests/test_webhooks.py::TestSendSlack::test_failed_send PASSED           [ 99%]
+tests/test_webhooks.py::TestSendSlack::test_invalid_url_skipped PASSED   [ 99%]
+tests/test_webhooks.py::TestNotify::test_disabled_returns_empty PASSED   [ 99%]
+tests/test_webhooks.py::TestNotify::test_event_not_in_list_returns_empty PASSED [ 99%]
+tests/test_webhooks.py::TestNotify::test_sends_to_discord_only PASSED    [ 99%]
+tests/test_webhooks.py::TestNotify::test_sends_to_both_providers PASSED  [ 99%]
+tests/test_webhooks.py::TestNotifyError::test_calls_notify_with_error_type PASSED [ 99%]
+tests/test_webhooks.py::TestNotifyError::test_default_platform_is_system PASSED [100%]
+
+=================================== FAILURES ===================================
+_________________ TestGetPlatformReport.test_invalid_platform __________________
+
+self = <tests.test_analytics_report.TestGetPlatformReport object at 0x1091f0590>
+isolate_analytics = '/private/var/folders/q5/4p71qcv135s90t65pjyvq2km0000gn/T/pytest-of-chengwen/pytest-1363/test_invalid_platform0/.mp/analytics.json'
+
+    def test_invalid_platform(self, isolate_analytics):
+>       with pytest.raises(ValueError, match="Unsupported platform"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+tests/test_analytics_report.py:487: Failed
+____________ TestContentTemplateToBatchJob.test_uses_default_topics ____________
+
+args = (<tests.test_content_templates.TestContentTemplateToBatchJob object at 0x1093de8a0>,)
+keywargs = {}
+
+    @wraps(func)
+    def patched(*args, **keywargs):
+>       with self.decoration_helper(patched,
+                                    args,
+                                    keywargs) as (newargs, newkeywargs):
+
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:1393: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:1375: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x109393290>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'content_templates' from '/Users/chengwen/LLM/moneyprinter/tests/../src/content_templates.py'> does not have the attribute 'BatchJob'
+
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:1437: AttributeError
+___________ TestSessionPath.test_session_path_empty_id_uses_default ____________
+
+self = <tests.test_instagram.TestSessionPath object at 0x1093dd400>
+mock_pw = <MagicMock name='get_instagram_password' id='4530884432'>
+mock_un = <MagicMock name='get_instagram_username' id='4532160176'>
+
+    @patch("classes.Instagram.get_instagram_username", return_value="u")
+    @patch("classes.Instagram.get_instagram_password", return_value="p")
+    @patch("classes.Instagram._SESSION_DIR", "/tmp/test_sessions")
+    def test_session_path_empty_id_uses_default(self, mock_pw, mock_un):
+        from classes.Instagram import Instagram
+        ig = Instagram("!!@@##", "nick")
+        with patch("os.makedirs"):
+            path = ig._get_session_path()
+>       assert "default_session.json" in path
+E       AssertionError: assert 'default_session.json' in '/tmp/test_sessions/acct_ed2ffce5c0e0_session.json'
+
+tests/test_instagram.py:228: AssertionError
+______________ TestTrackAnalytics.test_tracks_reel_uploaded_event ______________
+
+self = <tests.test_instagram.TestTrackAnalytics object at 0x10952a900>
+
+    def test_tracks_reel_uploaded_event(self):
+        ig = self._make_ig()
+>       with patch("classes.Instagram.track_event") as mock_track:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_instagram.py:572: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x10e076db0>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'classes.Instagram' from '/Users/chengwen/LLM/moneyprinter/tests/../src/classes/Instagram.py'> does not have the attribute 'track_event'
+
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:1437: AttributeError
+___________ TestTrackAnalytics.test_analytics_failure_does_not_raise ___________
+
+self = <tests.test_instagram.TestTrackAnalytics object at 0x10952abd0>
+
+    def test_analytics_failure_does_not_raise(self):
+        ig = self._make_ig()
+>       with patch("classes.Instagram.track_event", side_effect=Exception("db error")):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_instagram.py:586: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x10cfb7350>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'classes.Instagram' from '/Users/chengwen/LLM/moneyprinter/tests/../src/classes/Instagram.py'> does not have the attribute 'track_event'
+
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:1437: AttributeError
+_____________________ TestValidation.test_invalid_platform _____________________
+
+self = <tests.test_seo_optimizer.TestValidation object at 0x1095cf320>
+
+    def test_invalid_platform(self):
+>       with pytest.raises(ValueError, match="Unsupported platform"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+tests/test_seo_optimizer.py:190: Failed
+_____________ TestConfigHelpers.test_seo_platforms_filters_invalid _____________
+
+self = <tests.test_seo_optimizer.TestConfigHelpers object at 0x1095f7c50>
+mock_get = <MagicMock name='_get' id='4532282880'>
+
+    @patch("seo_optimizer._get")
+    def test_seo_platforms_filters_invalid(self, mock_get):
+        mock_get.return_value = {"platforms": ["youtube", "instagram", "invalid"]}
+        result = get_seo_target_platforms()
+>       assert result == ["youtube"]
+E       AssertionError: assert ['youtube', 'instagram'] == ['youtube']
+E         
+E         Left contains one more item: 'instagram'
+E         
+E         Full diff:
+E           [
+E               'youtube',
+E         +     'instagram',
+E           ]
+
+tests/test_seo_optimizer.py:387: AssertionError
+_________________ TestPlatformLimits.test_supported_platforms __________________
+
+self = <tests.test_seo_optimizer.TestPlatformLimits object at 0x10971dc40>
+
+    def test_supported_platforms(self):
+>       assert _SUPPORTED_PLATFORMS == {"youtube", "tiktok", "twitter"}
+E       AssertionError: assert frozenset({'i...', 'youtube'}) == {'tiktok', 't...r', 'youtube'}
+E         
+E         Extra items in the left set:
+E         'instagram'
+E         
+E         Full diff:
+E         - {
+E         + frozenset({...
+E         
+E         ...Full output truncated (6 lines hidden), use '-vv' to show
+
+tests/test_seo_optimizer.py:610: AssertionError
+________________ TestExtractFrame.test_fallback_on_import_error ________________
+
+args = (<tests.test_thumbnail.TestExtractFrame object at 0x10aad1640>,)
+keywargs = {'generator': <thumbnail.ThumbnailGenerator object at 0x169c772c0>}
+
+    @wraps(func)
+    def patched(*args, **keywargs):
+>       with self.decoration_helper(patched,
+                                    args,
+                                    keywargs) as (newargs, newkeywargs):
+
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:1393: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:1375: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x10aaac350>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'thumbnail' from '/Users/chengwen/LLM/moneyprinter/tests/../src/thumbnail.py'> does not have the attribute 'VideoFileClip'
+
+/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:1437: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_analytics_report.py::TestGetPlatformReport::test_invalid_platform
+FAILED tests/test_content_templates.py::TestContentTemplateToBatchJob::test_uses_default_topics
+FAILED tests/test_instagram.py::TestSessionPath::test_session_path_empty_id_uses_default
+FAILED tests/test_instagram.py::TestTrackAnalytics::test_tracks_reel_uploaded_event
+FAILED tests/test_instagram.py::TestTrackAnalytics::test_analytics_failure_does_not_raise
+FAILED tests/test_seo_optimizer.py::TestValidation::test_invalid_platform - F...
+FAILED tests/test_seo_optimizer.py::TestConfigHelpers::test_seo_platforms_filters_invalid
+FAILED tests/test_seo_optimizer.py::TestPlatformLimits::test_supported_platforms
+FAILED tests/test_thumbnail.py::TestExtractFrame::test_fallback_on_import_error
+======================== 9 failed, 725 passed in 38.27s ========================

@@ -16,3 +16,4 @@ faster-whisper
 srt_equalizer
 platformdirs
 instagrapi>=2.0.0
+scenedetect[opencv]

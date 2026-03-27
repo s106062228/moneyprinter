@@ -73,13 +73,18 @@
 - [x] Unit tests for batch generator edge cases and integration tests (22 new tests, 88.27% coverage)
 - [x] Content scheduler 2026 optimal timing update (research-backed posting times + day-of-week weights)
 - [x] Fixed 3 pre-existing timezone bugs in content scheduler test suite
+- [x] Smart clipping module (`smart_clipper.py`) — PySceneDetect + LLM engagement scoring pipeline
+- [x] Unit tests for smart clipper (51 tests, 96.27% coverage)
+- [x] Selenium test environment fix — resolved 30 pre-existing cache isolation failures
+- [x] Added scenedetect[opencv] dependency to requirements.txt
 
 ## In Progress
 
 ## Planned — High Priority
-- [ ] Web dashboard for monitoring content generation (FastAPI + SSE recommended)
+- [ ] Web dashboard for monitoring content generation (FastAPI native SSE — zero extra deps)
 - [ ] Content calendar UI (frontend for content scheduler)
-- [ ] OpusClip-style smart clipping from long-form content (PySceneDetect + LLM scoring)
+- [ ] Smart clipper CLI integration (menu option in main.py for clip extraction)
+- [ ] Smart clipper video splitting (ffmpeg clip extraction from SmartClipper metadata)
 
 ## Planned — Medium Priority
 - [ ] Content template CLI integration (menu option for template management)
