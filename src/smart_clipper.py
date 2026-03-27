@@ -347,3 +347,91 @@ class SmartClipper:
             f"{', '.join(f'{c.score:.1f}' for c in top)})"
         )
         return top
+
+    def split_clips(
+        self,
+        video_path: str,
+        candidates: list[ClipCandidate],
+        output_dir: str = ".",
+        filename_template: str = "$VIDEO_NAME-clip-$SCENE_NUMBER",
+    ) -> list[str]:
+        """
+        Split video into clips based on ClipCandidate metadata.
+
+        Converts ClipCandidates to PySceneDetect scene_list format,
+        then calls split_video_ffmpeg() for fast lossless extraction.
+
+        Args:
+            video_path: Path to source video file.
+            candidates: List of ClipCandidates from find_highlights().
+            output_dir: Directory for output clips.
+            filename_template: Filename pattern with $VIDEO_NAME, $SCENE_NUMBER,
+                $START_TIME, $END_TIME variables.
+
+        Returns:
+            List of output clip file paths (sorted by clip number).
+
+        Raises:
+            FileNotFoundError: If video_path doesn't exist.
+            RuntimeError: If ffmpeg is not available.
+        """
+        if not os.path.isfile(video_path):
+            raise FileNotFoundError(f"Video file not found: {video_path}")
+
+        if not candidates:
+            logger.info("No candidates to split.")
+            return []
+
+        from scenedetect.video_splitter import split_video_ffmpeg, is_ffmpeg_available
+        from scenedetect import open_video
+        from scenedetect.frame_timecode import FrameTimecode
+
+        if not is_ffmpeg_available():
+            raise RuntimeError(
+                "ffmpeg is not available. Install ffmpeg to use clip splitting."
+            )
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Open video to get framerate for FrameTimecode
+        video = open_video(video_path)
+        fps = video.frame_rate
+
+        # Convert ClipCandidates to PySceneDetect scene_list format
+        # Sort by start_time for sequential processing
+        sorted_candidates = sorted(candidates, key=lambda c: c.start_time)
+        scene_list = []
+        for candidate in sorted_candidates:
+            start_tc = FrameTimecode(candidate.start_time, fps=fps)
+            end_tc = FrameTimecode(candidate.end_time, fps=fps)
+            scene_list.append((start_tc, end_tc))
+
+        logger.info(
+            f"Splitting {len(scene_list)} clips from {video_path} "
+            f"to {output_dir}"
+        )
+
+        ret = split_video_ffmpeg(
+            input_video_path=video_path,
+            scene_list=scene_list,
+            output_dir=output_dir,
+            output_file_template=filename_template,
+            show_progress=False,
+        )
+
+        if ret != 0:
+            logger.warning(f"ffmpeg returned non-zero exit code: {ret}")
+
+        # Collect output files by scanning output_dir
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        output_files = sorted(
+            f
+            for f in (
+                os.path.join(output_dir, name)
+                for name in os.listdir(output_dir)
+            )
+            if os.path.isfile(f) and video_name in os.path.basename(f)
+        )
+
+        logger.info(f"Split complete: {len(output_files)} clips created.")
+        return output_files

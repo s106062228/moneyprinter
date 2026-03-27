@@ -324,11 +324,8 @@ class TestContentTemplateToBatchJob:
         defaults.update(kwargs)
         return ContentTemplate(**defaults)
 
-    @patch("content_templates.BatchJob", autospec=True)
-    def test_uses_default_topics(self, mock_batch_job):
+    def test_uses_default_topics(self):
         """Uses default_topics when no topics are provided."""
-        t = self._make_template()
-        # Actually call to_batch_job and check result
         from content_templates import ContentTemplate
         real_t = ContentTemplate(
             name="test",

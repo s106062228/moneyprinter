@@ -1,0 +1,8 @@
+=== Research Team Run ===
+Project   : /Users/chengwen/LLM/moneyprinter
+Timestamp : 20260327-175039
+Pipeline  : survey -> hypothesis -> architect -> implement -> experiment -> evaluate -> retro
+=========================
+
+Error: Input must be provided either through stdin or as a prompt argument when using --print
+[Fri Mar 27 17:50:40 CST 2026] ERROR: Claude exited with code 1

@@ -485,7 +485,7 @@ class TestGetPlatformReport:
 
     def test_invalid_platform(self, isolate_analytics):
         with pytest.raises(ValueError, match="Unsupported platform"):
-            get_platform_report("instagram")
+            get_platform_report("snapchat")
 
     def test_case_insensitive(self, isolate_analytics):
         events = [_make_event("video_uploaded", "youtube")]

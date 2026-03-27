@@ -77,14 +77,17 @@
 - [x] Unit tests for smart clipper (51 tests, 96.27% coverage)
 - [x] Selenium test environment fix — resolved 30 pre-existing cache isolation failures
 - [x] Added scenedetect[opencv] dependency to requirements.txt
+- [x] Fixed 9 pre-existing test failures (stale assertions for Instagram platform support, lazy import mock targets, hash-based session path assertions)
+- [x] Smart clipper video splitting (`split_clips()` method) — ffmpeg clip extraction via PySceneDetect's built-in `split_video_ffmpeg()` API
+- [x] Unit tests for smart clipper split_clips (11 new tests, 96.83% coverage, 745 total suite)
+- [x] Zero pre-existing test failures remaining (was 9, now 0)
 
 ## In Progress
 
 ## Planned — High Priority
-- [ ] Web dashboard for monitoring content generation (FastAPI native SSE — zero extra deps)
+- [ ] Web dashboard for monitoring content generation (FastAPI + HTMX + SSE — zero JS deps, sub-50ms updates)
 - [ ] Content calendar UI (frontend for content scheduler)
 - [ ] Smart clipper CLI integration (menu option in main.py for clip extraction)
-- [ ] Smart clipper video splitting (ffmpeg clip extraction from SmartClipper metadata)
 
 ## Planned — Medium Priority
 - [ ] Content template CLI integration (menu option for template management)

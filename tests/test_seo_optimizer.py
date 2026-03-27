@@ -188,7 +188,7 @@ class TestValidation:
 
     def test_invalid_platform(self):
         with pytest.raises(ValueError, match="Unsupported platform"):
-            _validate_input("test", "script", "niche", "instagram")
+            _validate_input("test", "script", "niche", "snapchat")
 
     def test_all_supported_platforms(self):
         for platform in _SUPPORTED_PLATFORMS:
@@ -384,7 +384,7 @@ class TestConfigHelpers:
     def test_seo_platforms_filters_invalid(self, mock_get):
         mock_get.return_value = {"platforms": ["youtube", "instagram", "invalid"]}
         result = get_seo_target_platforms()
-        assert result == ["youtube"]
+        assert result == ["youtube", "instagram"]
 
     @patch("seo_optimizer._get")
     def test_seo_language_default(self, mock_get):
@@ -607,4 +607,4 @@ class TestPlatformLimits:
         assert _PLATFORM_LIMITS["twitter"]["description"] == 280
 
     def test_supported_platforms(self):
-        assert _SUPPORTED_PLATFORMS == {"youtube", "tiktok", "twitter"}
+        assert _SUPPORTED_PLATFORMS == {"youtube", "tiktok", "twitter", "instagram"}

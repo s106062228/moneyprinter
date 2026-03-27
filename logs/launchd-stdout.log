@@ -1,0 +1,38 @@
+=== Research Team Run ===
+Project   : /Users/chengwen/LLM/moneyprinter
+Timestamp : 20260327-233500
+Pipeline  : survey -> hypothesis -> architect -> implement -> experiment -> evaluate -> retro
+=========================
+
+## Research Pipeline Complete — Iteration 2 Summary
+
+### What was done (all 7 steps completed):
+
+| Step | Status | Output |
+|------|--------|--------|
+| /survey | Done | 9 sources, 2 papers saved, smart clipping architecture confirmed |
+| /hypothesis | Done | H7-H10 formulated, H7+H8 prioritized |
+| /architect | Done | `specs/ARCHITECTURE-20260327-234101.md` |
+| /implement | Done | `src/smart_clipper.py` + Selenium test fix |
+| /experiment | Done | 725/734 tests passing, 96.27% coverage |
+| /evaluate | Done | H7 CONFIRMED, H8 CONFIRMED |
+| /retro | Done | Pushed `3778aae`, email sent |
+
+### Key Deliverables:
+- **`src/smart_clipper.py`** — Smart clipping module with PySceneDetect + Whisper + LLM scoring pipeline (51 tests, 96.27% coverage)
+- **Selenium test fix** — 30 previously-failing tests now pass (root cause: namespace package cache function duplication)
+- **Net test improvement**: 725 passing (up from ~505), 0 new failures
+
+### Next iteration priorities:
+1. Web dashboard (FastAPI + native SSE)
+2. Smart clipper CLI integration
+3. Fix remaining 9 pre-existing test failures
+
+=== Completed at Sat Mar 28 00:02:21 CST 2026 ===
+[Sat Mar 28 00:02:21 CST 2026] Done. Log: /Users/chengwen/LLM/moneyprinter/logs/research-20260327-233500.log
+=== Research Team Run ===
+Project   : /Users/chengwen/LLM/moneyprinter
+Timestamp : 20260328-040223
+Pipeline  : survey -> hypothesis -> architect -> implement -> experiment -> evaluate -> retro
+=========================
+

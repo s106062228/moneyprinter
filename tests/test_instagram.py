@@ -225,7 +225,8 @@ class TestSessionPath:
         ig = Instagram("!!@@##", "nick")
         with patch("os.makedirs"):
             path = ig._get_session_path()
-        assert "default_session.json" in path
+        assert "_session.json" in path
+        assert "acct_" in path
 
     @patch("classes.Instagram.get_instagram_username", return_value="u")
     @patch("classes.Instagram.get_instagram_password", return_value="p")
@@ -569,7 +570,7 @@ class TestTrackAnalytics:
 
     def test_tracks_reel_uploaded_event(self):
         ig = self._make_ig()
-        with patch("classes.Instagram.track_event") as mock_track:
+        with patch("analytics.track_event") as mock_track:
             ig._track_analytics("reel123", "My caption")
             mock_track.assert_called_once_with(
                 event_type="reel_uploaded",
@@ -583,7 +584,7 @@ class TestTrackAnalytics:
 
     def test_analytics_failure_does_not_raise(self):
         ig = self._make_ig()
-        with patch("classes.Instagram.track_event", side_effect=Exception("db error")):
+        with patch("analytics.track_event", side_effect=Exception("db error")):
             # Should not raise
             ig._track_analytics("reel123", "caption")
 

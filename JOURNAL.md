@@ -238,3 +238,136 @@ Key decisions: Smart clipper is a standalone `src/smart_clipper.py` module using
 - [ ] Fix 9 pre-existing test failures (next iteration)
 
 ---
+
+---
+
+## Survey — 2026-03-28 (Iteration 3)
+
+**Focus**: Web dashboard architecture (FastAPI + HTMX + SSE), video clip extraction (PySceneDetect → ffmpeg), fixing 9 pre-existing test failures, competitor updates, MCP integration trends.
+
+### Key Findings
+
+#### 1. FastAPI + HTMX + SSE = Zero-JS Dashboard
+- **FastAPI native SSE** (v0.135.0+) provides `EventSourceResponse` — no third-party SSE package needed.
+- **HTMX** (14KB minified+gzipped) enables real-time UI updates via SSE extension, eliminating JavaScript entirely. SSE events stream from FastAPI; HTMX handles DOM updates.
+- **Performance**: FastAPI+Jinja2+HTMX SSR achieves 92% lower TTI vs React (45ms vs 650ms). Sub-50ms partial updates.
+- **Pattern**: `fastapi-sse-htmx` (github.com/vlcinsky/fastapi-sse-htmx) demonstrates table cells updating in real-time via SSE. Minimal project structure: one `app.py` + Jinja2 templates.
+- **Production patterns**: Redis pub/sub for horizontal scaling; 5-10s scrape intervals for near-real-time; readiness endpoints validate all critical deps.
+- **Best stack for MPV2**: FastAPI backend + Jinja2 templates + HTMX SSE extension. Zero new frontend deps. Dashboard renders server-side, streams updates via SSE.
+
+#### 2. PySceneDetect → ffmpeg Clip Splitting (Proven API)
+- **`split_video_ffmpeg()`** is built into PySceneDetect v0.6.7: takes `input_video_path` + `scene_list` → calls ffmpeg to extract clips.
+- **Parameters**: `output_dir`, `output_file_template` (supports `$VIDEO_NAME`, `$SCENE_NUMBER`, `$START_TIME`, `$END_TIME`), `arg_override` for custom encoding, `show_progress` via tqdm.
+- **Return**: integer (0 = success). Uses `codec='copy'` by default for fast extraction without re-encoding.
+- **Alternative**: `split_video_mkvmerge()` for MKV container splitting.
+- **Integration path for MPV2**: SmartClipper already returns `ClipCandidate` with start/end times. Add `split_clips()` method that converts candidates to PySceneDetect scene_list format and calls `split_video_ffmpeg()`.
+
+#### 3. MCP Integration — Emerging Standard for Video Automation
+- **Video Agent MCP Server** (github.com/h2a-dev/video-gen-mcp-monolithic): Unified MCP server for video creation via FAL AI. Tools for text-to-image, animation (Kling 2.1, Hailuo 02), voiceover, music, multi-scene composition. Platform presets for YouTube/TikTok/Instagram.
+- **MCP adoption** (Mar 2026): Anthropic donated MCP to Linux Foundation Agentic AI Foundation. OpenAI killed Assistants API and adopted MCP. Google, Microsoft, AWS, Cloudflare all supporting.
+- **Content automation via MCP**: AI agents now run full pipelines — blog publishing, Twitter, YouTube management — through MCP tool calls. Multi-step workflows across platforms.
+- **Opportunity for MPV2**: Expose SmartClipper, publisher, scheduler as MCP tools. Would allow AI agents to orchestrate content pipelines through MPV2.
+
+#### 4. Competitor Updates (March 2026)
+- **MoneyPrinterTurbo** (50.3k stars): Added KittenTTS for local voice generation, video transition effects, ModelsLab TTS provider, Google Generative AI fixes. Web UI focus remains.
+- **ClipTalk Pro**: New "faceless" channel bulk creator — automates scriptwriting → voiceover → B-roll assembly → publishing for YouTube Shorts and TikTok affiliate marketing.
+- **Pika 2.5**: Dominates short-form with "vibe-centric" generation.
+- **Video market shift**: Multi-model platforms (fal.ai, WisGate) offer single-endpoint access to Kling 3.0, Veo 3.1, Runway Gen-4.5 via unified API.
+- **MPV2 differentiator**: Still unique in multi-workflow (video + Twitter + affiliate + outreach) + fully local + CLI. Smart clipping widens the gap.
+
+#### 5. Pre-Existing Test Failures — Root Cause Analysis (9 Tests)
+Categorized the 9 remaining failures into 3 root causes:
+1. **Stale assertions** (4 tests): `test_invalid_platform` in seo_optimizer (3 tests) and analytics_report (1 test) expect `ValueError` but code now handles invalid platforms gracefully without raising.
+2. **Mock target mismatch** (3 tests): `thumbnail.VideoFileClip` attribute doesn't exist (lazy import pattern changed), `content_templates` has similar mock path issue. These are test-code mismatches from implementation changes.
+3. **Instagram behavior drift** (2 tests): `test_session_path_empty_id_uses_default` expects "default_session.json" but implementation now uses hash-based session names. Analytics tracking tests have mock target issues.
+- **Fix approach**: Update test assertions and mock targets to match current implementation. Pure test-infrastructure fixes, no production code changes needed.
+
+#### 6. pytest 8.x Fixture Best Practices
+- **Function scope** (default) is safest for isolation. Session-scoped fixtures need complete teardown.
+- **Common isolation bugs**: mocking that changes global state (not undone), fixtures without proper teardown.
+- **Modern pattern**: `yield`-based fixtures (code before yield = setup, after = teardown). Never call fixtures directly.
+- **Randomization**: `pytest-randomly` plugin helps detect test order dependencies.
+
+### Notable Tools & Resources
+- [FastAPI SSE + HTMX demo](https://github.com/vlcinsky/fastapi-sse-htmx) — Minimal SSE dashboard with HTMX
+- [FastAPI-HTMX-Tailwind dashboard](https://github.com/volfpeter/fastapi-htmx-tailwind-example) — IoT dashboard with DaisyUI
+- [FastHX](https://github.com/volfpeter/fasthx) — Declarative server-side rendering for FastAPI + HTMX
+- [Video Agent MCP Server](https://github.com/h2a-dev/video-gen-mcp-monolithic) — MCP-based video generation
+- [PySceneDetect video_splitter API](https://www.scenedetect.com/docs/latest/api/video_splitter.html) — Built-in ffmpeg splitting
+
+### Gaps & Opportunities for MPV2
+1. **Dashboard is trivial now** — FastAPI + HTMX + SSE = zero frontend deps, sub-50ms updates. Backend reads existing analytics.py and cache.py data. Can be done in ~200 lines.
+2. **Smart clipper video splitting** — PySceneDetect's `split_video_ffmpeg()` is a direct fit. SmartClipper metadata → scene_list conversion → clip extraction. ~50 lines of code.
+3. **Test fixes are mechanical** — All 9 failures are stale assertions or mock target mismatches. No production code changes needed.
+4. **MCP exposure is a future differentiator** — Exposing MPV2 tools via MCP would make it the first open-source multi-workflow content automation MCP server.
+
+### Sources
+- PySceneDetect video_splitter API (https://www.scenedetect.com/docs/latest/api/video_splitter.html)
+- FastAPI SSE + HTMX (https://github.com/vlcinsky/fastapi-sse-htmx)
+- FastAPI Best Practices 2026 (https://fastlaunchapi.dev/blog/fastapi-best-practices-production-2026)
+- FastAPI SSE docs (https://fastapi.tiangolo.com/tutorial/server-sent-events/)
+- Video Agent MCP Server (https://mcpservers.org/servers/h2a-dev/video-gen-mcp-monolithic)
+- MCP Agent (https://github.com/lastmile-ai/mcp-agent)
+- MoneyPrinterTurbo (https://github.com/harry0703/MoneyPrinterTurbo)
+- HTMX dashboard patterns (https://medium.com/codex/building-real-time-dashboards-with-fastapi-and-htmx-01ea458673cb)
+- FastHX (https://github.com/volfpeter/fasthx)
+- pytest fixtures 2026 guide (https://devtoolbox.dedyn.io/blog/pytest-fixtures-complete-guide)
+- AI video tools 2026 (https://thedatascientist.com/10-best-ai-video-creation-tools-in-2026-ranked-tested-direct-authoritative/)
+
+---
+
+## Hypotheses — 2026-03-28 (Iteration 3)
+Formulated 4 hypotheses (H11-H14). Top priority: **H11 — Fix 9 pre-existing test failures** (mechanical test fixes, zero risk) and **H12 — Smart clipper video splitting** (ffmpeg integration via PySceneDetect's built-in split_video_ffmpeg API). H13 (dashboard) if time permits. H14 (CLI integration) deferred.
+
+---
+
+## Architecture — 2026-03-28 (Iteration 3)
+Designed implementation for H11 (9 test fixes in 3 categories) and H12 (smart clipper split_clips method). 7 tasks added. H11 is pure test-file changes. H12 adds one method to SmartClipper using PySceneDetect's built-in split_video_ffmpeg().
+
+---
+
+## Evaluation — 2026-03-28 (Iteration 3)
+
+### Hypotheses Tested This Iteration
+
+| ID | Hypothesis | Verdict | Key Metric |
+|----|-----------|---------|------------|
+| H11 | Fix 9 pre-existing test failures | **CONFIRMED** | 9/9 fixed, 0 prod code changes |
+| H12 | Smart clipper video splitting (ffmpeg) | **CONFIRMED** | 11 tests, 96.83% coverage |
+| H13 | Web dashboard (FastAPI + HTMX + SSE) | DEFERRED | Next iteration |
+| H14 | Smart clipper CLI integration | DEFERRED | Next iteration |
+
+### Key Observations
+1. All 9 pre-existing failures had the same root pattern: tests written before Instagram platform support was added, or before production code moved to lazy imports
+2. Smart clipper video splitting uses PySceneDetect's built-in `split_video_ffmpeg()` — no custom ffmpeg subprocess calls needed
+3. Full suite: 745 passing (up from 725), 0 failures (down from 9)
+4. Zero new dependencies added — all features use existing installed packages
+
+---
+
+## Retrospective — 2026-03-28 (Iteration 3)
+
+### What Worked
+- Detailed root cause analysis of all 9 test failures upfront — categorized into 3 patterns, enabling parallel batch fixes
+- Using the agent's Explore subagent for deep test analysis saved time — identified all mock target issues in one pass
+- Smart clipper splitting was trivial because PySceneDetect's `split_video_ffmpeg()` API matched our data model exactly
+- Reusing existing mock infrastructure (sys.modules scenedetect mock) for new split_clips tests avoided test setup complexity
+- Zero new dependencies for both H11 and H12 — purely leveraging existing installed packages
+
+### What Didn't Work
+- Initial split_clips tests used `patch("smart_clipper.X")` which failed because the imports are lazy (inside the method). Had to switch to configuring the already-mocked sys.modules objects directly. This is the same lazy-import mock pattern that caused 3 of the 9 original failures — ironic.
+
+### What to Try Next
+1. **H13: Web Dashboard** — FastAPI + HTMX + SSE, zero JS deps. Survey confirms sub-50ms updates. Ready to implement.
+2. **H14: Smart Clipper CLI** — Menu option in main.py. H12 (split_clips) is now complete, so this is just integration.
+3. **MCP Integration** — Expose SmartClipper, publisher, scheduler as MCP tools. The ecosystem is mature (MCP now under Linux Foundation).
+4. **Content calendar frontend** — Once H13 dashboard exists, add visual calendar view for scheduled content.
+
+### Action Items
+- [x] H11: Fix 9 test failures (9/9 fixed, 0 prod changes) — DONE
+- [x] H12: Smart clipper video splitting (11 tests, 96.83% coverage) — DONE
+- [ ] H13: Web dashboard backend (next iteration)
+- [ ] H14: Smart clipper CLI integration (next iteration)
+- [ ] MCP integration exploration (future iteration)
+
+---

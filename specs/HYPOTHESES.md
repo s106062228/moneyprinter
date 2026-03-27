@@ -199,3 +199,123 @@ Focus this iteration on **H7** (smart clipping module) and **H8** (Selenium test
 - Passing: 725 (was ~505 before, +220 net new/fixed)
 - Pre-existing failures: 9 (down from 30+ — reduced by 21)
 - New failures: 0
+
+---
+
+## Hypotheses — 2026-03-28 (Iteration 3)
+
+Based on Survey Iteration 3 findings (JOURNAL.md 2026-03-28).
+
+### H11: Fix All 9 Pre-Existing Test Failures
+**Priority: HIGH**
+**Hypothesis**: The 9 remaining test failures are caused by 3 categories of test-code mismatch (stale ValueError assertions, mock target path errors, outdated Instagram session expectations). Updating test assertions and mock targets — without changing any production code — will resolve all 9 failures and bring the suite to 734/734 passing.
+**Rationale**: Survey root cause analysis categorized all 9 failures: 4 expect ValueError that code no longer raises, 3 have mock targets pointing to attributes that don't exist (lazy import changes), 2 have outdated Instagram assertions. All are pure test fixes.
+**Metric**:
+  - All 9 previously-failing tests pass
+  - Zero new test failures introduced
+  - Total suite: 734 passing, 0 failing
+  - No production code changes
+**Success threshold**: 734/734 tests pass. Zero production code modifications.
+**Risk**: Very low — all fixes are in test files only. May uncover additional assertion mismatches during fix.
+**Dependencies**: None — pure test infrastructure.
+**Status**: UNTESTED
+
+### H12: Smart Clipper Video Splitting (ffmpeg Integration)
+**Priority: HIGH**
+**Hypothesis**: Adding a `split_clips()` method to SmartClipper that converts ClipCandidate metadata to PySceneDetect scene_list format and calls `split_video_ffmpeg()` will complete the clip extraction pipeline, enabling end-to-end video → highlight clips workflow.
+**Rationale**: Survey confirms PySceneDetect v0.6.7's `split_video_ffmpeg()` API takes `(video_path, scene_list, output_dir)` with `$VIDEO_NAME`/`$SCENE_NUMBER` template variables. SmartClipper already produces ClipCandidate with start/end times. Conversion is ~50 lines.
+**Metric**:
+  - `split_clips()` method added to SmartClipper
+  - Converts ClipCandidate list → PySceneDetect scene_list format
+  - Calls `split_video_ffmpeg()` with configurable output dir and filename template
+  - Returns list of output file paths
+  - Unit tests pass with >90% coverage for new code
+  - Full suite remains green
+**Success threshold**: Method passes 10+ unit tests with mocked ffmpeg. Coverage >90%.
+**Risk**: Low — PySceneDetect's splitting API is well-documented. Only risk is ffmpeg availability (already in Docker image).
+**Dependencies**: Existing smart_clipper.py, PySceneDetect (already installed).
+**Status**: UNTESTED
+
+### H13: Web Dashboard Backend (FastAPI + HTMX + SSE)
+**Priority: MEDIUM**
+**Hypothesis**: A FastAPI backend with Jinja2 templates + HTMX SSE extension can serve a real-time monitoring dashboard that displays job status, analytics summary, and pipeline health — using zero frontend JavaScript dependencies and under 300 lines of backend code.
+**Rationale**: Survey confirms FastAPI native SSE + HTMX (14KB) achieves sub-50ms updates with 92% lower TTI vs React. Multiple reference implementations exist (fastapi-sse-htmx, fasthx). Reads from existing analytics.py and cache.py data.
+**Metric**:
+  - 5 endpoints: GET /dashboard (HTML), GET /api/health, GET /api/jobs, GET /api/analytics, GET /api/stream (SSE)
+  - Jinja2 templates with HTMX SSE extension for live updates
+  - Reads from existing analytics and cache data stores
+  - Unit tests pass with >80% coverage
+  - Backend code under 300 lines (excluding templates)
+**Success threshold**: Dashboard serves real data; SSE streams updates; 20+ tests pass; <300 lines.
+**Risk**: FastAPI + Jinja2 + HTMX are new deps for the project. Dashboard needs to coexist with CLI-only workflow.
+**Dependencies**: FastAPI, Jinja2, uvicorn pip packages. HTMX served from CDN or bundled.
+**Status**: UNTESTED
+
+### H14: Smart Clipper CLI Integration (Menu Option)
+**Priority: LOW**
+**Hypothesis**: Adding a menu option to main.py for smart clip extraction from local video files will make the SmartClipper module accessible to end users, completing the "Smart clipper CLI integration" roadmap item.
+**Rationale**: SmartClipper + split_clips() (H12) provides full pipeline. Menu option needs: file path input, config for min/max duration, output directory selection. Straightforward integration.
+**Metric**:
+  - New menu option in main.py interactive menu
+  - User can input video path, configure clip parameters
+  - Runs SmartClipper pipeline and extracts clips to output directory
+  - Integration test validates the flow
+**Success threshold**: Menu option works end-to-end with mocked video processing.
+**Risk**: Low — integration only, no new logic.
+**Dependencies**: H12 (split_clips) should be complete first.
+**Status**: UNTESTED
+
+---
+
+## Priority Ranking (Iteration 3)
+1. **H11** — Fix 9 test failures (quick win, zero risk, 100% pass rate)
+2. **H12** — Smart clipper splitting (high-impact, proven API, ~50 lines)
+3. **H13** — Dashboard backend (medium effort, deferred twice, survey confirms trivial scope)
+4. **H14** — Clipper CLI integration (low priority, depends on H12)
+
+## Implementation Recommendation
+Focus on **H11** (test fixes) and **H12** (clip splitting) — both are low-risk, high-value, and can be completed within the pipeline. **H13** (dashboard) is achievable if time permits. **H14** deferred — depends on H12 and adds minimal value until dashboard exists.
+
+
+---
+
+## Evaluation — 2026-03-28 (Iteration 3)
+
+### H11: Fix All 9 Pre-Existing Test Failures — CONFIRMED
+- **Result**: All 9 previously-failing tests now pass. Zero production code changes.
+- **Root causes fixed**:
+  - 4 tests: Updated assertions for instagram (now a supported platform)
+  - 3 tests: Fixed mock targets for lazy imports (thumbnail, instagram analytics, content templates)
+  - 2 tests: Updated assertions for Instagram hash-based session paths
+- **Impact**: Full suite: 745 passing, 0 failing (was 725 pass / 9 fail)
+- **Verdict**: Hypothesis confirmed. All fixes were pure test-infrastructure changes.
+
+### H12: Smart Clipper Video Splitting (ffmpeg Integration) — CONFIRMED
+- **Result**: `split_clips()` method added to SmartClipper class
+- **Implementation**: Converts ClipCandidate list → PySceneDetect scene_list → `split_video_ffmpeg()` call
+- **Features**: Input validation, ffmpeg availability check, output dir creation, configurable filename template, start-time sorting, output file collection
+- **Tests**: 11 new tests, all passing
+- **Coverage**: 96.83% for smart_clipper.py (target was >90%)
+- **Lines added**: ~68 lines of production code
+- **Verdict**: Hypothesis confirmed. Full clip extraction pipeline complete.
+
+### H13: Web Dashboard Backend — DEFERRED
+- Not implemented this iteration. H11+H12 were higher priority.
+
+### H14: Smart Clipper CLI Integration — DEFERRED
+- Not implemented this iteration. Depends on H12 (now complete) — ready for next iteration.
+
+### Summary
+| ID | Hypothesis | Verdict | Key Metric |
+|----|-----------|---------|------------|
+| H11 | Fix 9 test failures | **CONFIRMED** | 9/9 fixed, 0 prod changes |
+| H12 | Clip splitting (ffmpeg) | **CONFIRMED** | 11 tests, 96.83% coverage |
+| H13 | Web dashboard | DEFERRED | Next iteration |
+| H14 | CLI integration | DEFERRED | Next iteration (H12 done) |
+
+### Full Suite Impact
+- Total tests: 745 (was 725 before this iteration)
+- Passing: 745 (was 725, +20 net)
+- Pre-existing failures: 0 (was 9 — all eliminated)
+- New failures: 0
+- Coverage: 76.69% (was 76.31%)
