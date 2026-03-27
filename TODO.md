@@ -64,26 +64,39 @@
 - [x] Security audit (Run 14) — analytics limit bypass fix, path disclosure fix, prompt length cap, lazy import fix, output_dir validation, browser cleanup safety
 - [x] Unit tests for Instagram Reels module (44 new tests, 470+ total)
 - [x] Security audit (Run 15) — stale cache test fix, thumbnail null-byte validation, session path collision fix, reel_id length cap
+- [x] Batch video generation module (`batch_generator.py`) with topic-based batch runs, auto-publish, delay enforcement, analytics tracking
+- [x] Unit tests for batch generator (20+ new tests, 490+ total)
+- [x] Content template system (`content_templates.py`) with named templates, CRUD operations, batch job generation, and atomic persistence
+- [x] Unit tests for content templates (45+ new tests, 535+ total)
+- [x] Security audit (Run 16) — complete deprecated datetime.now() migration across all remaining modules (11 locations in 5 files)
+- [x] Complete timezone-aware UTC timestamp migration (zero deprecated datetime.now() calls remaining)
+- [x] Unit tests for batch generator edge cases and integration tests (22 new tests, 88.27% coverage)
+- [x] Content scheduler 2026 optimal timing update (research-backed posting times + day-of-week weights)
+- [x] Fixed 3 pre-existing timezone bugs in content scheduler test suite
+
+## In Progress
 
 ## Planned — High Priority
-- [ ] Web dashboard for monitoring content generation
+- [ ] Web dashboard for monitoring content generation (FastAPI + SSE recommended)
 - [ ] Content calendar UI (frontend for content scheduler)
+- [ ] OpusClip-style smart clipping from long-form content (PySceneDetect + LLM scoring)
 
 ## Planned — Medium Priority
+- [ ] Content template CLI integration (menu option for template management)
 - [ ] Video template system (custom intros/outros)
 - [ ] A/B testing for video titles and thumbnails
 - [ ] AI hook optimization (trending hooks for better engagement)
 - [ ] Auto-caption styling (animated captions like CapCut)
 - [ ] Virality scoring (predict clip engagement before posting)
-- [ ] OpusClip-style smart clipping from long-form content
 - [ ] Shoppable content integration (product links in video descriptions)
 - [ ] Multi-platform export optimizer (platform-specific aspect ratios and formats)
+- [ ] Multi-language dubbing (AI lip-sync for cross-language distribution)
 
 ## Planned — Low Priority
 - [ ] Plugin system for custom platform integrations
 - [ ] Multi-language UI
 - [ ] Video analytics dashboard (views, engagement tracking)
 - [ ] Auto-niche detection from trending topics
-- [ ] Batch video generation mode
 - [ ] Encrypt cache files containing account data at rest
 - [ ] Kubernetes Helm chart for scaled deployment
+- [ ] Predictive micro-trend detection for topic selection

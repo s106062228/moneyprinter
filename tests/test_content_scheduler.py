@@ -5,7 +5,7 @@ import os
 import sys
 import tempfile
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -161,8 +161,8 @@ class TestSchedulerConfig:
     def test_get_optimal_times_defaults(self, _mock):
         from content_scheduler import get_optimal_times
         times = get_optimal_times("youtube")
-        assert "10:00" in times
-        assert "14:00" in times
+        assert "09:00" in times
+        assert "12:00" in times
 
     @patch("content_scheduler._get", return_value={
         "optimal_times": {"youtube": ["08:00", "20:00"]}
@@ -326,12 +326,12 @@ class TestContentScheduler:
         # Job in the past = ready
         past_job = self._make_job(
             title="Past",
-            scheduled_time=(datetime.now() - timedelta(hours=1)).isoformat(),
+            scheduled_time=(datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
         )
         # Job in the future = not ready
         future_job = self._make_job(
             title="Future",
-            scheduled_time=(datetime.now() + timedelta(hours=2)).isoformat(),
+            scheduled_time=(datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
         )
         scheduler.add_job(past_job)
         scheduler.add_job(future_job)
@@ -372,7 +372,7 @@ class TestContentScheduler:
         data = _load_schedule()
         job_dict = job.to_dict()
         job_dict["status"] = "completed"
-        job_dict["completed_at"] = (datetime.now() - timedelta(days=10)).isoformat()
+        job_dict["completed_at"] = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
         data["jobs"].append(job_dict)
         _save_schedule(data)
 
@@ -459,7 +459,7 @@ class TestContentScheduler:
 
         # Add a job in the past (ready)
         job = self._make_job(
-            scheduled_time=(datetime.now() - timedelta(minutes=5)).isoformat()
+            scheduled_time=(datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
         )
         scheduler.add_job(job)
 
@@ -523,3 +523,115 @@ class TestSchedulerThreadSafety:
         assert len(errors) == 0
         all_jobs = scheduler.list_jobs()
         assert len(all_jobs) == 20  # 4 threads * 5 jobs each
+
+
+# ---------------------------------------------------------------------------
+# Optimal timing and day-of-week weight tests (2026 research update)
+# ---------------------------------------------------------------------------
+
+class TestOptimalTimingUpdate:
+    """Tests for updated 2026 optimal posting times and day weights."""
+
+    def test_youtube_default_times_updated(self):
+        from content_scheduler import _DEFAULT_OPTIMAL_TIMES
+        assert _DEFAULT_OPTIMAL_TIMES["youtube"] == ["09:00", "12:00", "17:00"]
+
+    def test_tiktok_default_times_updated(self):
+        from content_scheduler import _DEFAULT_OPTIMAL_TIMES
+        assert _DEFAULT_OPTIMAL_TIMES["tiktok"] == ["14:00", "17:00", "21:00"]
+
+    def test_twitter_default_times(self):
+        from content_scheduler import _DEFAULT_OPTIMAL_TIMES
+        assert _DEFAULT_OPTIMAL_TIMES["twitter"] == ["08:00", "12:00", "17:00"]
+
+    def test_instagram_default_times_updated(self):
+        from content_scheduler import _DEFAULT_OPTIMAL_TIMES
+        assert _DEFAULT_OPTIMAL_TIMES["instagram"] == ["11:00", "14:00", "19:00"]
+
+    def test_day_weights_exist_for_all_platforms(self):
+        from content_scheduler import _DAY_WEIGHTS, _ALLOWED_PLATFORMS
+        for platform in _ALLOWED_PLATFORMS:
+            assert platform in _DAY_WEIGHTS
+
+    def test_day_weights_cover_all_days(self):
+        from content_scheduler import _DAY_WEIGHTS
+        for platform, weights in _DAY_WEIGHTS.items():
+            for day in range(7):
+                assert day in weights, f"Missing day {day} for {platform}"
+
+    def test_day_weights_bounded_0_to_1(self):
+        from content_scheduler import _DAY_WEIGHTS
+        for platform, weights in _DAY_WEIGHTS.items():
+            for day, weight in weights.items():
+                assert 0.0 <= weight <= 1.0, (
+                    f"{platform} day {day} weight {weight} out of bounds"
+                )
+
+    def test_midweek_weights_highest(self):
+        """Tue-Thu (days 1-3) should have highest weights for all platforms."""
+        from content_scheduler import _DAY_WEIGHTS
+        for platform, weights in _DAY_WEIGHTS.items():
+            midweek_min = min(weights[d] for d in [1, 2, 3])
+            assert midweek_min == 1.0, f"{platform} midweek not 1.0"
+
+
+class TestGetBestPostingTime:
+    """Tests for get_best_posting_time()."""
+
+    def test_returns_dict_with_expected_keys(self):
+        from content_scheduler import get_best_posting_time
+        result = get_best_posting_time("youtube")
+        assert "time" in result
+        assert "weight" in result
+        assert "platform" in result
+        assert "day_name" in result
+
+    def test_returns_valid_time_format(self):
+        from content_scheduler import get_best_posting_time
+        result = get_best_posting_time("youtube")
+        parts = result["time"].split(":")
+        assert len(parts) == 2
+        assert 0 <= int(parts[0]) <= 23
+        assert 0 <= int(parts[1]) <= 59
+
+    def test_weight_is_float_in_range(self):
+        from content_scheduler import get_best_posting_time
+        result = get_best_posting_time("tiktok")
+        assert isinstance(result["weight"], float)
+        assert 0.0 <= result["weight"] <= 1.0
+
+    def test_platform_name_returned(self):
+        from content_scheduler import get_best_posting_time
+        result = get_best_posting_time("Instagram")
+        assert result["platform"] == "instagram"
+
+    def test_unknown_platform_raises(self):
+        from content_scheduler import get_best_posting_time
+        with pytest.raises(ValueError, match="Unknown platform"):
+            get_best_posting_time("fakebook")
+
+    @patch("content_scheduler._get")
+    def test_weekday_vs_weekend_different_weights(self, mock_get):
+        from content_scheduler import get_best_posting_time
+        from datetime import timezone
+        mock_get.return_value = {}
+
+        # Tuesday (day 1) — weight 1.0
+        tuesday = datetime(2026, 3, 24, 12, 0, tzinfo=timezone.utc)
+        result_tue = get_best_posting_time("youtube", target_date=tuesday)
+
+        # Saturday (day 5) — weight 0.7
+        saturday = datetime(2026, 3, 28, 12, 0, tzinfo=timezone.utc)
+        result_sat = get_best_posting_time("youtube", target_date=saturday)
+
+        assert result_tue["weight"] > result_sat["weight"]
+        assert result_tue["day_name"] == "Tuesday"
+        assert result_sat["day_name"] == "Saturday"
+
+    @patch("content_scheduler._get")
+    def test_each_platform_returns_result(self, mock_get):
+        from content_scheduler import get_best_posting_time, _ALLOWED_PLATFORMS
+        mock_get.return_value = {}
+        for platform in _ALLOWED_PLATFORMS:
+            result = get_best_posting_time(platform)
+            assert result["platform"] == platform

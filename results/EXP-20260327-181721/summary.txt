@@ -1,0 +1,22 @@
+Experiment Summary — 2026-03-27
+================================
+
+Target files modified:
+  - src/content_scheduler.py (updated optimal times + added day weights + get_best_posting_time)
+  - tests/test_batch_generator.py (added 22 new edge case + integration tests)
+  - tests/test_content_scheduler.py (added 15 new timing tests + fixed 3 timezone bugs)
+
+Test Results:
+  - New tests: 37 (22 batch + 15 scheduler)
+  - Total tests run (target files): 105/105 passed
+  - Full suite: 647 passed, 35 failed (pre-existing Selenium import failures)
+  - Coverage (target files): 64.17% (above 40% threshold)
+  - batch_generator.py coverage: 88.27%
+  - content_scheduler.py coverage: 91.37%
+
+Hypothesis Metrics:
+  H3 (scheduler timing): Updated default times, added day weights, added get_best_posting_time
+  H5 (batch tests): 22 new tests added, 88.27% coverage achieved
+
+Pre-existing failures (not related to changes):
+  - test_twitter_youtube_cache.py: 35 failures (Selenium webdriver module path conflicts)

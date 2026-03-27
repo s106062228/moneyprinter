@@ -36,7 +36,7 @@ import time
 import tempfile
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from config import _get, ROOT_DIR
@@ -55,13 +55,21 @@ _SCHEDULE_FILE = os.path.join(ROOT_DIR, ".mp", "schedule.json")
 
 # Default optimal posting times per platform (UTC hours)
 _DEFAULT_OPTIMAL_TIMES = {
-    "youtube": ["10:00", "14:00", "18:00"],
-    "tiktok": ["09:00", "12:00", "19:00"],
+    "youtube": ["09:00", "12:00", "17:00"],
+    "tiktok": ["14:00", "17:00", "21:00"],
     "twitter": ["08:00", "12:00", "17:00"],
-    "instagram": ["09:00", "13:00", "18:00"],
+    "instagram": ["11:00", "14:00", "19:00"],
 }
 
 _ALLOWED_PLATFORMS = {"youtube", "tiktok", "twitter", "instagram"}
+
+# Day-of-week engagement weights (0=Monday, 6=Sunday) based on 2026 research
+_DAY_WEIGHTS = {
+    "youtube":   {0: 0.8, 1: 1.0, 2: 1.0, 3: 1.0, 4: 0.9, 5: 0.7, 6: 0.7},
+    "tiktok":    {0: 0.9, 1: 1.0, 2: 1.0, 3: 1.0, 4: 1.0, 5: 0.8, 6: 0.8},
+    "twitter":   {0: 0.9, 1: 1.0, 2: 1.0, 3: 1.0, 4: 0.8, 5: 0.6, 6: 0.6},
+    "instagram": {0: 0.8, 1: 1.0, 2: 1.0, 3: 1.0, 4: 1.0, 5: 0.9, 6: 0.9},
+}
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +96,7 @@ class ScheduledJob:
 
     def __post_init__(self):
         if not self.created_at:
-            self.created_at = datetime.now().isoformat()
+            self.created_at = datetime.now(timezone.utc).isoformat()
         if not self.job_id:
             import uuid
             self.job_id = str(uuid.uuid4())[:8]
@@ -254,9 +262,9 @@ def suggest_next_optimal_time(platform: str) -> str:
     times = get_optimal_times(platform.lower())
     if not times:
         # Default: 1 hour from now
-        return (datetime.now() + timedelta(hours=1)).isoformat()
+        return (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
 
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     today_slots = []
 
     for time_str in times:
@@ -280,6 +288,48 @@ def suggest_next_optimal_time(platform: str) -> str:
         return tomorrow_slot.isoformat()
 
     return (now + timedelta(hours=1)).isoformat()
+
+
+def get_best_posting_time(platform: str, target_date: Optional[datetime] = None) -> dict:
+    """
+    Returns the best posting time for a platform on a given date,
+    considering day-of-week engagement weights.
+
+    Args:
+        platform: Platform name (youtube, tiktok, twitter, instagram).
+        target_date: The target date (defaults to today UTC).
+
+    Returns:
+        Dict with keys: "time" (HH:MM str), "weight" (float 0-1),
+        "platform" (str), "day_name" (str).
+
+    Raises:
+        ValueError: If platform is not supported.
+    """
+    platform = platform.lower()
+    if platform not in _ALLOWED_PLATFORMS:
+        raise ValueError(
+            f"Unknown platform: {platform}. "
+            f"Allowed: {', '.join(sorted(_ALLOWED_PLATFORMS))}"
+        )
+
+    if target_date is None:
+        target_date = datetime.now(timezone.utc)
+
+    day_of_week = target_date.weekday()  # 0=Monday
+    weight = _DAY_WEIGHTS.get(platform, {}).get(day_of_week, 0.5)
+
+    times = get_optimal_times(platform)
+    best_time = times[0] if times else "12:00"
+
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    return {
+        "time": best_time,
+        "weight": weight,
+        "platform": platform,
+        "day_name": day_names[day_of_week],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -405,7 +455,7 @@ class ContentScheduler:
 
     def get_pending_jobs(self) -> list:
         """Returns jobs that are ready to execute (scheduled_time has passed)."""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         pending = self.list_jobs(status="pending")
 
         ready = []
@@ -528,7 +578,7 @@ class ContentScheduler:
         if max_age_days < 0:
             max_age_days = 0
 
-        cutoff = datetime.now() - timedelta(days=max_age_days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
         removed = 0
 
         with self._lock:
@@ -565,7 +615,7 @@ class ContentScheduler:
                 if j.get("job_id") == job_id:
                     j["status"] = status
                     if status in ("completed", "failed"):
-                        j["completed_at"] = datetime.now().isoformat()
+                        j["completed_at"] = datetime.now(timezone.utc).isoformat()
                     if error_msg:
                         j["error_message"] = error_msg
                     break
@@ -577,7 +627,7 @@ class ContentScheduler:
             if job.scheduled_time:
                 base_time = datetime.fromisoformat(job.scheduled_time)
             else:
-                base_time = datetime.now()
+                base_time = datetime.now(timezone.utc)
 
             next_time = base_time + timedelta(hours=job.repeat_interval_hours)
 
