@@ -63,6 +63,14 @@
 - [x] Instagram platform support across publisher, scheduler, SEO optimizer, analytics report, webhooks, and cache modules
 - [x] Security audit (Run 14) — analytics limit bypass fix, path disclosure fix, prompt length cap, lazy import fix, output_dir validation, browser cleanup safety
 
+## Auto Research Pipeline — Active Tasks
+<!-- Format: [status] YYYY-MM-DD | task | owner -->
+<!-- status: [ ] pending, [~] in-progress, [x] done, [!] blocked -->
+
+- [ ] 2026-03-27 | Write unit tests for Instagram Reels module | agent
+- [ ] 2026-03-27 | Run /research-init on first research topic | agent
+- [ ] 2026-03-27 | Populate specs/ with initial research topic files | wayne
+
 ## In Progress
 - [ ] Unit tests for Instagram Reels module
 

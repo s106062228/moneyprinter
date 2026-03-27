@@ -78,6 +78,38 @@ All config lives in `config.json` at the project root. See `config.example.json`
 - **Nano Banana 2** — for image generation (Gemini image API)
 - **Go** — only needed for Outreach (Google Maps scraper)
 
+## Auto Research Pipeline
+
+This project uses the Auto Research Pipeline architecture with Claude Agent Teams.
+
+### Agent Role
+When running in autonomous/cron mode (via `scripts/run-research-team.sh`):
+1. Read `TODO.md` for pending research tasks
+2. Use `/run-experiments` skill to dispatch a 3-agent team (Researcher + Experimenter + Analyst) in parallel
+3. Write raw outputs to `results/`
+4. Synthesize findings into `reports/`
+5. Append a journal entry to `JOURNAL.md`
+6. Update `TODO.md` — mark completed, add follow-up tasks
+7. Commit and push with `/sync-github`
+
+### Directory Layout
+| Dir | Purpose |
+|---|---|
+| `specs/` | Open Spec files (input topics → structured research specs) |
+| `results/` | Raw agent outputs and experiment data |
+| `reports/` | Synthesized analysis reports |
+| `logs/` | cron runner and Claude execution logs |
+| `JOURNAL.md` | Append-only research log |
+
+### Research Skills (global `~/.claude/skills/`)
+| Skill | Slash command | Purpose |
+|---|---|---|
+| research-init | `/research-init` | Convert input topic → Open Spec in `specs/` |
+| spec-to-tasks | `/spec-to-tasks` | Decompose spec → tasks in TODO.md |
+| run-experiments | `/run-experiments` | Agent Team parallel execution |
+| analyze-and-update | `/analyze-and-update` | Synthesize results → JOURNAL + TODO |
+| sync-github | `/sync-github` | git add/commit/push with semantic message |
+
 ## Contributing
 
 PRs go against `main`. One feature/fix per PR. Open an issue first. Use `WIP` label for in-progress PRs.
