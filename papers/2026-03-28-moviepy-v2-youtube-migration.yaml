@@ -1,0 +1,59 @@
+title: MoviePy v2 Migration Map for YouTube.py
+source: https://zulko.github.io/moviepy/getting_started/updating_to_v2.html
+date: 2026-03-28
+
+youtube_py_v1_usage:
+  imports:
+    - old: "from moviepy.editor import *"
+      new: "from moviepy import VideoFileClip, AudioFileClip, ImageClip, TextClip, CompositeVideoClip, CompositeAudioClip, concatenate_videoclips"
+      note: "moviepy.editor namespace removed entirely in v2"
+    - old: "from moviepy.video.fx.all import crop"
+      new: "from moviepy.video.fx import Crop"
+      note: "Effects are now classes. Apply via clip.with_effects([Crop(...)]) or clip.cropped(...)"
+    - old: "from moviepy.config import change_settings"
+      new: "REMOVE — no ImageMagick needed"
+      note: "MoviePy v2 uses Pillow for TextClip rendering"
+    - old: "from moviepy.video.tools.subtitles import SubtitlesClip"
+      new: "from moviepy.video.tools.subtitles import SubtitlesClip"
+      note: "Same import path. But TextClip args in generator changed."
+
+  config:
+    - old: "change_settings({'IMAGEMAGICK_BINARY': get_imagemagick_path()})"
+      new: "REMOVE entirely"
+      note: "No ImageMagick config needed in v2"
+
+  method_renames:
+    - old: "clip.set_fps(30)"
+      new: "clip.with_fps(30)"
+    - old: "clip.set_audio(audio)"
+      new: "clip.with_audio(audio)"
+    - old: "clip.set_duration(d)"
+      new: "clip.with_duration(d)"
+    - old: "clip.resize((w,h))"
+      new: "clip.resized((w,h))"
+    - old: "subtitles.set_pos(('center','center'))"
+      new: "subtitles.with_position(('center','center'))"
+    - old: "AudioFileClip(song).set_fps(44100)"
+      new: "AudioFileClip(song).with_fps(44100)"
+
+  effects:
+    - old: "crop(clip, x1=x1, y1=y1, x2=x2, y2=y2)"
+      new: "clip.cropped(x1=x1, y1=y1, x2=x2, y2=y2)"
+      note: "crop function replaced by cropped method"
+    - old: "clip.fx(afx.volumex, 0.1)"
+      new: "clip.with_effects([MultiplyVolume(factor=0.1)])"
+      note: "from moviepy.audio.fx import MultiplyVolume"
+
+  textclip:
+    old_args: "TextClip(txt, fontsize=24, font='Arial', color='white')"
+    new_args: "TextClip(text=txt, font_size=24, font='./path/to/font.ttf', color='white')"
+    notes:
+      - "font parameter now requires file path to .ttf file, not system font name"
+      - "fontsize renamed to font_size"
+      - "First positional arg renamed from txt to text"
+
+risks:
+  - "TextClip font handling: need bundled .ttf or system font path discovery"
+  - "All 13 API calls must be updated atomically"
+  - "crop() argument mapping may differ between function and method forms"
+  - "afx.volumex → MultiplyVolume class import"

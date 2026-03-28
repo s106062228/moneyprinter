@@ -30,6 +30,19 @@ logging.basicConfig(
 )
 
 
+def _get_auth(token: str | None = None):
+    """Return BearerTokenAuth if a token is available, else None."""
+    resolved = token or os.environ.get("MCP_AUTH_TOKEN", "")
+    if not resolved:
+        return None
+    try:
+        from fastmcp.server.auth import BearerTokenAuth
+        return BearerTokenAuth(token=resolved)
+    except ImportError:
+        logger.warning("BearerTokenAuth not available in this fastmcp version — running without auth")
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Tool: analyze_video
 # ---------------------------------------------------------------------------
@@ -299,9 +312,20 @@ if __name__ == "__main__":
         metavar="PORT",
         help="Run HTTP transport on the given port (default: stdio)",
     )
+    parser.add_argument(
+        "--token",
+        type=str,
+        metavar="TOKEN",
+        default=None,
+        help="Bearer token for HTTP auth (default: MCP_AUTH_TOKEN env var)",
+    )
     args = parser.parse_args()
 
     if args.http:
+        auth = _get_auth(getattr(args, "token", None))
+        if auth:
+            mcp.settings.auth = auth
+            logger.info("Bearer token auth enabled for HTTP transport")
         logger.info("Starting MoneyPrinter MCP server on HTTP port %d", args.http)
         mcp.run(transport="http", host="0.0.0.0", port=args.http)
     else:

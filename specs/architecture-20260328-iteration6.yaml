@@ -1,0 +1,176 @@
+title: Architecture — Iteration 6
+date: 2026-03-28
+scope: "H21 (MoviePy v2 migration for YouTube.py), H22 (MCP HTTP + BearerTokenAuth)"
+
+# ===========================================================================
+# H21: Full MoviePy v2 Migration for YouTube.py
+# ===========================================================================
+h21:
+  purpose: "Migrate YouTube.py combine() from MoviePy v1 to v2 APIs"
+  location: src/classes/YouTube.py
+
+  changes:
+    imports:
+      - remove: "from moviepy.editor import *"
+        add: |
+          from moviepy import (
+              AudioFileClip,
+              CompositeAudioClip,
+              CompositeVideoClip,
+              ImageClip,
+              TextClip,
+              concatenate_videoclips,
+          )
+      - remove: "from moviepy.video.fx.all import crop"
+        add: "# Removed — using clip.cropped() method instead"
+      - remove: "from moviepy.config import change_settings"
+        add: "# Removed — MoviePy v2 uses Pillow, no ImageMagick config"
+      - keep: "from moviepy.video.tools.subtitles import SubtitlesClip"
+
+    config:
+      - remove_line: "change_settings({'IMAGEMAGICK_BINARY': get_imagemagick_path()})"
+        reason: "MoviePy v2 dropped ImageMagick. TextClip uses Pillow directly."
+
+    method_renames_in_combine:
+      - line_658: "clip.set_fps(30) → clip.with_fps(30)"
+      - line_682: "clip.resize((1080, 1920)) → clip.resized((1080, 1920))"
+      - line_691: "final_clip.set_fps(30) → final_clip.with_fps(30)"
+      - line_699: "subtitles.set_pos(...) → subtitles.with_position(...)"
+      - line_703: "AudioFileClip(song).set_fps(44100) → .with_fps(44100)"
+      - line_707: "tts_clip.set_fps(44100) → tts_clip.with_fps(44100)"
+      - line_709: "final_clip.set_audio(comp_audio) → final_clip.with_audio(comp_audio)"
+      - line_710: "final_clip.set_duration(d) → final_clip.with_duration(d)"
+
+    effect_changes:
+      - old: "crop(clip, width=w, height=h, x_center=cx, y_center=cy)"
+        new: "clip.cropped(width=w, height=h, x_center=cx, y_center=cy)"
+        reason: "crop() standalone function removed; .cropped() method is the v2 equivalent"
+      - old: "random_song_clip.fx(afx.volumex, 0.1)"
+        new: |
+          from moviepy.audio.fx import MultiplyVolume
+          random_song_clip.with_effects([MultiplyVolume(factor=0.1)])
+
+    textclip_changes:
+      old: |
+        TextClip(
+            txt,
+            font=os.path.join(get_fonts_dir(), get_font()),
+            fontsize=100,
+            color="#FFFF00",
+            stroke_color="black",
+            stroke_width=5,
+            size=(1080, 1920),
+            method="caption",
+        )
+      new: |
+        TextClip(
+            text=txt,
+            font=os.path.join(get_fonts_dir(), get_font()),
+            font_size=100,
+            color="#FFFF00",
+            stroke_color="black",
+            stroke_width=5,
+            size=(1080, 1920),
+            method="caption",
+        )
+      changes:
+        - "First positional arg → text= keyword"
+        - "fontsize → font_size"
+        - "font path stays the same (already uses file path from get_fonts_dir)"
+
+  test_strategy:
+    unit_tests:
+      - "Test that YouTube.py imports resolve (no ImportError)"
+      - "Test combine() method with mocked moviepy classes uses v2 API names"
+      - "Test TextClip generator lambda uses font_size and text= kwargs"
+      - "Test crop replaced by cropped method call"
+      - "Test volumex replaced by MultiplyVolume"
+    existing_tests:
+      - "All 839 existing tests must pass unchanged"
+      - "test_twitter_youtube_cache.py tests don't test combine() — no changes needed"
+
+  risks:
+    - "TextClip v2 may require explicit font= even when font file exists"
+    - "clip.cropped() may use different parameter names than crop() function"
+    - "afx namespace no longer exists — need MultiplyVolume import"
+    - "All changes must be atomic — partial migration breaks combine()"
+
+# ===========================================================================
+# H22: MCP Streamable HTTP + Bearer Token Auth
+# ===========================================================================
+h22:
+  purpose: "Add authenticated HTTP transport to MCP server"
+  location: src/mcp_server.py
+
+  changes:
+    auth_setup:
+      add_after_imports: |
+        # Auth is optional — only enabled when --token is passed or MCP_AUTH_TOKEN env var is set
+        def _get_auth(token: str | None = None):
+            """Return BearerTokenAuth if a token is available, else None."""
+            resolved = token or os.environ.get("MCP_AUTH_TOKEN", "")
+            if not resolved:
+                return None
+            try:
+                from fastmcp.server.auth import BearerTokenAuth
+                return BearerTokenAuth(token=resolved)
+            except ImportError:
+                logger.warning("BearerTokenAuth not available — running without auth")
+                return None
+
+    argparse:
+      add_flag: "--token TOKEN  (Bearer token for HTTP auth; defaults to MCP_AUTH_TOKEN env var)"
+
+    entrypoint:
+      old: |
+        if args.http:
+            mcp.run(transport="http", host="0.0.0.0", port=args.http)
+      new: |
+        if args.http:
+            auth = _get_auth(args.token)
+            if auth:
+                mcp.settings.auth = auth
+                logger.info("Bearer token auth enabled")
+            mcp.run(transport="http", host="0.0.0.0", port=args.http)
+
+  test_strategy:
+    unit_tests:
+      - "Test _get_auth returns None when no token"
+      - "Test _get_auth returns BearerTokenAuth when token provided"
+      - "Test _get_auth reads MCP_AUTH_TOKEN env var"
+      - "Test argparse --token flag is recognized"
+      - "Test argparse --http + --token configures auth before run"
+      - "Test that HTTP transport call passes correct args"
+      - "Test that auth fallback when BearerTokenAuth import fails"
+    existing_tests:
+      - "All 32 existing MCP tests must pass unchanged"
+      - "New tests add ~10 more"
+
+  risks:
+    - "fastmcp.server.auth may have different import path in installed version"
+    - "mcp.settings.auth may not be the right API — need to check fastmcp docs"
+    - "Alternative: pass auth= to FastMCP() constructor instead"
+
+# ===========================================================================
+# Implementation Order
+# ===========================================================================
+implementation_order:
+  - task: "H21-1: Update YouTube.py imports (remove moviepy.editor, fx.all, config)"
+    blocks: "H21-2"
+  - task: "H21-2: Migrate combine() method (set_→with_, crop→cropped, volumex→MultiplyVolume, TextClip args)"
+    blocks: "H21-3"
+  - task: "H21-3: Write tests for MoviePy v2 migration"
+    blocks: nothing
+  - task: "H22-1: Add _get_auth() and --token flag to mcp_server.py"
+    blocks: "H22-2"
+  - task: "H22-2: Write tests for MCP HTTP auth"
+    blocks: nothing
+  - task: "Run full test suite (839+ tests)"
+    blocks: nothing
+
+out_of_scope:
+  - "Content calendar UI (H23) — deferred unless H21+H22 complete quickly"
+  - "YouTube.py refactoring beyond MoviePy migration — no restructuring"
+  - "MCP OAuth 2.1 provider setup — only BearerTokenAuth this iteration"
+  - "ImageMagick removal from config.py — get_imagemagick_path() stays for now"
+  - "Font discovery/fallback for systems without fonts/ dir"

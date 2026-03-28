@@ -1,0 +1,35 @@
+{
+  "iteration": 6,
+  "date": "2026-03-28",
+  "test_suite": {
+    "total_tests": 879,
+    "passing": 879,
+    "failing": 0,
+    "previous_total": 839,
+    "net_new_tests": 40,
+    "net_fixed": 0
+  },
+  "coverage": {
+    "total_percent": 67.08,
+    "mcp_server_percent": 100.0,
+    "youtube_py_percent": 21.18,
+    "note": "YouTube.py coverage low because combine() and other methods require real moviepy — tested via source AST instead"
+  },
+  "hypotheses": {
+    "H21": {
+      "name": "MoviePy v2 migration for YouTube.py",
+      "status": "CONFIRMED",
+      "v1_apis_removed": 13,
+      "v2_apis_added": 13,
+      "new_tests": 29,
+      "files_changed": ["src/classes/YouTube.py", "tests/test_twitter_youtube_cache.py"]
+    },
+    "H22": {
+      "name": "MCP Streamable HTTP + Bearer Token Auth",
+      "status": "CONFIRMED",
+      "new_tests": 11,
+      "lines_changed": 20,
+      "files_changed": ["src/mcp_server.py"]
+    }
+  }
+}

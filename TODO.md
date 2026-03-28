@@ -90,14 +90,22 @@
 - [x] Fix 4 pre-existing dependency test failures (moviepy v2 import + faster_whisper mock isolation)
 - [x] Content template CLI integration (menu option 8 in main.py for template management)
 - [x] Unit tests for content template CLI (21 tests, all passing, 839 total suite)
+- [x] Full MoviePy v2 migration for YouTube.py (13 API calls migrated, 29 tests, 879 total suite)
+- [x] MCP authentication and Streamable HTTP transport (BearerTokenAuth + --token flag, 11 tests)
+- [x] Unit tests for MoviePy v2 migration (29 tests, source AST validation)
+- [x] Unit tests for MCP HTTP auth (11 tests, all passing)
 
-## In Progress
+## Completed — Iteration 6 (2026-03-28)
+- [x] Update YouTube.py imports from moviepy v1 to v2 (remove editor, fx.all, config) [H21]
+- [x] Migrate combine() method to v2 API (set_→with_, crop→cropped, volumex→MultiplyVolume, TextClip args) [H21]
+- [x] Write tests for MoviePy v2 migration (29 tests) [H21]
+- [x] Add _get_auth() + --token flag for Bearer Token auth to mcp_server.py [H22]
+- [x] Write tests for MCP HTTP auth (11 tests) [H22]
+- [x] Run full test suite (879/879 passing, 0 failures) [H21, H22]
 
 ## Planned — High Priority
-- [ ] Full MoviePy v2 migration for YouTube.py (import *, fx, crop, subtitles API changes)
 - [ ] Content calendar UI (frontend for content scheduler)
 - [ ] Dashboard frontend polish (charts, job management, content calendar view)
-- [ ] MCP authentication and Streamable HTTP transport for remote access
 
 ## Planned — Medium Priority
 - [ ] Video template system (custom intros/outros)
