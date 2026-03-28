@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Calendar — MoneyPrinter</title>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 1.5rem;
+        }
+        a { color: #38bdf8; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .nav { margin-bottom: 1rem; font-size: 0.9rem; }
+        h1 { font-size: 1.5rem; margin-bottom: 1.25rem; color: #38bdf8; }
+        .layout { display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; align-items: start; }
+        @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+        /* Calendar wrapper */
+        #calendar-wrap {
+            background: #1e293b;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            padding: 1rem;
+        }
+
+        /* FullCalendar overrides */
+        .fc { color: #e2e8f0; }
+        .fc .fc-toolbar-title { font-size: 1.1rem; color: #e2e8f0; }
+        .fc .fc-button {
+            background: #334155;
+            border-color: #475569;
+            color: #e2e8f0;
+            font-size: 0.8rem;
+            padding: 0.25rem 0.6rem;
+        }
+        .fc .fc-button:hover { background: #475569; border-color: #64748b; }
+        .fc .fc-button-primary:not(:disabled).fc-button-active,
+        .fc .fc-button-primary:not(:disabled):active { background: #38bdf8; border-color: #38bdf8; color: #0f172a; }
+        .fc .fc-col-header-cell { background: #0f172a; }
+        .fc .fc-col-header-cell-cushion { color: #94a3b8; font-size: 0.8rem; font-weight: 600; padding: 0.5rem; }
+        .fc .fc-daygrid-day { background: #0f172a; }
+        .fc .fc-daygrid-day:hover { background: #1e293b; }
+        .fc .fc-daygrid-day-number { color: #94a3b8; font-size: 0.8rem; padding: 0.25rem 0.4rem; }
+        .fc .fc-day-today { background: #172033 !important; }
+        .fc .fc-day-today .fc-daygrid-day-number { color: #38bdf8; font-weight: 700; }
+        .fc-theme-standard td, .fc-theme-standard th { border-color: #1e293b; }
+        .fc-theme-standard .fc-scrollgrid { border-color: #334155; }
+        .fc .fc-event { border: none; border-radius: 4px; font-size: 0.75rem; padding: 0 0.25rem; cursor: pointer; }
+        .fc .fc-event-title { font-weight: 600; }
+        .fc .fc-more-link { color: #38bdf8; font-size: 0.75rem; }
+        .fc .fc-popover { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; }
+        .fc .fc-popover-header { background: #0f172a; }
+
+        /* Sidebar */
+        .sidebar { display: flex; flex-direction: column; gap: 1rem; }
+        .card {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid #334155;
+        }
+        .card h2 {
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+            color: #94a3b8;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 0.5rem;
+        }
+
+        /* Form */
+        .form-group { margin-bottom: 0.75rem; }
+        .form-group label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.3rem; }
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #e2e8f0;
+            padding: 0.45rem 0.6rem;
+            font-size: 0.85rem;
+            outline: none;
+        }
+        .form-group input:focus,
+        .form-group select:focus { border-color: #38bdf8; }
+        .form-group select option { background: #0f172a; }
+        .btn {
+            display: inline-block;
+            padding: 0.45rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.15s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn-primary { background: #38bdf8; color: #0f172a; }
+        .btn-danger { background: #7f1d1d; color: #fca5a5; }
+        .btn-block { width: 100%; text-align: center; }
+        .form-error { color: #fca5a5; font-size: 0.8rem; margin-top: 0.5rem; display: none; }
+        .form-success { color: #6ee7b7; font-size: 0.8rem; margin-top: 0.5rem; display: none; }
+
+        /* Event detail panel */
+        #detail-panel { display: none; }
+        .detail-row { display: flex; justify-content: space-between; padding: 0.35rem 0; border-bottom: 1px solid #334155; font-size: 0.85rem; }
+        .detail-row:last-of-type { border-bottom: none; }
+        .detail-label { color: #94a3b8; }
+        .detail-value { font-weight: 600; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .badge {
+            display: inline-block;
+            padding: 0.12rem 0.45rem;
+            border-radius: 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+        .badge-pending  { background: #78350f; color: #fde68a; }
+        .badge-completed { background: #065f46; color: #6ee7b7; }
+        .badge-failed   { background: #7f1d1d; color: #fca5a5; }
+        .badge-running  { background: #1e3a5f; color: #93c5fd; }
+        .platform-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            margin-right: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav"><a href="/dashboard">← Dashboard</a></div>
+    <h1>Content Calendar</h1>
+
+    <div class="layout">
+        <!-- Calendar -->
+        <div id="calendar-wrap">
+            <div id="calendar"></div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- Create Job Form -->
+            <div class="card">
+                <h2>Schedule New Job</h2>
+                <form id="create-form" autocomplete="off">
+                    <div class="form-group">
+                        <label for="f-title">Title *</label>
+                        <input id="f-title" type="text" placeholder="e.g. Weekly YouTube Short" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="f-platform">Platform *</label>
+                        <select id="f-platform" required>
+                            <option value="">Select platform…</option>
+                            <option value="youtube">YouTube</option>
+                            <option value="tiktok">TikTok</option>
+                            <option value="twitter">Twitter / X</option>
+                            <option value="instagram">Instagram</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="f-time">Scheduled Time *</label>
+                        <input id="f-time" type="datetime-local" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="f-video">Video Path (optional)</label>
+                        <input id="f-video" type="text" placeholder=".mp/output.mp4">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Add to Calendar</button>
+                    <div id="form-error" class="form-error"></div>
+                    <div id="form-success" class="form-success"></div>
+                </form>
+            </div>
+
+            <!-- Event Detail Panel -->
+            <div class="card" id="detail-panel">
+                <h2>Event Details</h2>
+                <div id="detail-body"></div>
+                <button id="detail-delete" class="btn btn-danger btn-block" style="margin-top:0.75rem">Delete Job</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        const PLATFORM_COLORS = {
+            youtube: '#ff0000',
+            tiktok: '#00f2ea',
+            twitter: '#1da1f2',
+            instagram: '#e1306c',
+        };
+
+        let calendar;
+        let selectedJobId = null;
+
+        // ── Helpers ────────────────────────────────────────────────────────────
+        function statusBadge(status) {
+            const cls = {
+                pending: 'badge-pending',
+                completed: 'badge-completed',
+                failed: 'badge-failed',
+                running: 'badge-running',
+            }[status] || 'badge-pending';
+            return `<span class="badge ${cls}">${status}</span>`;
+        }
+
+        function platformDots(platforms) {
+            return (platforms || []).map(p => {
+                const color = PLATFORM_COLORS[p] || '#64748b';
+                return `<span class="platform-dot" style="background:${color}" title="${p}"></span>${p}`;
+            }).join(', ');
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('form-error');
+            const ok = document.getElementById('form-success');
+            el.textContent = msg;
+            el.style.display = 'block';
+            ok.style.display = 'none';
+        }
+
+        function showSuccess(msg) {
+            const el = document.getElementById('form-success');
+            const err = document.getElementById('form-error');
+            el.textContent = msg;
+            el.style.display = 'block';
+            err.style.display = 'none';
+            setTimeout(() => { el.style.display = 'none'; }, 3000);
+        }
+
+        function clearMessages() {
+            document.getElementById('form-error').style.display = 'none';
+            document.getElementById('form-success').style.display = 'none';
+        }
+
+        // ── Show event detail ──────────────────────────────────────────────────
+        function showDetail(eventInfo) {
+            const props = eventInfo.extendedProps || {};
+            selectedJobId = eventInfo.id;
+
+            const dt = eventInfo.startStr
+                ? new Date(eventInfo.startStr).toLocaleString()
+                : '—';
+
+            document.getElementById('detail-body').innerHTML = `
+                <div class="detail-row">
+                    <span class="detail-label">Title</span>
+                    <span class="detail-value" title="${eventInfo.title}">${eventInfo.title}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Platforms</span>
+                    <span class="detail-value">${platformDots(props.platforms)}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Scheduled</span>
+                    <span class="detail-value">${dt}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status</span>
+                    <span class="detail-value">${statusBadge(props.status || 'pending')}</span>
+                </div>
+                ${props.video_path ? `<div class="detail-row">
+                    <span class="detail-label">Video</span>
+                    <span class="detail-value" title="${props.video_path}">${props.video_path}</span>
+                </div>` : ''}
+            `;
+            document.getElementById('detail-panel').style.display = 'block';
+        }
+
+        // ── Delete job ─────────────────────────────────────────────────────────
+        document.getElementById('detail-delete').addEventListener('click', async () => {
+            if (!selectedJobId) return;
+            if (!confirm('Delete this job?')) return;
+
+            try {
+                const resp = await fetch(`/api/calendar/events/${selectedJobId}`, { method: 'DELETE' });
+                if (resp.status === 204) {
+                    document.getElementById('detail-panel').style.display = 'none';
+                    selectedJobId = null;
+                    calendar.refetchEvents();
+                } else {
+                    const data = await resp.json().catch(() => ({}));
+                    alert(data.error || `Delete failed (${resp.status})`);
+                }
+            } catch (e) {
+                alert('Network error: ' + e.message);
+            }
+        });
+
+        // ── Create job form ────────────────────────────────────────────────────
+        document.getElementById('create-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessages();
+
+            const title      = document.getElementById('f-title').value.trim();
+            const platform   = document.getElementById('f-platform').value;
+            const timeVal    = document.getElementById('f-time').value;
+            const videoPath  = document.getElementById('f-video').value.trim();
+
+            if (!title || !platform || !timeVal) {
+                showError('Title, platform, and scheduled time are required.');
+                return;
+            }
+
+            // datetime-local gives "YYYY-MM-DDTHH:MM" — append seconds for ISO8601
+            const isoTime = timeVal.length === 16 ? timeVal + ':00' : timeVal;
+
+            const payload = {
+                title,
+                platforms: [platform],
+                scheduled_time: isoTime,
+                video_path: videoPath,
+            };
+
+            try {
+                const resp = await fetch('/api/calendar/events', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (resp.status === 201) {
+                    showSuccess('Job scheduled successfully.');
+                    document.getElementById('create-form').reset();
+                    calendar.refetchEvents();
+                } else {
+                    const data = await resp.json().catch(() => ({}));
+                    showError(data.error || `Error ${resp.status}`);
+                }
+            } catch (err) {
+                showError('Network error: ' + err.message);
+            }
+        });
+
+        // ── Prefill time when clicking a day ──────────────────────────────────
+        function prefillDate(dateStr) {
+            // dateStr is "YYYY-MM-DD" from dateClick
+            const el = document.getElementById('f-time');
+            el.value = dateStr + 'T09:00';
+        }
+
+        // ── Initialize FullCalendar ────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', function () {
+            const el = document.getElementById('calendar');
+            calendar = new FullCalendar.Calendar(el, {
+                initialView: 'dayGridMonth',
+                themeSystem: 'standard',
+                height: 'auto',
+                headerToolbar: {
+                    left:   'prev,next today',
+                    center: 'title',
+                    right:  'dayGridMonth,timeGridWeek',
+                },
+                events: function (info, successCb, failureCb) {
+                    const url = `/api/calendar/events?start=${info.startStr}&end=${info.endStr}`;
+                    fetch(url)
+                        .then(r => r.json())
+                        .then(data => successCb(data))
+                        .catch(err => failureCb(err));
+                },
+                dateClick: function (info) {
+                    prefillDate(info.dateStr);
+                    document.getElementById('f-title').focus();
+                },
+                eventClick: function (info) {
+                    showDetail(info.event);
+                },
+                eventDisplay: 'block',
+                nowIndicator: true,
+            });
+            calendar.render();
+        });
+    })();
+    </script>
+</body>
+</html>

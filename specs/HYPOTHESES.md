@@ -632,3 +632,118 @@ Focus on **H21** (MoviePy v2 migration) and **H22** (MCP HTTP + auth). H21 is th
 - Pre-existing failures: 0 (was 4 — all eliminated)
 - New failures: 0
 - Coverage: 77.68% (was 76.72%, +0.96%)
+
+---
+
+## Hypotheses — 2026-03-28 (Iteration 7)
+
+Based on Survey Iteration 7 findings (JOURNAL.md 2026-03-28 Iteration 7).
+
+### H24: Content Calendar UI (FullCalendar.js on Dashboard)
+**Priority: HIGH**
+**Hypothesis**: Adding a calendar view to the existing dashboard.py using FullCalendar v6 (CDN) with a JSON feed endpoint that reads from ContentScheduler will provide a visual content planning interface with CRUD operations — completing the "Content calendar UI" roadmap item that has been deferred since iteration 6 (H23).
+**Rationale**: Survey confirms FullCalendar v6 natively fetches events from JSON endpoints with `start`/`end` ISO8601 params. Our `ContentScheduler` already has `ScheduledJob` with `scheduled_time`, `title`, `platforms`. Dashboard infrastructure (FastAPI + Jinja2 + HTMX) is in place. FullCalendar-FastAPI integration is a proven pattern.
+**Metric**:
+  - New route: GET /calendar renders calendar page with FullCalendar.js (CDN)
+  - API: GET /api/calendar/events?start=...&end=... returns ScheduledJob list as FullCalendar event JSON
+  - API: POST /api/calendar/events creates a new ScheduledJob
+  - API: DELETE /api/calendar/events/{job_id} removes a scheduled job
+  - Calendar displays month view with color-coded platform events
+  - Unit tests >80% coverage for new endpoints
+  - All existing dashboard tests pass (26/26)
+  - Full suite green (879+ tests)
+**Success threshold**: Calendar renders with scheduled jobs. JSON feed + CRUD endpoints work. 15+ new tests. All 879+ tests pass.
+**Risk**: Medium — FullCalendar.js template is more JS-heavy than existing HTMX dashboard. Need to map ScheduledJob format to FullCalendar event schema. CDN dependency for FullCalendar.
+**Dependencies**: Existing dashboard.py, content_scheduler.py. FullCalendar v6 from CDN.
+**Status**: UNTESTED
+
+### H25: Dashboard Charts (Chart.js + SSE Real-Time Updates)
+**Priority: HIGH**
+**Hypothesis**: Adding Chart.js (CDN) to the existing dashboard with 3 chart types — jobs over time (line), platform distribution (doughnut), and success rate (bar) — fed by the existing SSE `/api/stream` endpoint will transform the text-only dashboard into a visual monitoring tool. Survey confirms this is ~50 lines of JS + a Chart.js CDN include.
+**Rationale**: Dashboard already has SSE streaming (`/api/stream`). Chart.js is the most widely-used JS chart library, CDN-available. Monitrix project proves the exact pattern (FastAPI + Chart.js). Data is already available from analytics.py and cache.py.
+**Metric**:
+  - Chart.js loaded from CDN in dashboard template
+  - 3 charts: jobs timeline (line), platform breakdown (doughnut), success/fail rate (bar)
+  - Charts update in real-time via SSE events
+  - API: GET /api/analytics/chart-data returns chart-ready aggregated data
+  - Unit tests for chart data endpoint >80% coverage
+  - All existing dashboard tests pass
+  - Full suite green (879+ tests)
+**Success threshold**: 3 charts render with real data. SSE updates charts in real-time. 10+ new tests.
+**Risk**: Low — Chart.js CDN + ~50 lines of JS. Data sources already exist. SSE infrastructure already in place.
+**Dependencies**: Existing dashboard.py with SSE `/api/stream`. Chart.js from CDN.
+**Status**: UNTESTED
+
+### H26: Animated Captions Module (beautiful-captions Integration)
+**Priority: MEDIUM**
+**Hypothesis**: Integrating `beautiful-captions` (v0.1.71, PyPI) into the YouTube video pipeline to replace the MoviePy TextClip subtitle rendering with word-by-word animated captions will produce TikTok/Reels-style captions that are the dominant engagement format in 2026. The module wraps Whisper transcription + animated overlay rendering.
+**Rationale**: Survey shows pycaps (alpha, not on PyPI) and beautiful-captions (v0.1.71, PyPI, MIT). beautiful-captions is more mature — supports bounce animation, CUDA acceleration, speaker diarization. Display 2-3 words at a time for maximum readability. Our `Tts.py` already produces WAV audio. This replaces the `TextClip` subtitle step in `YouTube.py:combine()`.
+**Metric**:
+  - `src/animated_captions.py` wrapper module around beautiful-captions
+  - Accepts WAV audio path → produces animated SRT/overlay data
+  - Integration point in YouTube.py combine() to use animated captions instead of TextClip
+  - Configurable style (font, color, animation type) via config.json
+  - Unit tests >80% coverage
+  - Full suite green (879+ tests)
+**Success threshold**: Module generates animated caption overlays from audio. 15+ tests. config.json style options work.
+**Risk**: Medium — beautiful-captions is v0.1.71 (early). Requires AssemblyAI API key for transcription (adds external dependency). May conflict with existing MoviePy subtitle flow. CUDA optional but recommended.
+**Dependencies**: beautiful-captions pip package. AssemblyAI API key OR local Whisper fallback.
+**Status**: UNTESTED
+
+---
+
+## Priority Ranking (Iteration 7)
+1. **H24** — Content calendar UI (deferred since iter 6, highest priority roadmap item, infrastructure ready)
+2. **H25** — Dashboard charts (low effort ~50 LOC JS, high visual impact, SSE already exists)
+3. **H26** — Animated captions (medium effort, high engagement impact, but new dependency risk)
+
+## Implementation Recommendation
+Focus on **H24** (content calendar) and **H25** (dashboard charts). Both build on the existing dashboard.py infrastructure and are the top "What to Try Next" items from iteration 6. H24 has been deferred since iteration 6 — must ship now. H25 is low-risk and high-impact. **H26** deferred — beautiful-captions is early-stage (v0.1.71) and adds an external API dependency (AssemblyAI).
+
+---
+
+## Evaluation — 2026-03-28 (Iteration 7)
+
+### H24: Content Calendar UI (FullCalendar.js on Dashboard) — CONFIRMED
+- **Result**: Calendar page + 4 calendar API endpoints added to dashboard.py
+- **Endpoints**: GET /calendar, GET /api/calendar/events (with date filtering), POST /api/calendar/events, DELETE /api/calendar/events/{job_id}
+- **Template**: calendar.html with FullCalendar v6.1.15 (CDN), dark theme, create form, event details panel, delete button
+- **Features**: Platform color coding, date range filtering, form validation (422 for missing fields), atomic persistence, "← Dashboard" / "Calendar →" navigation
+- **Coverage**: 90.31% for dashboard.py (target was >80%)
+- **Tests**: 36 new tests (target was 15+), all passing
+- **Existing tests**: All 26 existing dashboard tests still pass
+- **Full suite**: 915/915 passing, 0 failures
+- **Verdict**: Hypothesis confirmed. Content calendar UI is fully functional with CRUD operations.
+
+### H25: Dashboard Charts (Chart.js + SSE Real-Time Updates) — CONFIRMED
+- **Result**: Chart.js 4.4.7 (CDN) + 3 charts added to dashboard.html + /api/analytics/chart-data endpoint
+- **Charts**: Line (jobs over time, last 30 days), Doughnut (platform distribution), Bar (success/fail rate)
+- **SSE integration**: Charts update on every `sse:dashboard-update` event via `loadChartData()`
+- **chart-data endpoint**: Aggregates analytics into 3 datasets (jobs_over_time, platform_counts, status_counts)
+- **Tests**: Covered by same 36 new tests — chart-data endpoint tested with 8 specific assertions
+- **Full suite**: 915/915 passing, 0 failures
+- **Verdict**: Hypothesis confirmed. Dashboard now has visual charts with real-time SSE updates.
+
+### H26: Animated Captions Module — DEFERRED
+- Not implemented this iteration. beautiful-captions v0.1.71 is early-stage and requires AssemblyAI API key.
+
+### Summary
+| ID | Hypothesis | Verdict | Key Metric |
+|----|-----------|---------|------------|
+| H24 | Content calendar UI | **CONFIRMED** | 36 tests, 90.31% coverage, CRUD + FullCalendar |
+| H25 | Dashboard charts | **CONFIRMED** | 3 charts, SSE updates, chart-data endpoint |
+| H26 | Animated captions | DEFERRED | Early-stage dependency |
+
+### Full Suite Impact
+- Total tests: 915 (was 879 before this iteration)
+- Passing: 915 (was 879, +36 net)
+- Pre-existing failures: 0 (maintained)
+- New failures: 0
+- Coverage: 78.22% (was 67.08%, +11.14%)
+
+### Key Insights
+- FullCalendar v6 JSON feed integration was straightforward — ScheduledJob maps cleanly to FullCalendar event format
+- Chart.js + SSE pattern is extremely lightweight (~50 lines of JS as predicted)
+- Coverage jumped significantly (+11.14%) because installing FastAPI deps allowed more test code paths to execute
+- The calendar CRUD endpoints reuse the same .mp/schedule.json as content_scheduler.py — single source of truth
+- Platform color coding (youtube=#ff0000, tiktok=#00f2ea) provides instant visual recognition on the calendar

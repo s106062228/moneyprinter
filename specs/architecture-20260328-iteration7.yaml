@@ -1,0 +1,126 @@
+title: "Architecture — 2026-03-28 (Iteration 7)"
+date: 2026-03-28
+scope: "H24 (Content Calendar UI) and H25 (Dashboard Charts)"
+
+hypotheses:
+  - H24: Content Calendar UI (FullCalendar.js on Dashboard)
+  - H25: Dashboard Charts (Chart.js + SSE Real-Time Updates)
+
+components:
+
+  dashboard_calendar_endpoints:
+    purpose: "CRUD API for calendar events backed by ContentScheduler"
+    location: src/dashboard.py
+    changes:
+      - "Add GET /calendar route → renders calendar.html Jinja2 template"
+      - "Add GET /api/calendar/events?start=...&end=... → returns ScheduledJob list as FullCalendar JSON"
+      - "Add POST /api/calendar/events → creates new ScheduledJob (title, platforms, scheduled_time, video_path)"
+      - "Add DELETE /api/calendar/events/{job_id} → removes job by ID"
+      - "Add _load_schedule_jobs_from_file() helper that reads .mp/schedule.json"
+      - "Add _save_schedule_jobs_to_file() helper with atomic write"
+    notes:
+      - "FullCalendar event format: {id, title, start, end, color, extendedProps}"
+      - "Map ScheduledJob.platforms[0] to color: youtube=#ff0000, tiktok=#00f2ea, twitter=#1da1f2, instagram=#e1306c"
+      - "_load_scheduled_jobs() already exists — extend it or reuse for calendar"
+
+  calendar_template:
+    purpose: "FullCalendar.js frontend with CDN include and HTMX CRUD"
+    location: src/templates/calendar.html
+    changes:
+      - "New file: Jinja2 template with FullCalendar v6 from CDN"
+      - "FullCalendar initialCalendarEl with events: '/api/calendar/events'"
+      - "Month view (default) + week view toggle"
+      - "Click event → modal with job details (HTMX swap)"
+      - "dateClick → create new job form (HTMX hx-post)"
+      - "Event drag disabled initially (simplicity)"
+    cdn_deps:
+      - "https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"
+    notes:
+      - "Extends dashboard dark theme (same CSS variables)"
+      - "Navigation link between /dashboard and /calendar"
+
+  dashboard_charts:
+    purpose: "Chart.js visualizations for analytics data"
+    location: src/templates/dashboard.html
+    changes:
+      - "Add Chart.js CDN include"
+      - "Add 3 canvas elements for charts"
+      - "Add JS: parse SSE dashboard-update events → update charts"
+      - "Line chart: jobs over time (last 30 days)"
+      - "Doughnut chart: platform distribution"
+      - "Bar chart: success/fail rates by platform"
+    cdn_deps:
+      - "https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
+
+  chart_data_endpoint:
+    purpose: "Aggregated chart-ready data from analytics"
+    location: src/dashboard.py
+    changes:
+      - "Add GET /api/analytics/chart-data endpoint"
+      - "Aggregates analytics events by date (jobs_over_time), platform (platform_counts), status (success_fail)"
+      - "Returns { jobs_over_time: [{date, count}], platform_counts: {youtube: N, ...}, success_fail: {completed: N, failed: N} }"
+    notes:
+      - "Reuses _load_analytics_data() and _load_scheduled_jobs()"
+
+data_flow:
+  calendar:
+    input: "User clicks date on calendar or views month"
+    processing: "FullCalendar fetches /api/calendar/events?start=X&end=Y → dashboard.py reads .mp/schedule.json → filters by date range → converts to FC event format"
+    output: "Calendar renders events with platform colors"
+    create: "User fills form (title, platform, time, video_path) → POST /api/calendar/events → dashboard.py validates + writes to .mp/schedule.json → returns 201"
+    delete: "User clicks event → DELETE /api/calendar/events/{id} → removes from schedule.json → returns 204"
+  charts:
+    input: "Dashboard page loads + SSE events every 2s"
+    processing: "JS parses SSE data → extracts analytics_summary, jobs count → updates Chart.js datasets"
+    output: "3 charts update in real-time"
+
+test_strategy:
+  unit_tests:
+    - "test_calendar_page_renders (GET /calendar returns 200 + HTML)"
+    - "test_calendar_events_returns_json (GET /api/calendar/events with start/end params)"
+    - "test_calendar_events_empty (no schedule.json → empty array)"
+    - "test_calendar_events_date_filter (only returns events in range)"
+    - "test_calendar_create_event (POST → 201 + job added)"
+    - "test_calendar_create_event_validation (missing fields → 422)"
+    - "test_calendar_delete_event (DELETE → 204 + job removed)"
+    - "test_calendar_delete_nonexistent (DELETE unknown ID → 404)"
+    - "test_calendar_event_format (validates FullCalendar JSON schema)"
+    - "test_chart_data_endpoint (GET /api/analytics/chart-data returns aggregated data)"
+    - "test_chart_data_empty (no analytics → zeroed data)"
+    - "test_chart_data_aggregation (multiple events → correct counts)"
+    - "test_existing_dashboard_still_works (regression: all 26 existing tests pass)"
+  coverage_target: ">80% for new code"
+
+implementation_order:
+  - task: "Add calendar CRUD endpoints to dashboard.py"
+    hypothesis: H24
+    depends_on: null
+    est_lines: 80
+  - task: "Create calendar.html template"
+    hypothesis: H24
+    depends_on: "calendar endpoints"
+    est_lines: 120
+  - task: "Add /api/analytics/chart-data endpoint"
+    hypothesis: H25
+    depends_on: null
+    est_lines: 40
+  - task: "Add Chart.js to dashboard.html template"
+    hypothesis: H25
+    depends_on: "chart-data endpoint"
+    est_lines: 60
+  - task: "Write tests for calendar + chart endpoints"
+    hypothesis: "H24, H25"
+    depends_on: "all endpoints"
+    est_lines: 200
+  - task: "Run full test suite"
+    hypothesis: "H24, H25"
+    depends_on: "tests written"
+    est_lines: 0
+
+out_of_scope:
+  - "Drag-and-drop event rescheduling (FullCalendar supports it but adds complexity)"
+  - "Event editing (only create + delete this iteration)"
+  - "Content scheduler integration for job execution (calendar only manages the schedule display)"
+  - "Mobile-responsive calendar layout"
+  - "Real-time calendar updates via SSE (calendar uses standard JSON feed)"
+  - "H26 animated captions (deferred — early-stage dependency)"

@@ -94,6 +94,17 @@
 - [x] MCP authentication and Streamable HTTP transport (BearerTokenAuth + --token flag, 11 tests)
 - [x] Unit tests for MoviePy v2 migration (29 tests, source AST validation)
 - [x] Unit tests for MCP HTTP auth (11 tests, all passing)
+- [x] Content calendar UI with FullCalendar v6 (4 REST endpoints, calendar.html template)
+- [x] Dashboard charts with Chart.js (3 charts: line, doughnut, bar + /api/analytics/chart-data endpoint)
+- [x] Unit tests for calendar + chart endpoints (36 new tests, 90.31% dashboard coverage, 915 total suite)
+
+## Completed — Iteration 7 (2026-03-28)
+- [x] Add calendar CRUD endpoints to dashboard.py (GET/POST/DELETE /api/calendar/events + GET /calendar) [H24]
+- [x] Create calendar.html Jinja2 template with FullCalendar v6 CDN [H24]
+- [x] Add GET /api/analytics/chart-data endpoint to dashboard.py [H25]
+- [x] Add Chart.js CDN + 3 charts to dashboard.html template [H25]
+- [x] Write tests for calendar + chart endpoints (36 tests) [H24, H25]
+- [x] Run full test suite (915/915 passing, 0 failures) [H24, H25]
 
 ## Completed — Iteration 6 (2026-03-28)
 - [x] Update YouTube.py imports from moviepy v1 to v2 (remove editor, fx.all, config) [H21]
@@ -103,9 +114,17 @@
 - [x] Write tests for MCP HTTP auth (11 tests) [H22]
 - [x] Run full test suite (879/879 passing, 0 failures) [H21, H22]
 
+## Implementation Tasks — Iteration 7 (2026-03-28)
+- [x] Add calendar CRUD endpoints to dashboard.py (GET/POST/DELETE /api/calendar/events + GET /calendar) [H24]
+- [x] Create calendar.html Jinja2 template with FullCalendar v6 CDN [H24]
+- [x] Add GET /api/analytics/chart-data endpoint to dashboard.py [H25]
+- [x] Add Chart.js CDN + 3 charts to dashboard.html template [H25]
+- [x] Write tests for calendar + chart endpoints (15+ tests) [H24, H25]
+- [x] Run full test suite (915/915 passing, 0 failures) [H24, H25]
+
 ## Planned — High Priority
-- [ ] Content calendar UI (frontend for content scheduler)
-- [ ] Dashboard frontend polish (charts, job management, content calendar view)
+- [x] Content calendar UI (frontend for content scheduler) — DONE (iteration 7)
+- [x] Dashboard frontend polish (charts, job management, content calendar view) — DONE (iteration 7)
 
 ## Planned — Medium Priority
 - [ ] Video template system (custom intros/outros)

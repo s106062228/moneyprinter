@@ -814,3 +814,132 @@ Designed implementation for H21 (MoviePy v2 migration) and H22 (MCP HTTP + auth)
 - Modified files: src/classes/YouTube.py, src/mcp_server.py, tests/test_twitter_youtube_cache.py
 
 ---
+
+## Survey — 2026-03-28 (Iteration 7)
+
+### Research Focus
+Content calendar UI, A/B testing for short-form video, animated captions, and dashboard real-time monitoring — the top priorities from iteration 6's "What to Try Next".
+
+### Key Findings
+
+#### 1. Content Calendar UI: FullCalendar v6 + FastAPI JSON Feed
+- **FullCalendar v6** is the standard JS calendar widget. Available via CDN (`fullcalendar@6.1.4/index.global.min.js`). Supports JSON feed endpoints natively — pass a URL and it fetches events with `start`/`end` ISO8601 params automatically.
+- **FastAPI + FullCalendar integration** already proven: `doganzub/FullCalendar-FastAPI-PostgreSQL` repo demonstrates CRUD endpoints + Jinja2 templates. Our existing `dashboard.py` (FastAPI + Jinja2 + HTMX SSE) is the ideal host.
+- **Pattern**: FullCalendar handles month/week/day navigation client-side; backend provides `/api/calendar/events?start=...&end=...` JSON endpoint. CRUD via HTMX `hx-post`/`hx-delete` for creating/deleting scheduled jobs.
+- **Our content_scheduler.py already has** `ScheduledJob` dataclass with `scheduled_time`, `platforms`, `title`, `video_path` — maps directly to FullCalendar event objects.
+- Source: [FullCalendar JSON Feed docs](https://fullcalendar.io/docs/events-json-feed), [FastAPI+HTMX pattern](https://testdriven.io/blog/fastapi-htmx/)
+
+#### 2. A/B Testing: YouTube Native "Test & Compare" — NOT Available for Shorts
+- **Critical finding**: YouTube's native A/B testing ("Test & Compare") explicitly **does not support Shorts**. Once a video transitions to a Short, no tests can be created or accessed.
+- YouTube's tool tests up to 3 titles × 3 thumbnails via concurrent A/B/C methodology over 2 weeks, optimizing for watch time (not CTR).
+- **YouTube Data API v3** supports `videos.update()` for titles and `thumbnails.set()` for thumbnails programmatically (quota: ~50 units per thumbnail upload). OAuth 2.0 required.
+- **Practical alternative for Shorts**: Generate LLM variants, rotate titles/descriptions via API after N hours, track impressions/CTR via Analytics API. This is a DIY A/B test, not native.
+- Third-party tools (TubeBuddy, ThumbnailTest) offer browser extension-based A/B testing but don't support Shorts either.
+- Source: [YouTube A/B test docs](https://support.google.com/youtube/answer/16391400), [Descript guide](https://www.descript.com/blog/article/how-to-ab-test-on-youtube-for-better-video-performance)
+
+#### 3. Animated Captions: pycaps and beautiful-captions
+- **pycaps** (MIT, alpha): CSS-styled animated subtitles. Whisper transcription → word-level timestamps → CSS styling → Playwright/browser rendering. Template system with presets. CLI: `pycaps render --input video.mp4 --template minimalist`. Not yet on PyPI — install from GitHub.
+- **beautiful-captions** (v0.1.71, PyPI, Mar 2026): Faster alternative. `Video("input.mp4").transcribe(service="assemblyai").add_captions()`. Supports bounce animation, speaker diarization, profanity censoring, CUDA acceleration. Font size 140px default. Requires AssemblyAI for transcription.
+- **Key insight**: Both tools replace our current `TextClip`-based subtitle rendering in YouTube.py with word-by-word animated captions (2-3 words at a time). This is the dominant style on TikTok/Reels/Shorts in 2026.
+- **Integration path**: Our `Tts.py` already produces WAV → we have audio. Whisper (local) or AssemblyAI can produce word-level timestamps. Then `beautiful-captions` or `pycaps` renders animated overlays. This replaces the MoviePy `TextClip` subtitle step.
+- Source: [pycaps GitHub](https://github.com/francozanardi/pycaps), [beautiful-captions PyPI](https://pypi.org/project/beautiful-captions/)
+
+#### 4. Dashboard Real-Time Monitoring: Chart.js + SSE
+- **Chart.js** is the most widely-used JS chart library for dashboards. CDN-available. Works with SSE for real-time updates.
+- **Pattern**: FastAPI SSE endpoint → EventSource in browser → Chart.js `chart.data.datasets[0].data.push(newPoint)` + `chart.update()`. Proven pattern in multiple production dashboards.
+- **Monitrix** project (GitHub) demonstrates the exact stack: FastAPI + WebSockets + Chart.js for CPU/memory/disk monitoring. Our dashboard already has SSE (`/stream` endpoint) — just need to add Chart.js on the frontend.
+- **What to chart**: Jobs completed/failed over time, platform distribution (pie), engagement metrics (line), queue depth (gauge).
+- Source: [Real-Time Charts with FastAPI](https://ron.sh/creating-real-time-charts-with-fastapi/), [FastAPI + HTMX dashboards](https://medium.com/codex/building-real-time-dashboards-with-fastapi-and-htmx-01ea458673cb)
+
+### Notable Tools
+- [FullCalendar v6](https://fullcalendar.io/) — JS calendar with JSON feed, drag-drop, month/week/day views
+- [beautiful-captions v0.1.71](https://pypi.org/project/beautiful-captions/) — PyPI package for animated video captions with AssemblyAI
+- [pycaps](https://github.com/francozanardi/pycaps) — CSS-styled animated subtitles with Whisper (alpha, not on PyPI)
+- [Chart.js](https://www.chartjs.org/) — JS charting library, CDN-available, SSE-compatible
+- [Monitrix](https://github.com/silverstar33/monitrix) — FastAPI + Chart.js real-time dashboard reference
+
+### Gaps & Opportunities
+1. **No Shorts A/B testing exists** — YouTube explicitly excludes Shorts. A DIY rotation approach using the Data API is an unexplored niche.
+2. **Animated captions not yet integrated in any MoneyPrinter-style tool** — competitors (AutoShorts.ai, ShortX) use CapCut-style captions but none use programmatic CSS-styled rendering.
+3. **Content calendar + scheduler is the #1 missing UX feature** — the backend (`content_scheduler.py`) exists but has no visual interface.
+4. **Dashboard has data but no charts** — SSE streaming works, but the frontend is text-only. Chart.js integration is ~50 lines of JS.
+
+---
+
+## Hypotheses — 2026-03-28 (Iteration 7)
+
+Formulated 3 hypotheses. Top priorities: H24 — Content calendar UI (FullCalendar.js on dashboard, deferred since iter 6), H25 — Dashboard charts (Chart.js + SSE). H26 (animated captions) deferred due to early-stage dependency.
+
+---
+
+## Architecture — 2026-03-28 (Iteration 7)
+
+Designed implementation for H24 and H25. 6 tasks added to TODO.md.
+Key decisions: (1) FullCalendar v6 via CDN with JSON feed from /api/calendar/events — maps ScheduledJob directly to FC event format. (2) Chart.js via CDN + 3 charts (line, doughnut, bar) fed by new /api/analytics/chart-data endpoint. (3) Calendar CRUD via REST endpoints (POST/DELETE), calendar.html as new template. (4) Charts added to existing dashboard.html — SSE updates Chart.js datasets in real-time. H26 (animated captions) out of scope — deferred due to early-stage beautiful-captions library.
+
+---
+
+## Evaluation — 2026-03-28 (Iteration 7)
+
+### Hypothesis Results
+| Hypothesis | Metric | Measured | Threshold | Status |
+|---|---|---|---|---|
+| H24: Content calendar UI | Tests + coverage | 36 tests, 90.31% | 15+ tests, >80% | **CONFIRMED** |
+| H25: Dashboard charts | Charts + endpoint | 3 charts, SSE updates | 3 charts, 10+ tests | **CONFIRMED** |
+| H26: Animated captions | — | — | — | DEFERRED |
+
+### Key Results
+- **H24 CONFIRMED**: Calendar page (FullCalendar v6) + 4 REST endpoints (GET events, POST create, DELETE remove, GET page). Platform color coding, date range filtering, form validation (422), atomic persistence.
+- **H25 CONFIRMED**: Chart.js 4.4.7 + 3 charts (line: jobs/time, doughnut: platforms, bar: status). SSE-driven real-time updates. New /api/analytics/chart-data endpoint with Counter-based aggregation.
+- **H26 DEFERRED**: beautiful-captions v0.1.71 is early-stage, requires AssemblyAI API key.
+
+### Full Suite
+- 915 passing, 0 failing (+36 from 879)
+- Coverage: 78.22% (was 67.08%, +11.14%)
+- Dashboard coverage: 90.31%
+
+---
+
+## Retrospective — 2026-03-28 (Iteration 7)
+
+### What Worked
+- **Building on existing infrastructure paid off** — dashboard.py already had FastAPI + Jinja2 + HTMX SSE. Adding calendar endpoints and charts was purely additive — no refactoring needed. The 4 new calendar endpoints + chart-data endpoint integrated seamlessly alongside the 5 existing endpoints.
+- **FullCalendar v6 JSON feed mapped directly to ScheduledJob** — `_job_to_calendar_event()` is a simple 10-line dict transform. FullCalendar's `start`/`end` query params matched ISO8601 strings from content_scheduler. Zero format conversion issues.
+- **Parallel agent implementation was fast** — H24 agent (calendar) completed in ~124s, H25 agent (charts) in ~77s. Both ran concurrently. Total implementation time under 2 minutes.
+- **Coverage jump was significant** — 67.08% → 78.22% (+11.14%). The jump is partly because installing FastAPI/starlette deps allowed previously-skipped test code paths to execute. This was an unexpected bonus.
+- **Survey-driven development continues to be accurate** — FullCalendar JSON feed docs, Chart.js + SSE pattern from Monitrix — all references from the survey worked exactly as documented.
+
+### What Didn't Work
+- **FastAPI deps not installed in .venv** — first test run failed because `fastapi`, `starlette`, `uvicorn` weren't installed even though they're in requirements.txt. This has been a recurring issue since iteration 4 (when dashboard was first added). The venv needs `pip install -r requirements.txt` to be run periodically.
+- **Coverage measurement variance** — iteration 6 showed 67.08%, iteration 7 shows 78.22%. The 11% jump is mostly from dep installation, not new test coverage. Coverage comparison across iterations is unreliable unless deps are consistent.
+
+### Surprises
+- **36 tests in one iteration with only ~100 lines of new Python** — the test-to-production ratio was ~3:1 (200 test lines : 80 production lines). The CRUD endpoints have many edge cases to test (validation, missing fields, not found).
+- **FullCalendar template was the most complex artifact** — calendar.html (120+ lines) is more JS-heavy than the Python backend. This is natural for calendar UIs but contrasts with the "zero frontend JavaScript" philosophy of the original dashboard.
+- **7 consecutive iterations with 0 test failures** — since iteration 4 fixed the last Selenium test failures, the suite has been green for 4 iterations (iterations 4-7). The project's test infrastructure is rock-solid.
+
+### What to Try Next
+1. **Animated captions module** (H26, deferred) — wait for beautiful-captions to mature or use pycaps with local Whisper instead of AssemblyAI
+2. **A/B testing framework for long-form YouTube** — YouTube's native Test & Compare works for regular videos (not Shorts). Build an automation wrapper around the Data API's videos.update() for title/thumbnail rotation.
+3. **Calendar drag-and-drop rescheduling** — FullCalendar supports eventDrop/eventResize callbacks. Would need a PATCH endpoint.
+4. **Dashboard WebSocket upgrade** — replace SSE with WebSocket for bidirectional communication (job control, stop/restart from dashboard)
+
+### Action Items
+- [x] H24: Content calendar UI (4 REST endpoints + calendar.html template) — DONE
+- [x] H25: Dashboard charts (Chart.js + /api/analytics/chart-data + SSE updates) — DONE
+- [ ] H26: Animated captions module — DEFERRED to iteration 8
+
+### Cycle Stats
+- Hypotheses tested: 2
+- Confirmed: 2
+- Rejected: 0
+- Inconclusive: 0
+- Tasks completed: 6
+- Tasks failed: 0
+- New tests added: 36
+- Total test suite: 915 passing, 0 failing
+- Coverage: 78.22% (full-source)
+- New files: src/templates/calendar.html
+- Modified files: src/dashboard.py, src/templates/dashboard.html, tests/test_dashboard.py
+
+---

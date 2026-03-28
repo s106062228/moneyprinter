@@ -6,6 +6,7 @@
     <title>MoneyPrinter Dashboard</title>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 1.5rem; }
@@ -30,7 +31,10 @@
     </style>
 </head>
 <body hx-ext="sse" sse-connect="/api/stream">
-    <h1>MoneyPrinter Dashboard</h1>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h1 style="margin-bottom:0;">MoneyPrinter Dashboard</h1>
+        <a href="/calendar" style="color:#38bdf8;text-decoration:none;font-size:0.9rem;border:1px solid #334155;padding:0.3rem 0.75rem;border-radius:6px;">Calendar &rarr;</a>
+    </div>
 
     <div class="grid">
         <!-- Health Panel -->
@@ -103,6 +107,20 @@
             {% endif %}
         </div>
 
+        <!-- Charts Row -->
+        <div class="card" id="chart-timeline">
+            <h2>Jobs Over Time</h2>
+            <canvas id="timelineChart" height="200"></canvas>
+        </div>
+        <div class="card" id="chart-platforms">
+            <h2>Platform Distribution</h2>
+            <canvas id="platformChart" height="200"></canvas>
+        </div>
+        <div class="card" id="chart-status">
+            <h2>Success Rate</h2>
+            <canvas id="statusChart" height="200"></canvas>
+        </div>
+
         <!-- Scheduled Jobs Panel -->
         <div class="card" style="grid-column: 1 / -1;" id="jobs-panel">
             <h2>Recent Jobs</h2>
@@ -145,5 +163,78 @@
     </div>
 
     <footer>MoneyPrinter Dashboard &mdash; Auto-refreshing via SSE</footer>
+
+<script>
+// Chart colors
+const platformColors = {
+    youtube: '#ff0000', tiktok: '#00f2ea', twitter: '#1da1f2', instagram: '#e1306c'
+};
+const statusColors = {
+    completed: '#22c55e', failed: '#ef4444', pending: '#eab308', running: '#3b82f6'
+};
+
+// Initialize charts
+let timelineChart, platformChart, statusChart;
+
+function initCharts() {
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = '#334155';
+
+    timelineChart = new Chart(document.getElementById('timelineChart'), {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'Jobs', data: [], borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.1)', fill: true, tension: 0.3 }] },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+
+    platformChart = new Chart(document.getElementById('platformChart'), {
+        type: 'doughnut',
+        data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { padding: 15 } } } }
+    });
+
+    statusChart = new Chart(document.getElementById('statusChart'), {
+        type: 'bar',
+        data: { labels: [], datasets: [{ label: 'Count', data: [], backgroundColor: [] }] },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+}
+
+async function loadChartData() {
+    try {
+        const resp = await fetch('/api/analytics/chart-data');
+        const data = await resp.json();
+
+        // Timeline
+        timelineChart.data.labels = data.jobs_over_time.map(d => d.date.slice(5));
+        timelineChart.data.datasets[0].data = data.jobs_over_time.map(d => d.count);
+        timelineChart.update();
+
+        // Platforms
+        const platforms = Object.entries(data.platform_counts);
+        platformChart.data.labels = platforms.map(([k]) => k.charAt(0).toUpperCase() + k.slice(1));
+        platformChart.data.datasets[0].data = platforms.map(([,v]) => v);
+        platformChart.data.datasets[0].backgroundColor = platforms.map(([k]) => platformColors[k] || '#64748b');
+        platformChart.update();
+
+        // Status
+        const statuses = Object.entries(data.status_counts);
+        statusChart.data.labels = statuses.map(([k]) => k.charAt(0).toUpperCase() + k.slice(1));
+        statusChart.data.datasets[0].data = statuses.map(([,v]) => v);
+        statusChart.data.datasets[0].backgroundColor = statuses.map(([k]) => statusColors[k] || '#64748b');
+        statusChart.update();
+    } catch (e) { console.error('Chart data load failed:', e); }
+}
+
+// Init on load
+document.addEventListener('DOMContentLoaded', () => {
+    initCharts();
+    loadChartData();
+});
+
+// Update charts on SSE events
+document.body.addEventListener('sse:dashboard-update', () => {
+    loadChartData();
+});
+</script>
 </body>
 </html>

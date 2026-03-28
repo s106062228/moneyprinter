@@ -1,0 +1,49 @@
+title: "Survey References — Iteration 7"
+date: 2026-03-28
+topics:
+  - content_calendar_ui
+  - ab_testing_shorts
+  - animated_captions
+  - dashboard_charts
+
+references:
+  content_calendar:
+    - name: FullCalendar v6 docs
+      url: https://fullcalendar.io/docs
+    - name: FullCalendar JSON feed
+      url: https://fullcalendar.io/docs/events-json-feed
+    - name: FastAPI + HTMX guide
+      url: https://testdriven.io/blog/fastapi-htmx/
+    - name: FullCalendar-FastAPI-PostgreSQL
+      url: https://github.com/doganzub/FullCalendar-FastAPI-PostgreSQL
+
+  ab_testing:
+    - name: YouTube Test & Compare (no Shorts support)
+      url: https://support.google.com/youtube/answer/16391400
+    - name: YouTube Data API thumbnails.set
+      url: https://developers.google.com/youtube/v3/docs/thumbnails/set
+    - name: A/B Test on YouTube 2026 guide
+      url: https://www.descript.com/blog/article/how-to-ab-test-on-youtube-for-better-video-performance
+
+  animated_captions:
+    - name: pycaps (CSS animated subtitles, alpha)
+      url: https://github.com/francozanardi/pycaps
+    - name: beautiful-captions v0.1.71 (PyPI)
+      url: https://pypi.org/project/beautiful-captions/
+    - name: Creatomate auto-subtitles tutorial
+      url: https://creatomate.com/blog/how-to-automatically-add-subtitles-to-videos-with-python
+
+  dashboard_charts:
+    - name: Real-Time Charts with FastAPI
+      url: https://ron.sh/creating-real-time-charts-with-fastapi/
+    - name: Monitrix (FastAPI + Chart.js)
+      url: https://github.com/silverstar33/monitrix
+    - name: Chart.js official
+      url: https://www.chartjs.org/
+
+key_findings:
+  - YouTube A/B testing explicitly excludes Shorts — no native support
+  - FullCalendar v6 JSON feed maps directly to our ScheduledJob dataclass
+  - beautiful-captions (PyPI) is production-ready; pycaps is alpha
+  - Chart.js + SSE is the standard pattern for real-time dashboards
+  - Our dashboard.py already has SSE — Chart.js is ~50 lines of JS to add

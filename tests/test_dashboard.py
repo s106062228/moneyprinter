@@ -320,3 +320,386 @@ class TestEdgeCases:
             result = dashboard._get_root_dir()
         # Should return a valid path even without config module
         assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: Calendar helpers (_load_schedule_data, _save_schedule_data, _job_to_calendar_event)
+# ---------------------------------------------------------------------------
+
+SAMPLE_SCHEDULE_JOBS = [
+    {
+        "job_id": "abc12345",
+        "title": "My YT Short",
+        "platforms": ["youtube"],
+        "scheduled_time": "2026-03-28T10:00:00",
+        "status": "pending",
+        "video_path": "/tmp/video.mp4",
+    },
+    {
+        "job_id": "def67890",
+        "title": "TikTok Post",
+        "platforms": ["tiktok"],
+        "scheduled_time": "2026-03-29T14:00:00",
+        "status": "completed",
+        "video_path": "/tmp/tiktok.mp4",
+    },
+    {
+        "job_id": "ghi11111",
+        "title": "Multi-Platform",
+        "platforms": ["youtube", "instagram"],
+        "scheduled_time": "2026-04-01T09:00:00",
+        "status": "pending",
+        "video_path": "",
+    },
+]
+
+
+class TestLoadScheduleData:
+    def test_returns_empty_on_missing_file(self, tmp_path):
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            result = dashboard._load_schedule_data()
+        assert result == []
+
+    def test_loads_schedule_jobs(self, tmp_path):
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        (mp_dir / "schedule.json").write_text(json.dumps({"jobs": SAMPLE_SCHEDULE_JOBS}))
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            result = dashboard._load_schedule_data()
+        assert len(result) == 3
+        assert result[0]["job_id"] == "abc12345"
+
+    def test_handles_corrupt_json(self, tmp_path):
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        (mp_dir / "schedule.json").write_text("{bad json!")
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            result = dashboard._load_schedule_data()
+        assert result == []
+
+    def test_handles_non_dict_json(self, tmp_path):
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        (mp_dir / "schedule.json").write_text('"just a string"')
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            result = dashboard._load_schedule_data()
+        assert result == []
+
+
+class TestSaveScheduleData:
+    def test_saves_and_reads_back(self, tmp_path):
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            dashboard._save_schedule_data(SAMPLE_SCHEDULE_JOBS)
+            result = dashboard._load_schedule_data()
+        assert len(result) == 3
+        assert result[0]["title"] == "My YT Short"
+
+    def test_creates_mp_dir_if_missing(self, tmp_path):
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            dashboard._save_schedule_data([{"title": "test"}])
+        assert (tmp_path / ".mp" / "schedule.json").exists()
+
+    def test_atomic_write_produces_valid_json(self, tmp_path):
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            dashboard._save_schedule_data(SAMPLE_SCHEDULE_JOBS)
+        raw = json.loads((mp_dir / "schedule.json").read_text())
+        assert "jobs" in raw
+        assert len(raw["jobs"]) == 3
+
+
+class TestJobToCalendarEvent:
+    def test_youtube_color(self):
+        event = dashboard._job_to_calendar_event(SAMPLE_SCHEDULE_JOBS[0])
+        assert event["color"] == "#ff0000"
+        assert event["id"] == "abc12345"
+        assert event["title"] == "My YT Short"
+        assert event["start"] == "2026-03-28T10:00:00"
+
+    def test_tiktok_color(self):
+        event = dashboard._job_to_calendar_event(SAMPLE_SCHEDULE_JOBS[1])
+        assert event["color"] == "#00f2ea"
+
+    def test_multi_platform_uses_first(self):
+        event = dashboard._job_to_calendar_event(SAMPLE_SCHEDULE_JOBS[2])
+        assert event["color"] == "#ff0000"  # youtube is first
+        assert event["extendedProps"]["platforms"] == ["youtube", "instagram"]
+
+    def test_unknown_platform_default_color(self):
+        event = dashboard._job_to_calendar_event({"platforms": [], "title": "X"})
+        assert event["color"] == "#64748b"
+
+    def test_extended_props(self):
+        event = dashboard._job_to_calendar_event(SAMPLE_SCHEDULE_JOBS[0])
+        assert event["extendedProps"]["status"] == "pending"
+        assert event["extendedProps"]["video_path"] == "/tmp/video.mp4"
+        assert event["extendedProps"]["platforms"] == ["youtube"]
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: Calendar API endpoints
+# ---------------------------------------------------------------------------
+
+class TestCalendarAPI:
+    @pytest.fixture
+    def cal_client(self, tmp_path):
+        """Create a test client with schedule data."""
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        (mp_dir / "schedule.json").write_text(json.dumps({"jobs": SAMPLE_SCHEDULE_JOBS}))
+        (mp_dir / "analytics.json").write_text(json.dumps(SAMPLE_ANALYTICS))
+        for platform, data in SAMPLE_ACCOUNTS.items():
+            (mp_dir / f"{platform}.json").write_text(json.dumps(data))
+        (mp_dir / "scheduler_jobs.json").write_text(json.dumps(SAMPLE_JOBS))
+
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            yield TestClient(app)
+
+    def test_calendar_page_renders(self, cal_client):
+        resp = cal_client.get("/calendar")
+        assert resp.status_code == 200
+        assert "fullcalendar" in resp.text.lower() or "FullCalendar" in resp.text or "calendar" in resp.text.lower()
+
+    def test_calendar_events_returns_json(self, cal_client):
+        resp = cal_client.get("/api/calendar/events")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert len(data) == 3
+
+    def test_calendar_events_format(self, cal_client):
+        resp = cal_client.get("/api/calendar/events")
+        data = resp.json()
+        event = data[0]
+        assert "id" in event
+        assert "title" in event
+        assert "start" in event
+        assert "color" in event
+        assert "extendedProps" in event
+
+    def test_calendar_events_date_filter(self, cal_client):
+        resp = cal_client.get("/api/calendar/events?start=2026-03-29T00:00:00&end=2026-03-30T00:00:00")
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["title"] == "TikTok Post"
+
+    def test_calendar_events_empty_when_no_schedule(self, tmp_path):
+        from starlette.testclient import TestClient
+        (tmp_path / ".mp").mkdir()
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            client = TestClient(app)
+            resp = client.get("/api/calendar/events")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_create_event(self, cal_client):
+        resp = cal_client.post("/api/calendar/events", json={
+            "title": "New Video",
+            "platforms": ["instagram"],
+            "scheduled_time": "2026-04-05T12:00:00",
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["title"] == "New Video"
+        assert data["color"] == "#e1306c"
+        assert data["id"]  # has a job_id
+
+    def test_create_event_missing_title(self, cal_client):
+        resp = cal_client.post("/api/calendar/events", json={
+            "platforms": ["youtube"],
+            "scheduled_time": "2026-04-05T12:00:00",
+        })
+        assert resp.status_code == 422
+        assert "title" in resp.json()["error"]
+
+    def test_create_event_missing_platforms(self, cal_client):
+        resp = cal_client.post("/api/calendar/events", json={
+            "title": "Test",
+            "scheduled_time": "2026-04-05T12:00:00",
+        })
+        assert resp.status_code == 422
+        assert "platforms" in resp.json()["error"]
+
+    def test_create_event_missing_scheduled_time(self, cal_client):
+        resp = cal_client.post("/api/calendar/events", json={
+            "title": "Test",
+            "platforms": ["youtube"],
+        })
+        assert resp.status_code == 422
+        assert "scheduled_time" in resp.json()["error"]
+
+    def test_create_event_persists(self, cal_client):
+        cal_client.post("/api/calendar/events", json={
+            "title": "Persisted",
+            "platforms": ["twitter"],
+            "scheduled_time": "2026-04-10T08:00:00",
+        })
+        resp = cal_client.get("/api/calendar/events")
+        titles = [e["title"] for e in resp.json()]
+        assert "Persisted" in titles
+
+    def test_create_event_string_platforms(self, cal_client):
+        resp = cal_client.post("/api/calendar/events", json={
+            "title": "Single Platform",
+            "platforms": "youtube",
+            "scheduled_time": "2026-04-05T12:00:00",
+        })
+        assert resp.status_code == 201
+        assert resp.json()["extendedProps"]["platforms"] == ["youtube"]
+
+    def test_delete_event(self, cal_client):
+        resp = cal_client.delete("/api/calendar/events/abc12345")
+        assert resp.status_code == 204
+        # Verify deleted
+        events_resp = cal_client.get("/api/calendar/events")
+        ids = [e["id"] for e in events_resp.json()]
+        assert "abc12345" not in ids
+
+    def test_delete_nonexistent_event(self, cal_client):
+        resp = cal_client.delete("/api/calendar/events/nonexistent")
+        assert resp.status_code == 404
+
+    def test_create_event_invalid_json(self, cal_client):
+        resp = cal_client.post(
+            "/api/calendar/events",
+            content=b"not json",
+            headers={"content-type": "application/json"},
+        )
+        assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: Chart data endpoint
+# ---------------------------------------------------------------------------
+
+class TestChartDataAPI:
+    @pytest.fixture
+    def chart_client(self, tmp_path):
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        (mp_dir / "analytics.json").write_text(json.dumps(SAMPLE_ANALYTICS))
+        jobs_data = {
+            "jobs": [
+                {"title": "V1", "platforms": ["youtube"], "status": "completed", "scheduled_time": "2026-03-28T10:00:00"},
+                {"title": "V2", "platforms": ["youtube"], "status": "completed", "scheduled_time": "2026-03-28T14:00:00"},
+                {"title": "T1", "platforms": ["tiktok"], "status": "failed", "scheduled_time": "2026-03-27T09:00:00"},
+                {"title": "I1", "platforms": ["instagram", "twitter"], "status": "pending", "scheduled_time": "2026-03-29T11:00:00"},
+            ]
+        }
+        (mp_dir / "scheduler_jobs.json").write_text(json.dumps(jobs_data))
+        for platform, data in SAMPLE_ACCOUNTS.items():
+            (mp_dir / f"{platform}.json").write_text(json.dumps(data))
+
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            yield TestClient(app)
+
+    def test_chart_data_returns_200(self, chart_client):
+        resp = chart_client.get("/api/analytics/chart-data")
+        assert resp.status_code == 200
+
+    def test_chart_data_structure(self, chart_client):
+        data = chart_client.get("/api/analytics/chart-data").json()
+        assert "jobs_over_time" in data
+        assert "platform_counts" in data
+        assert "status_counts" in data
+
+    def test_chart_data_jobs_over_time(self, chart_client):
+        data = chart_client.get("/api/analytics/chart-data").json()
+        dates = {d["date"] for d in data["jobs_over_time"]}
+        assert "2026-03-28" in dates
+        assert "2026-03-27" in dates
+        # March 28 has 2 jobs
+        for item in data["jobs_over_time"]:
+            if item["date"] == "2026-03-28":
+                assert item["count"] == 2
+
+    def test_chart_data_platform_counts(self, chart_client):
+        data = chart_client.get("/api/analytics/chart-data").json()
+        assert data["platform_counts"]["youtube"] == 2
+        assert data["platform_counts"]["tiktok"] == 1
+        assert data["platform_counts"]["instagram"] == 1
+        assert data["platform_counts"]["twitter"] == 1
+
+    def test_chart_data_status_counts(self, chart_client):
+        data = chart_client.get("/api/analytics/chart-data").json()
+        assert data["status_counts"]["completed"] == 2
+        assert data["status_counts"]["failed"] == 1
+        assert data["status_counts"]["pending"] == 1
+
+    def test_chart_data_empty(self, tmp_path):
+        from starlette.testclient import TestClient
+        (tmp_path / ".mp").mkdir()
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            client = TestClient(app)
+            data = client.get("/api/analytics/chart-data").json()
+        assert data["jobs_over_time"] == []
+        assert data["platform_counts"] == {}
+        assert data["status_counts"] == {}
+
+    def test_chart_data_string_platform(self, tmp_path):
+        """Test that string platforms (not list) are handled."""
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        jobs_data = {"jobs": [
+            {"title": "X", "platforms": "youtube", "status": "completed", "scheduled_time": "2026-03-28T10:00:00"},
+        ]}
+        (mp_dir / "scheduler_jobs.json").write_text(json.dumps(jobs_data))
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            client = TestClient(app)
+            data = client.get("/api/analytics/chart-data").json()
+        assert data["platform_counts"]["youtube"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: Route registration includes new endpoints
+# ---------------------------------------------------------------------------
+
+class TestRouteRegistration:
+    def test_app_has_calendar_routes(self):
+        app = dashboard.create_app()
+        routes = [r.path for r in app.routes if hasattr(r, "path")]
+        assert "/calendar" in routes
+        assert "/api/calendar/events" in routes
+        assert "/api/calendar/events/{job_id}" in routes
+        assert "/api/analytics/chart-data" in routes
+
+    def test_dashboard_has_calendar_link(self, tmp_path):
+        """Dashboard should have a navigation link to calendar."""
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        (mp_dir / "analytics.json").write_text(json.dumps(SAMPLE_ANALYTICS))
+        for platform, data in SAMPLE_ACCOUNTS.items():
+            (mp_dir / f"{platform}.json").write_text(json.dumps(data))
+        (mp_dir / "scheduler_jobs.json").write_text(json.dumps(SAMPLE_JOBS))
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            client = TestClient(app)
+            resp = client.get("/dashboard")
+        assert "/calendar" in resp.text
+
+    def test_dashboard_has_chart_js(self, tmp_path):
+        """Dashboard template should include Chart.js CDN."""
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        (mp_dir / "analytics.json").write_text(json.dumps(SAMPLE_ANALYTICS))
+        for platform, data in SAMPLE_ACCOUNTS.items():
+            (mp_dir / f"{platform}.json").write_text(json.dumps(data))
+        (mp_dir / "scheduler_jobs.json").write_text(json.dumps(SAMPLE_JOBS))
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            client = TestClient(app)
+            resp = client.get("/dashboard")
+        assert "chart.js" in resp.text.lower() or "Chart" in resp.text
