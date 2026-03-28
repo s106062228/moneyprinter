@@ -747,3 +747,80 @@ Focus on **H24** (content calendar) and **H25** (dashboard charts). Both build o
 - Coverage jumped significantly (+11.14%) because installing FastAPI deps allowed more test code paths to execute
 - The calendar CRUD endpoints reuse the same .mp/schedule.json as content_scheduler.py — single source of truth
 - Platform color coding (youtube=#ff0000, tiktok=#00f2ea) provides instant visual recognition on the calendar
+
+---
+
+## Hypotheses — 2026-03-29 (Iteration 8)
+
+Based on Survey Iteration 8 findings (JOURNAL.md 2026-03-29).
+
+### H26: A/B Testing Module for Video Titles and Thumbnails
+**Priority: HIGH**
+**Hypothesis**: An `ab_testing.py` module that generates N title/thumbnail variants via LLM, rotates them on a configurable schedule, and tracks performance metrics will automate YouTube's Test & Compare workflow. Uses YouTube Data API v3 `videos.update()` for title swaps and existing analytics.py for metric tracking.
+**Metric**:
+  - Module generates 2-3 title variants per video via LLM (Ollama)
+  - ABTest dataclass stores variants, schedule, metrics, and winner
+  - Rotation logic swaps active variant on schedule
+  - Winner detection based on configurable metric (watch_time, ctr, views)
+  - Atomic JSON persistence in `.mp/ab_tests.json`
+  - Unit tests pass with >85% coverage
+**Success threshold**: 30+ tests, coverage >85%, full CRUD for A/B test lifecycle.
+**Risk**: Medium — YouTube Data API v3 requires OAuth2, which is a new auth flow (Selenium uses pre-auth profile). For this iteration, module handles variant generation + tracking locally; API integration deferred.
+**Dependencies**: Existing llm_provider.py, analytics.py, seo_optimizer.py, cache.py pattern.
+**Status**: UNTESTED
+
+### H27: Calendar Drag-and-Drop Rescheduling
+**Priority: HIGH**
+**Hypothesis**: Adding `editable: true` to FullCalendar + `eventDrop`/`eventResize` JS callbacks + a PATCH `/api/calendar/events/{event_id}` endpoint to dashboard.py will enable drag-and-drop rescheduling with ~20 lines of code changes.
+**Metric**:
+  - PATCH endpoint updates ScheduledJob start_time/end_time
+  - FullCalendar sends PATCH on eventDrop/eventResize
+  - Existing calendar tests extended to cover PATCH
+  - Unit tests pass with >85% coverage
+**Success threshold**: PATCH endpoint works, 10+ new tests, calendar.html updated.
+**Risk**: Low — FullCalendar has built-in drag-drop support. PATCH is a standard REST operation.
+**Dependencies**: Existing dashboard.py, calendar.html, content_scheduler.py.
+**Status**: UNTESTED
+
+### H28: Virality Scorer Module (LLM-Based Metadata Analysis)
+**Priority: MEDIUM**
+**Hypothesis**: An LLM-based `virality_scorer.py` module that scores video metadata (title, description, tags, thumbnail text) for engagement potential before publishing will help users optimize content. Uses Ollama for scoring — no video analysis needed, metadata-only for speed.
+**Metric**:
+  - ViralityScore dataclass with overall score (0-100), breakdown by category (hook_strength, emotional_appeal, clarity, trending_relevance, platform_fit)
+  - Scoring uses structured LLM prompt with JSON output parsing
+  - Platform-specific scoring adjustments (YouTube Shorts vs TikTok vs Reels)
+  - Suggestions list for improvement
+  - Unit tests pass with >85% coverage
+**Success threshold**: 25+ tests, coverage >85%, scoring produces consistent structured output.
+**Risk**: Low — pure LLM text analysis, no new deps. LLM output parsing follows existing pattern from smart_clipper.py.
+**Dependencies**: Existing llm_provider.py, seo_optimizer.py (for platform constants).
+**Status**: UNTESTED
+
+### H29: Video Template System (Intros/Outros)
+**Priority: LOW**
+**Hypothesis**: A `video_templates.py` module that defines intro/outro specs (duration, text, background, audio) and uses MoviePy v2 to prepend/append them to generated videos will complete the professional video pipeline. Templates stored in `.mp/video_templates.json`.
+**Metric**:
+  - VideoTemplate dataclass for intro/outro specs
+  - CRUD operations with atomic JSON persistence
+  - `render_intro()` / `render_outro()` using MoviePy v2 TextClip + ColorClip
+  - `apply_template()` concatenates intro + content + outro
+  - Unit tests pass with >80% coverage
+**Success threshold**: 20+ tests, coverage >80%.
+**Risk**: Medium — MoviePy v2 rendering requires ImageMagick. Tests must mock all rendering calls.
+**Dependencies**: Existing moviepy (already installed), content_templates.py pattern.
+**Status**: UNTESTED
+
+---
+
+## Priority Ranking (Iteration 8)
+1. **H26** — A/B testing module (highest-impact missing feature per survey, no competitor has this automated)
+2. **H27** — Calendar drag-and-drop (trivial effort, high UX impact, builds on iteration 7)
+3. **H28** — Virality scorer (low effort, high value, LLM-based metadata analysis)
+4. **H29** — Video templates (medium effort, lower priority, deferred if time constrained)
+
+## Implementation Recommendation
+Focus on **H26** (A/B testing), **H27** (calendar drag-drop), and **H28** (virality scorer):
+- H26 is the top TODO item and highest-impact new capability per survey
+- H27 is ~20 lines of changes, trivial but completes the calendar UX
+- H28 is a natural extension of existing LLM + scoring patterns
+- H29 deferred — MoviePy rendering tests are complex and lower priority

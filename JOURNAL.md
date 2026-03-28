@@ -943,3 +943,205 @@ Key decisions: (1) FullCalendar v6 via CDN with JSON feed from /api/calendar/eve
 - Modified files: src/dashboard.py, src/templates/dashboard.html, tests/test_dashboard.py
 
 ---
+
+## Survey — 2026-03-29 (Iteration 8)
+
+### Research Focus
+A/B testing for video titles/thumbnails, animated captions (pycaps), virality scoring, video template system (intros/outros), calendar drag-and-drop rescheduling, competitor updates.
+
+### Key Findings
+
+#### 1. YouTube A/B Testing — Native "Test & Compare" is Fully Mature
+- **YouTube Test & Compare** (global rollout, 2025-2026): Up to 3 title variants + 3 thumbnail variants per video. Optimized for watch time, not CTR. Results delivered after up to 2 weeks.
+- **API access**: `videos.update()` in YouTube Data API v3 allows programmatic title/thumbnail swaps. No native A/B test API — automation requires external orchestration (swap title → wait → collect analytics → compare).
+- **TubeBuddy**: Full A/B testing (titles, descriptions, tags) with detailed metrics. Browser extension auto-swaps and collects stats.
+- **ThumbnailTest.com**: Dedicated thumbnail A/B testing tool with automatic data collection.
+- **Implementation path for MPV2**: Build an `ab_testing.py` module that uses YouTube Data API v3 `videos.update()` to rotate titles/thumbnails on a schedule, collect view/CTR data via `videos.list()`, and declare a winner based on watch time. Requires OAuth2 credentials (already pattern exists in YouTube.py Selenium flow — could add API-based path).
+
+#### 2. Animated Captions — PyCaps is the Clear Winner
+- **PyCaps** (github.com/francozanardi/pycaps): Python library for animated, word-by-word subtitles with CSS styling. Built-in Whisper integration for automatic transcription with word-level timestamps.
+  - **Alpha stage**, not on PyPI — install from GitHub directly.
+  - **Templates**: Built-in template system + custom template creation.
+  - **LLM integration**: AI-driven semantic tagger + automatic emoji effects (requires API key).
+  - **Requirements**: Python 3.10-3.12, FFmpeg, Whisper model (auto-downloaded on first use).
+  - CSS-based styling decouples visual design from logic. Targets `.word-being-narrated` for dynamic effects.
+- **beautiful-captions** (PyPI): Simpler alternative, available on PyPI. Less feature-rich but more stable.
+- **Implementation path for MPV2**: Integrate PyCaps as optional animated caption renderer. SmartClipper already has Whisper transcription — feed word-level timestamps to PyCaps for rendering. Or use beautiful-captions for a stable, minimal integration.
+
+#### 3. Virality Scoring — Open-Source Options Emerging
+- **viral-predictor** (github.com/Azure-Vision/viral-predictor): Streamlit app, open-source crowdtest.ai alternative. Simulates user engagement across 8+ platforms (Twitter, TikTok, Instagram, LinkedIn, etc.). Provides statistical confidence scores. Uses LLM analysis.
+- **TikTok-Virality-Predictor**: Deep learning (ViViT transformer) on visual/audio/text features. Research-grade.
+- **quso.ai**: Commercial — analyzes visuals, sound, timing for engagement prediction.
+- **StreamLadder AI Virality Score**: Platform-specific optimization (sound sync, retention, visual engagement).
+- **Academic research**: ML classifiers using physiological + socio-behavioral data achieve >80% prediction accuracy (BIT 2024 journal).
+- **Implementation path for MPV2**: Build `virality_scorer.py` that uses LLM (Ollama) to score video metadata (title, description, tags, thumbnail features) for engagement potential. No video analysis needed — metadata-only scoring is fast and useful. Could extend later with frame analysis.
+
+#### 4. Video Template System — MoviePy v2 Supports Compositing
+- **MoviePy v2 API**: `concatenate_videoclips()` for intro + content + outro sequencing. `CompositeVideoClip` for overlays/watermarks.
+- **Community proposal**: Jinja2-like templating engine for MoviePy (Discussion #2241). Not implemented yet — but the concept validates our approach.
+- **Implementation path for MPV2**: Build `video_templates.py` that defines intro/outro specs (duration, text, background color/image, audio) and uses MoviePy v2 to prepend/append them to generated videos. Store templates in `.mp/video_templates.json` using existing atomic cache pattern.
+
+#### 5. Calendar Drag-and-Drop — FullCalendar Built-In
+- **FullCalendar v6** `editable: true` enables drag-and-drop. `eventDrop` callback fires when event moves to new day/time. `eventResize` callback fires when duration changes.
+- **Integration**: eventDrop/eventResize JS callbacks → `fetch()` PATCH request → FastAPI PATCH endpoint → update ScheduledJob.
+- **Minimal change**: Add 1 PATCH endpoint to dashboard.py + ~10 lines of JS in calendar.html. FullCalendar handles all the UI.
+
+#### 6. Competitor Landscape (March 2026)
+- **MoneyPrinterTurbo** (50.3k stars): Last push 2025-12-14, maintenance mode. Web UI focus, video-only.
+- **MoneyPrinterV2** (15.7k stars): Active, March 2026 update with Ollama + KittenTTS for fully local operation.
+- **ShortGPT**: Still active, experimental AI framework for Shorts/TikTok automation.
+- **AutoShorts**: Generates popular video types for Shorts/TikTok.
+- **MPV2 differentiator**: Only open-source tool with multi-workflow (video + Twitter + affiliate + outreach) + full test suite (915 tests) + web dashboard + smart clipping + content scheduling.
+
+### Gaps & Opportunities for MPV2
+1. **A/B testing is the highest-impact missing feature** — YouTube's native Test & Compare + Data API v3 makes automation feasible. No competitor has this automated.
+2. **Animated captions via PyCaps** would dramatically improve video quality — word-by-word highlighting is the 2026 standard for Shorts/Reels.
+3. **Virality scoring** using LLM metadata analysis is low-effort, high-value — score before publishing, not after.
+4. **Calendar drag-and-drop** is a trivial enhancement (~20 lines) with high UX impact.
+5. **Video templates** (intros/outros) complete the professional video pipeline — basic with MoviePy v2.
+
+### Sources
+- YouTube Test & Compare (https://support.google.com/youtube/answer/16391400?hl=en-GB)
+- YouTube Data API v3 (https://developers.google.com/youtube/v3)
+- TubeBuddy A/B Testing (https://www.tubebuddy.com/tools/youtube-thumbnail-test)
+- PyCaps GitHub (https://github.com/francozanardi/pycaps)
+- PyCaps DEV.to article (https://dev.to/francozanardi/adding-animated-subtitles-to-videos-with-python-4hml)
+- beautiful-captions PyPI (https://pypi.org/project/beautiful-captions/)
+- viral-predictor GitHub (https://github.com/Azure-Vision/viral-predictor)
+- TikTok-Virality-Predictor (https://github.com/juanls1/TikTok-Virality-Predictor)
+- quso.ai Virality Score (https://quso.ai/products/virality-score)
+- MoviePy templating discussion (https://github.com/Zulko/moviepy/discussions/2241)
+- FullCalendar drag-drop docs (https://fullcalendar.io/docs/event-dragging-resizing)
+- MoneyPrinterTurbo (https://github.com/harry0703/MoneyPrinterTurbo)
+- YouTube A/B Testing global rollout (https://www.searchenginejournal.com/youtube-title-a-b-testing-rolls-out-globally-to-creators/562571/)
+- Descript A/B Testing guide (https://www.descript.com/blog/article/how-to-ab-test-on-youtube-for-better-video-performance)
+
+---
+
+## Hypotheses — 2026-03-29 (Iteration 8)
+Formulated 4 hypotheses (H26-H29). Top priority: **H26 — A/B Testing Module** (title/thumbnail variant generation + rotation + tracking), **H27 — Calendar Drag-and-Drop** (~20 lines, PATCH endpoint + FullCalendar editable), **H28 — Virality Scorer** (LLM metadata analysis). H29 (video templates) deferred.
+
+---
+
+## Architecture — 2026-03-29 (Iteration 8)
+Designed implementation for H26 (A/B testing), H27 (calendar drag-drop), and H28 (virality scorer). 8 tasks added to TODO.md.
+
+### H26: A/B Testing Module (`src/ab_testing.py`)
+**New file**: ~200 lines
+- `ABVariant` dataclass: variant_id, title, thumbnail_path, metrics dict
+- `ABTest` dataclass: test_id, video_id, variants list, schedule_hours, metric (watch_time|ctr|views), status (running|completed|cancelled), winner_id, created_at, updated_at
+- `ABTestManager` class:
+  - `create_test(video_id, variants)` → creates test, persists to `.mp/ab_tests.json`
+  - `get_active_tests()` → list running tests
+  - `rotate_variant(test_id)` → advances to next variant (round-robin)
+  - `record_metrics(test_id, variant_id, metrics)` → updates variant performance
+  - `evaluate_winner(test_id)` → picks winner based on configured metric, marks completed
+  - `get_test(test_id)` → retrieve single test
+  - `delete_test(test_id)` → remove test
+- Persistence: atomic JSON writes using existing `tempfile + os.replace` pattern
+- No YouTube API calls in this iteration — module handles local variant tracking and rotation logic only
+
+### H27: Calendar Drag-and-Drop (`src/dashboard.py` + `src/templates/calendar.html`)
+**Modified files**: 2
+- `dashboard.py`: Add PATCH `/api/calendar/events/{event_id}` endpoint (~25 lines)
+  - Accepts `{ "scheduled_time": "ISO8601" }` body
+  - Updates matching job in schedule.json
+  - Returns updated event in FullCalendar format
+- `calendar.html`: Add `editable: true` + `eventDrop` callback (~10 lines JS)
+  - `eventDrop` fires on drag → sends PATCH with new `scheduled_time`
+  - `eventResize` fires on duration change → sends PATCH with new end time
+
+### H28: Virality Scorer Module (`src/virality_scorer.py`)
+**New file**: ~180 lines
+- `ViralityScore` dataclass: overall_score (0-100), breakdown dict (hook_strength, emotional_appeal, clarity, trending_relevance, platform_fit), suggestions list, platform, scored_at
+- `ViralityScorer` class:
+  - `__init__(platform="youtube")` → validates platform
+  - `score(title, description, tags, hashtags)` → calls LLM with structured prompt, parses JSON response → ViralityScore
+  - `_build_prompt(...)` → platform-specific scoring prompt
+  - `_parse_response(text)` → JSON parse with fallback regex extraction
+  - Platform-specific scoring adjustments using `_PLATFORM_WEIGHTS` dict
+- Uses existing `llm_provider.py` `generate_text()` for LLM calls
+- Follows same JSON parse + fallback pattern as `smart_clipper.py` scoring
+
+### Task Breakdown
+1. H26: Create `src/ab_testing.py` with ABVariant, ABTest, ABTestManager
+2. H26: Write tests for ab_testing module (30+ tests)
+3. H27: Add PATCH endpoint to `src/dashboard.py`
+4. H27: Update `src/templates/calendar.html` with editable + eventDrop
+5. H27: Write tests for PATCH endpoint (10+ tests)
+6. H28: Create `src/virality_scorer.py` with ViralityScore, ViralityScorer
+7. H28: Write tests for virality_scorer module (25+ tests)
+8. Run full test suite — target 0 failures
+
+---
+
+## Evaluation — 2026-03-29 (Iteration 8)
+
+### Hypotheses Tested This Iteration
+
+| ID | Hypothesis | Verdict | Key Metric |
+|----|-----------|---------|------------|
+| H26 | A/B testing module (variant gen + rotation + tracking) | **CONFIRMED** | 71 tests, 96.15% coverage |
+| H27 | Calendar drag-and-drop rescheduling | **CONFIRMED** | 12 new tests, 91.07% dashboard coverage |
+| H28 | Virality scorer (LLM metadata analysis) | **CONFIRMED** | 71 tests, 95.29% coverage |
+| H29 | Video template system (intros/outros) | DEFERRED | Next iteration |
+
+### Key Observations
+1. **A/B testing module** (208 lines) implements full lifecycle: create → rotate → record metrics → evaluate winner → persist. Includes LLM-based variant generation with JSON parse + fallback. Uses existing atomic write pattern.
+2. **Calendar drag-and-drop** required only ~30 lines of changes (PATCH endpoint + `editable: true` + `eventDrop` callback). FullCalendar's built-in DnD works seamlessly with the existing schedule.json persistence.
+3. **Virality scorer** (85 statements) follows the proven smart_clipper.py JSON parse + fallback regex pattern for LLM output. Platform-specific weights allow differentiated scoring across YouTube, TikTok, Twitter, Instagram.
+4. **154 new tests** in one iteration — the highest single-iteration test increase. Test suite is now 1069 tests.
+5. **Coverage increased** from 78.22% → 79.68% (+1.46%). Modest gain because the new modules are small and well-tested, but the denominator (total codebase) also grew.
+
+### Full Suite
+- 1069 passing, 0 failing (+154 from 915)
+- Coverage: 79.68% (was 78.22%, +1.46%)
+- Dashboard coverage: 91.07%
+
+---
+
+## Retrospective — 2026-03-29 (Iteration 8)
+
+### What Worked
+- **3 parallel implementation agents** completed all work in ~4 minutes total. H27 (calendar) finished in 95s, H28 (virality) in 178s, H26 (A/B testing) in 219s. Parallelization is the key efficiency lever.
+- **Pattern reuse across modules** — ab_testing.py and virality_scorer.py both follow the atomic JSON persistence + LLM JSON parse + fallback regex patterns established in earlier iterations. This made implementation fast and consistent.
+- **Calendar drag-and-drop was trivially simple** as predicted — FullCalendar's built-in `editable: true` + `eventDrop` callback needed only ~30 lines of code. The PATCH endpoint followed the existing POST/DELETE pattern exactly.
+- **Survey-driven hypothesis selection** — the survey identified A/B testing as the highest-impact missing feature (no competitor has it automated), which aligned with the TODO.md medium-priority items. All 3 hypotheses confirmed.
+- **154 new tests in one iteration** — the highest single-iteration increase, bringing total to 1069. All passing with 0 failures for the 8th consecutive iteration.
+
+### What Didn't Work
+- **Coverage gain was modest** (+1.46%) despite 154 new tests, because the new modules are small (208 + 85 = 293 new statements) relative to the total codebase (4020 statements). Coverage growth will plateau without testing the large uncovered modules (YouTube.py at 21%, Twitter.py at 47%).
+- **H29 (video templates) deferred again** — MoviePy rendering tests are complex (require mocking ImageMagick + ffmpeg). This has been on the backlog since the survey identified it. Should be prioritized in the next iteration with a focused approach.
+
+### Surprises
+- **71 tests for ab_testing.py** — the A/B testing agent created significantly more tests than the 30+ target, covering extensive edge cases. The test-to-production ratio was ~3.4:1 (71 tests for 208 production lines).
+- **virality_scorer.py also hit 71 tests** independently — both agents converged on similar thoroughness despite different prompts.
+- **8 consecutive iterations with 0 test failures** — the project's test infrastructure is robust. Since iteration 1 fixed initial failures, no iteration has introduced regressions.
+
+### What to Try Next
+1. **Video template system** (H29, deferred) — intros/outros with MoviePy v2. Has been deferred 2 iterations.
+2. **A/B testing YouTube API integration** — H26 currently tracks variants locally. Adding YouTube Data API v3 `videos.update()` for live title/thumbnail rotation.
+3. **Animated captions via PyCaps** — survey found PyCaps has built-in Whisper + CSS styling. SmartClipper already has transcription pipeline.
+4. **Coverage push on YouTube.py/Twitter.py** — these large modules at 21% and 47% are dragging overall coverage. Would require extensive Selenium mocking.
+5. **A/B testing + virality scorer integration** — score variants before rotation, auto-select highest-scoring variant first.
+
+### Action Items
+- [x] H26: A/B testing module (71 tests, 96.15% coverage) — DONE
+- [x] H27: Calendar drag-and-drop (12 tests, 91.07% dashboard coverage) — DONE
+- [x] H28: Virality scorer (71 tests, 95.29% coverage) — DONE
+- [ ] H29: Video template system — DEFERRED to iteration 9
+
+### Cycle Stats
+- Hypotheses tested: 3
+- Confirmed: 3
+- Rejected: 0
+- Inconclusive: 0
+- Tasks completed: 8
+- Tasks failed: 0
+- New tests added: 154
+- Total test suite: 1069 passing, 0 failing
+- Coverage: 79.68% (full-source)
+- New files: src/ab_testing.py, src/virality_scorer.py, tests/test_ab_testing.py, tests/test_virality_scorer.py
+- Modified files: src/dashboard.py, src/templates/calendar.html, tests/test_dashboard.py
+
+---

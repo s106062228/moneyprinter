@@ -369,6 +369,22 @@
                 eventClick: function (info) {
                     showDetail(info.event);
                 },
+                editable: true,
+                eventDrop: function(info) {
+                    fetch('/api/calendar/events/' + info.event.id, {
+                        method: 'PATCH',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            scheduled_time: info.event.start.toISOString()
+                        })
+                    }).then(function(response) {
+                        if (!response.ok) {
+                            info.revert();
+                        }
+                    }).catch(function() {
+                        info.revert();
+                    });
+                },
                 eventDisplay: 'block',
                 nowIndicator: true,
             });

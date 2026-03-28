@@ -703,3 +703,196 @@ class TestRouteRegistration:
             client = TestClient(app)
             resp = client.get("/dashboard")
         assert "chart.js" in resp.text.lower() or "Chart" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: PATCH /api/calendar/events/{job_id} (drag-and-drop rescheduling)
+# ---------------------------------------------------------------------------
+
+class TestCalendarPatchAPI:
+    @pytest.fixture
+    def patch_client(self, tmp_path):
+        """Create a test client with schedule data for PATCH tests."""
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        (mp_dir / "schedule.json").write_text(json.dumps({"jobs": SAMPLE_SCHEDULE_JOBS}))
+        (mp_dir / "analytics.json").write_text(json.dumps(SAMPLE_ANALYTICS))
+        for platform, data in SAMPLE_ACCOUNTS.items():
+            (mp_dir / f"{platform}.json").write_text(json.dumps(data))
+        (mp_dir / "scheduler_jobs.json").write_text(json.dumps(SAMPLE_JOBS))
+
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            yield TestClient(app)
+
+    # 1. PATCH with valid scheduled_time → 200 + updated event
+    def test_patch_valid_scheduled_time(self, patch_client):
+        resp = patch_client.patch(
+            "/api/calendar/events/abc12345",
+            json={"scheduled_time": "2026-05-01T10:00:00"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == "abc12345"
+        assert data["start"] == "2026-05-01T10:00:00"
+
+    # 2. PATCH with invalid JSON → 400
+    def test_patch_invalid_json(self, patch_client):
+        resp = patch_client.patch(
+            "/api/calendar/events/abc12345",
+            content=b"not json{{",
+            headers={"content-type": "application/json"},
+        )
+        assert resp.status_code == 400
+        assert "Invalid JSON" in resp.json()["error"]
+
+    # 3. PATCH with missing scheduled_time field → 422
+    def test_patch_missing_scheduled_time(self, patch_client):
+        resp = patch_client.patch(
+            "/api/calendar/events/abc12345",
+            json={"title": "Some other field"},
+        )
+        assert resp.status_code == 422
+        assert "scheduled_time" in resp.json()["error"]
+
+    # 4. PATCH with empty scheduled_time string → 422
+    def test_patch_empty_scheduled_time(self, patch_client):
+        resp = patch_client.patch(
+            "/api/calendar/events/abc12345",
+            json={"scheduled_time": ""},
+        )
+        assert resp.status_code == 422
+        assert "scheduled_time" in resp.json()["error"]
+
+    # 5. PATCH with non-existent job_id → 404
+    def test_patch_nonexistent_job_id(self, patch_client):
+        resp = patch_client.patch(
+            "/api/calendar/events/doesnotexist",
+            json={"scheduled_time": "2026-05-01T10:00:00"},
+        )
+        assert resp.status_code == 404
+        assert "doesnotexist" in resp.json()["error"]
+
+    # 6. PATCH updates the correct job in schedule.json
+    def test_patch_updates_correct_job(self, tmp_path):
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        (mp_dir / "schedule.json").write_text(json.dumps({"jobs": SAMPLE_SCHEDULE_JOBS}))
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            client = TestClient(app)
+            client.patch(
+                "/api/calendar/events/def67890",
+                json={"scheduled_time": "2026-06-15T08:30:00"},
+            )
+            # Read back from disk
+            result = dashboard._load_schedule_data()
+        job_map = {j["job_id"]: j for j in result}
+        # Target job updated
+        assert job_map["def67890"]["scheduled_time"] == "2026-06-15T08:30:00"
+        # Other jobs untouched
+        assert job_map["abc12345"]["scheduled_time"] == "2026-03-28T10:00:00"
+        assert job_map["ghi11111"]["scheduled_time"] == "2026-04-01T09:00:00"
+
+    # 7. PATCH returns FullCalendar event format
+    def test_patch_returns_fullcalendar_format(self, patch_client):
+        resp = patch_client.patch(
+            "/api/calendar/events/abc12345",
+            json={"scheduled_time": "2026-07-04T12:00:00"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "id" in data
+        assert "title" in data
+        assert "start" in data
+        assert "color" in data
+        assert "extendedProps" in data
+        assert "platforms" in data["extendedProps"]
+        assert "status" in data["extendedProps"]
+
+    # 8. PATCH with extra fields (should ignore them, only update scheduled_time)
+    def test_patch_ignores_extra_fields(self, patch_client):
+        resp = patch_client.patch(
+            "/api/calendar/events/abc12345",
+            json={
+                "scheduled_time": "2026-08-01T09:00:00",
+                "title": "Hacked Title",
+                "platforms": ["tiktok"],
+                "status": "completed",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        # scheduled_time updated
+        assert data["start"] == "2026-08-01T09:00:00"
+        # title and platforms not changed by PATCH
+        assert data["title"] == "My YT Short"
+        assert "youtube" in data["extendedProps"]["platforms"]
+
+    # 9. Drag-and-drop scenario: create → patch → verify time changed
+    def test_drag_and_drop_scenario(self, tmp_path):
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        (mp_dir / "schedule.json").write_text(json.dumps({"jobs": []}))
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            client = TestClient(app)
+
+            # Step 1: Create
+            create_resp = client.post("/api/calendar/events", json={
+                "title": "Drag Test",
+                "platforms": ["twitter"],
+                "scheduled_time": "2026-04-10T10:00:00",
+            })
+            assert create_resp.status_code == 201
+            job_id = create_resp.json()["id"]
+
+            # Step 2: Simulate drag — PATCH to new time
+            patch_resp = client.patch(
+                f"/api/calendar/events/{job_id}",
+                json={"scheduled_time": "2026-04-12T15:00:00"},
+            )
+            assert patch_resp.status_code == 200
+            assert patch_resp.json()["start"] == "2026-04-12T15:00:00"
+
+            # Step 3: Verify via GET
+            events_resp = client.get("/api/calendar/events")
+            event = next(e for e in events_resp.json() if e["id"] == job_id)
+            assert event["start"] == "2026-04-12T15:00:00"
+
+    # 10. Multiple PATCHes to same job — last one wins
+    def test_multiple_patches_same_job(self, patch_client):
+        times = [
+            "2026-05-01T08:00:00",
+            "2026-05-02T09:00:00",
+            "2026-05-03T10:00:00",
+        ]
+        for t in times:
+            resp = patch_client.patch(
+                "/api/calendar/events/abc12345",
+                json={"scheduled_time": t},
+            )
+            assert resp.status_code == 200
+
+        # Final state should reflect the last patch
+        events_resp = patch_client.get("/api/calendar/events")
+        event = next(e for e in events_resp.json() if e["id"] == "abc12345")
+        assert event["start"] == "2026-05-03T10:00:00"
+
+    # 11. PATCH route is registered on the app
+    def test_patch_route_registered(self):
+        app = dashboard.create_app()
+        routes = [r.path for r in app.routes if hasattr(r, "path")]
+        assert "/api/calendar/events/{job_id}" in routes
+
+    # 12. PATCH with whitespace-only scheduled_time → 422
+    def test_patch_whitespace_scheduled_time(self, patch_client):
+        resp = patch_client.patch(
+            "/api/calendar/events/abc12345",
+            json={"scheduled_time": "   "},
+        )
+        assert resp.status_code == 422
+        assert "scheduled_time" in resp.json()["error"]

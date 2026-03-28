@@ -1,0 +1,51 @@
+iteration: 8
+date: "2026-03-29"
+hypotheses_tested: 3
+hypotheses_confirmed: 3
+hypotheses_rejected: 0
+hypotheses_deferred: 1
+
+results:
+  H26_ab_testing:
+    verdict: CONFIRMED
+    tests: 71
+    coverage: 96.15%
+    new_file: src/ab_testing.py
+    lines: 208
+  H27_calendar_drag_drop:
+    verdict: CONFIRMED
+    tests_added: 12
+    total_dashboard_tests: 74
+    coverage: 91.07%
+    modified: [src/dashboard.py, src/templates/calendar.html]
+  H28_virality_scorer:
+    verdict: CONFIRMED
+    tests: 71
+    coverage: 95.29%
+    new_file: src/virality_scorer.py
+    lines: 85
+  H29_video_templates:
+    verdict: DEFERRED
+    reason: "MoviePy rendering tests complex; deferred to iteration 9"
+
+test_suite:
+  total_passing: 1069
+  total_failing: 0
+  new_tests: 154
+  previous_total: 915
+  coverage: 79.68%
+  previous_coverage: 78.22%
+
+files_created:
+  - src/ab_testing.py
+  - src/virality_scorer.py
+  - tests/test_ab_testing.py
+  - tests/test_virality_scorer.py
+
+files_modified:
+  - src/dashboard.py
+  - src/templates/calendar.html
+  - tests/test_dashboard.py
+  - TODO.md
+  - JOURNAL.md
+  - specs/HYPOTHESES.md

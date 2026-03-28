@@ -433,6 +433,43 @@ def create_app():
         _save_schedule_data(filtered)
         return Response(status_code=204)
 
+    @app.patch("/api/calendar/events/{job_id}")
+    async def api_calendar_update(job_id: str, request: Request):
+        """Update a scheduled job's time (for drag-and-drop rescheduling)."""
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(
+                content={"error": "Invalid JSON body"},
+                status_code=400,
+            )
+
+        scheduled_time = (body.get("scheduled_time") or "").strip()
+        if not scheduled_time:
+            return JSONResponse(
+                content={"error": "Missing required field: scheduled_time"},
+                status_code=422,
+            )
+
+        jobs = _load_schedule_data()
+        updated = False
+        updated_job = None
+        for job in jobs:
+            if job.get("job_id") == job_id:
+                job["scheduled_time"] = scheduled_time
+                updated = True
+                updated_job = job
+                break
+
+        if not updated:
+            return JSONResponse(
+                content={"error": f"Job '{job_id}' not found"},
+                status_code=404,
+            )
+
+        _save_schedule_data(jobs)
+        return JSONResponse(content=_job_to_calendar_event(updated_job))
+
     return app
 
 

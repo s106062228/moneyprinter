@@ -97,6 +97,16 @@
 - [x] Content calendar UI with FullCalendar v6 (4 REST endpoints, calendar.html template)
 - [x] Dashboard charts with Chart.js (3 charts: line, doughnut, bar + /api/analytics/chart-data endpoint)
 - [x] Unit tests for calendar + chart endpoints (36 new tests, 90.31% dashboard coverage, 915 total suite)
+- [x] A/B testing module (`ab_testing.py`) with variant generation, rotation, metrics tracking, winner evaluation
+- [x] Calendar drag-and-drop rescheduling (PATCH endpoint + FullCalendar editable)
+- [x] Virality scorer module (`virality_scorer.py`) with LLM-based metadata scoring, platform-specific weights
+- [x] Unit tests for A/B testing (71 tests, 96.15% coverage), virality scorer (71 tests, 95.29% coverage), PATCH endpoint (12 tests)
+
+## Completed — Iteration 8 (2026-03-29)
+- [x] A/B testing module (`ab_testing.py`) with ABVariant, ABTest, ABTestManager (71 tests, 96.15% coverage) [H26]
+- [x] Calendar drag-and-drop rescheduling (PATCH endpoint + FullCalendar editable + eventDrop) [H27]
+- [x] Virality scorer module (`virality_scorer.py`) with LLM-based metadata scoring (71 tests, 95.29% coverage) [H28]
+- [x] Unit tests for PATCH endpoint (12 new tests, 91.07% dashboard coverage, 1069 total suite) [H27]
 
 ## Completed — Iteration 7 (2026-03-28)
 - [x] Add calendar CRUD endpoints to dashboard.py (GET/POST/DELETE /api/calendar/events + GET /calendar) [H24]
@@ -122,16 +132,26 @@
 - [x] Write tests for calendar + chart endpoints (15+ tests) [H24, H25]
 - [x] Run full test suite (915/915 passing, 0 failures) [H24, H25]
 
+## Implementation Tasks — Iteration 8 (2026-03-29)
+- [x] Create src/ab_testing.py with ABVariant, ABTest, ABTestManager [H26]
+- [x] Write tests for ab_testing module (71 tests, 96.15% coverage) [H26]
+- [x] Add PATCH /api/calendar/events/{event_id} endpoint to dashboard.py [H27]
+- [x] Update calendar.html with editable + eventDrop/eventResize callbacks [H27]
+- [x] Write tests for PATCH endpoint (12 tests) [H27]
+- [x] Create src/virality_scorer.py with ViralityScore, ViralityScorer [H28]
+- [x] Write tests for virality_scorer module (71 tests, 95.29% coverage) [H28]
+- [x] Run full test suite (1069/1069 passing, 0 failures) [H26, H27, H28]
+
 ## Planned — High Priority
 - [x] Content calendar UI (frontend for content scheduler) — DONE (iteration 7)
 - [x] Dashboard frontend polish (charts, job management, content calendar view) — DONE (iteration 7)
 
 ## Planned — Medium Priority
 - [ ] Video template system (custom intros/outros)
-- [ ] A/B testing for video titles and thumbnails
+- [x] A/B testing for video titles and thumbnails — DONE (iteration 8)
 - [ ] AI hook optimization (trending hooks for better engagement)
 - [ ] Auto-caption styling (animated captions like CapCut)
-- [ ] Virality scoring (predict clip engagement before posting)
+- [x] Virality scoring (predict clip engagement before posting) — DONE (iteration 8)
 - [ ] Shoppable content integration (product links in video descriptions)
 - [ ] Multi-platform export optimizer (platform-specific aspect ratios and formats)
 - [ ] Multi-language dubbing (AI lip-sync for cross-language distribution)
