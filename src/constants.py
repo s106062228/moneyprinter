@@ -13,6 +13,7 @@ OPTIONS = [
     "Instagram Reels",
     "Dashboard",
     "Smart Clip Extraction",
+    "Content Templates",
     "Quit"
 ]
 

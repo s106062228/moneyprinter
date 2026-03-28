@@ -1,0 +1,24 @@
+title: "Bridging Protocol and Production: Design Patterns for MCP Agents"
+source: "https://arxiv.org/abs/2603.13417"
+date: "2026-03-28"
+relevance: "Production MCP deployment patterns"
+
+mechanisms:
+  CABP:
+    name: "Context-Aware Broker Protocol"
+    description: "Identity-scoped request routing via 6-stage broker pipeline"
+  ATBA:
+    name: "Adaptive Timeout Budget Allocation"
+    description: "Budget allocation across heterogeneous tool latencies"
+  SERF:
+    name: "Structured Error Recovery Framework"
+    description: "Machine-readable failure semantics for deterministic self-correction"
+
+design_dimensions:
+  - "Server contracts"
+  - "User context"
+  - "Timeouts"
+  - "Errors"
+  - "Observability"
+
+context: "10,000+ active MCP servers, 97M monthly SDK downloads as of early 2026"

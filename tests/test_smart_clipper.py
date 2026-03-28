@@ -29,6 +29,10 @@ sys.modules.setdefault('scenedetect.frame_timecode', _mock_frame_timecode)
 _mock_scenedetect.video_splitter = _mock_video_splitter
 _mock_scenedetect.frame_timecode = _mock_frame_timecode
 
+# Mock faster_whisper before importing smart_clipper (not installed in test env)
+_mock_faster_whisper = MagicMock()
+sys.modules.setdefault('faster_whisper', _mock_faster_whisper)
+
 from smart_clipper import SmartClipper, ClipCandidate
 
 

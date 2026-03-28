@@ -85,16 +85,21 @@
 - [x] Unit tests for dashboard (26 tests, 88.89% coverage, 786 total suite)
 - [x] Smart clipper CLI integration (menu option 7 in main.py for clip extraction)
 - [x] Unit tests for smart clipper CLI (15 tests, all passing)
+- [x] MCP server for content pipeline tools (`src/mcp_server.py`) — 4 tools via FastMCP 3.0, 100% coverage
+- [x] Unit tests for MCP server (32 tests, 100% coverage)
+- [x] Fix 4 pre-existing dependency test failures (moviepy v2 import + faster_whisper mock isolation)
+- [x] Content template CLI integration (menu option 8 in main.py for template management)
+- [x] Unit tests for content template CLI (21 tests, all passing, 839 total suite)
 
 ## In Progress
 
 ## Planned — High Priority
-- [ ] MCP server for content pipeline tools (expose SmartClipper, publisher, scheduler as MCP tools)
+- [ ] Full MoviePy v2 migration for YouTube.py (import *, fx, crop, subtitles API changes)
 - [ ] Content calendar UI (frontend for content scheduler)
 - [ ] Dashboard frontend polish (charts, job management, content calendar view)
+- [ ] MCP authentication and Streamable HTTP transport for remote access
 
 ## Planned — Medium Priority
-- [ ] Content template CLI integration (menu option for template management)
 - [ ] Video template system (custom intros/outros)
 - [ ] A/B testing for video titles and thumbnails
 - [ ] AI hook optimization (trending hooks for better engagement)

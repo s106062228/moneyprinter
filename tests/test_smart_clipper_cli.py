@@ -39,7 +39,7 @@ class TestMenuOption:
 
     def test_options_count(self):
         from constants import OPTIONS
-        assert len(OPTIONS) == 8
+        assert len(OPTIONS) == 9
 
 
 # ---------------------------------------------------------------------------

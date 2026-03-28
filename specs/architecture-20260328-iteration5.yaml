@@ -1,0 +1,149 @@
+title: "Architecture — 2026-03-28 (Iteration 5)"
+scope: "Implementing H18 (MCP server), H19 (dep failure fixes), H20 (content template CLI)"
+
+hypotheses:
+  H18_mcp_server:
+    description: "MCP Server for Content Pipeline Tools (FastMCP 3.0)"
+    new_files:
+      - path: "src/mcp_server.py"
+        purpose: "FastMCP server exposing 4 content pipeline tools"
+        estimated_lines: 120
+        tools:
+          analyze_video:
+            wraps: "SmartClipper.find_highlights()"
+            params:
+              - "video_path: str — path to video file"
+              - "min_clip_duration: float = 15.0"
+              - "max_clip_duration: float = 60.0"
+              - "top_n: int = 5"
+            returns: "List of ClipCandidate dicts (start_time, end_time, score, transcript, reason)"
+          publish_content:
+            wraps: "ContentPublisher.publish()"
+            params:
+              - "video_path: str"
+              - "title: str"
+              - "description: str = ''"
+              - "platforms: list[str] = ['youtube']"
+            returns: "List of PublishResult dicts (platform, success, error_type)"
+          schedule_content:
+            wraps: "ContentScheduler.add_job() + get_best_posting_time()"
+            params:
+              - "video_path: str"
+              - "title: str"
+              - "platforms: list[str]"
+              - "scheduled_time: str = '' (ISO format, empty = auto-pick optimal)"
+            returns: "Job ID + scheduled time"
+          get_analytics:
+            wraps: "generate_report() or get_platform_report()"
+            params:
+              - "platform: str = '' (empty = cross-platform)"
+              - "max_events: int = 5000"
+            returns: "AnalyticsReport or PlatformStats dict"
+      - path: "tests/test_mcp_server.py"
+        purpose: "In-process MCP tool tests using Client(transport=mcp)"
+        estimated_tests: 20
+    modified_files:
+      - path: "requirements.txt"
+        change: "Add fastmcp dependency"
+    design_decisions:
+      - "Use stdio transport (default) for Claude Code integration"
+      - "Each tool wraps existing module — no new logic, just MCP interface"
+      - "Use Annotated[str, 'description'] for parameter documentation"
+      - "Return dicts (JSON-serializable) not dataclass instances"
+      - "Separate entry point: python src/mcp_server.py (not part of main.py menu)"
+      - "Do NOT use print() — would corrupt stdio protocol"
+      - "Use logging to stderr only"
+
+  H19_dep_fixes:
+    description: "Fix 4 pre-existing dependency test failures"
+    failures:
+      moviepy_editor:
+        file: "src/thumbnail.py:530"
+        current: "from moviepy.editor import VideoFileClip"
+        fix: "from moviepy import VideoFileClip"
+        test_file: "tests/test_thumbnail.py:348"
+        test_fix: "Change @patch('moviepy.editor.VideoFileClip') to @patch('thumbnail.VideoFileClip')"
+        note: "thumbnail.py uses lazy import inside _extract_frame(), so patch the module-level name"
+      moviepy_youtube:
+        file: "src/classes/YouTube.py:19"
+        current: "from moviepy.editor import *"
+        fix: "from moviepy import *"
+        also:
+          - line: 23
+            current: "from moviepy.video.fx.all import crop"
+            fix: "from moviepy import vfx  # then use vfx.Crop"
+            note: "moviepy.video.fx.all removed in v2, effects are classes now"
+          - line: 30
+            current: "from moviepy.video.tools.subtitles import SubtitlesClip"
+            fix: "from moviepy import SubtitlesClip  # or keep if still exists"
+        risk: "YouTube.py is the most complex module — moviepy v2 API changes may cascade"
+        decision: "ONLY fix thumbnail.py (1 import, isolated). YouTube.py moviepy migration is too risky for this iteration — it uses set_*, fx, and crop which all changed in v2."
+      faster_whisper:
+        files:
+          - "tests/test_smart_clipper.py:236"
+          - "tests/test_smart_clipper.py:249"
+          - "tests/test_smart_clipper.py:264"
+        current: "patch('faster_whisper.WhisperModel', return_value=mock_model)"
+        problem: "faster_whisper not installed → patch() can't resolve target module"
+        fix: |
+          Add sys.modules mock before the patch context:
+          mock_fw = MagicMock()
+          with patch.dict('sys.modules', {'faster_whisper': mock_fw}):
+              mock_fw.WhisperModel.return_value = mock_model
+              result = clipper.transcribe(...)
+        note: "Same pattern used in test_twitter_youtube_cache.py conftest"
+
+  H20_template_cli:
+    description: "Content Template CLI Integration (Menu Option)"
+    modified_files:
+      - path: "src/constants.py"
+        change: "Add 'Content Templates' to OPTIONS list"
+      - path: "src/main.py"
+        change: "Add menu handler for content templates (list/create/edit/delete/generate batch)"
+    new_files:
+      - path: "tests/test_template_cli.py"
+        purpose: "Unit tests for template CLI menu flow"
+        estimated_tests: 12
+    design_decisions:
+      - "Follow exact same pattern as H16 smart clipper CLI integration"
+      - "Use TemplateManager for all operations"
+      - "Sub-menu: 1) List, 2) Create, 3) Edit, 4) Delete, 5) Generate batch, 6) Back"
+      - "PrettyTable for template listing"
+
+implementation_order:
+  - task: "Fix 3 faster_whisper test failures (sys.modules mock)"
+    hypothesis: "H19"
+    blocks: "nothing"
+    effort: "small"
+  - task: "Fix 1 moviepy.editor test failure (thumbnail.py import + test patch)"
+    hypothesis: "H19"
+    blocks: "nothing"
+    effort: "small"
+  - task: "Create src/mcp_server.py with 4 MCP tools"
+    hypothesis: "H18"
+    blocks: "nothing"
+    effort: "medium"
+  - task: "Add fastmcp to requirements.txt"
+    hypothesis: "H18"
+    blocks: "nothing"
+    effort: "trivial"
+  - task: "Write tests/test_mcp_server.py (20+ tests)"
+    hypothesis: "H18"
+    blocks: "mcp_server.py must exist"
+    effort: "medium"
+  - task: "Add Content Templates menu option to constants.py + main.py"
+    hypothesis: "H20"
+    blocks: "nothing"
+    effort: "small"
+  - task: "Write tests/test_template_cli.py (12+ tests)"
+    hypothesis: "H20"
+    blocks: "template CLI code must exist"
+    effort: "small"
+
+out_of_scope:
+  - "Full moviepy v2 migration for YouTube.py (too risky, cascading API changes)"
+  - "Installing faster_whisper (system dependency, not a code fix)"
+  - "MCP authentication/authorization (future — add when needed)"
+  - "MCP Streamable HTTP transport (future — stdio sufficient for now)"
+  - "Content calendar UI (future iteration)"
+  - "Dashboard frontend polish (future iteration)"

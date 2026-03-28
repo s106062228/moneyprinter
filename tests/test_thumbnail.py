@@ -345,9 +345,9 @@ class TestExtractFrame:
         assert isinstance(result, Image.Image)
         assert result.size == (generator.width, generator.height)
 
-    @patch("moviepy.editor.VideoFileClip", side_effect=ImportError)
-    def test_fallback_on_import_error(self, mock_clip, generator):
-        result = generator._extract_frame("/some/video.mp4")
+    def test_fallback_on_import_error(self, generator):
+        with patch.dict('sys.modules', {'moviepy': None}):
+            result = generator._extract_frame("/some/video.mp4")
         assert isinstance(result, Image.Image)
 
 

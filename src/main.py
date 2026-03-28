@@ -621,6 +621,216 @@ def main():
             error(f"Smart clipper failed: {type(e).__name__}")
 
     elif user_input == 8:
+        info("Starting Content Templates...")
+
+        try:
+            from content_templates import TemplateManager, ContentTemplate, _ALLOWED_PLATFORMS, _ALLOWED_THUMBNAIL_STYLES
+
+            manager = TemplateManager()
+
+            while True:
+                info("\n====== CONTENT TEMPLATES ======", False)
+                print(colored(" 1. List templates", "cyan"))
+                print(colored(" 2. Create template", "cyan"))
+                print(colored(" 3. Delete template", "cyan"))
+                print(colored(" 4. Generate batch job from template", "cyan"))
+                print(colored(" 5. Back to main menu", "cyan"))
+                info("===============================\n", False)
+
+                sub_input = question("Select an option: ").strip()
+
+                try:
+                    sub_choice = int(sub_input)
+                except ValueError:
+                    warning("Invalid input. Please enter a number.")
+                    continue
+
+                if sub_choice == 1:
+                    # List templates
+                    templates = manager.list_templates()
+                    if not templates:
+                        warning("No templates found.")
+                    else:
+                        tpl_table = PrettyTable()
+                        tpl_table.field_names = ["#", "Name", "Niche", "Platforms", "Batch Size"]
+                        for i, tpl in enumerate(templates):
+                            tpl_table.add_row([
+                                i + 1,
+                                colored(tpl.name, "cyan"),
+                                colored(tpl.niche, "green"),
+                                colored(", ".join(tpl.platforms), "blue"),
+                                colored(str(tpl.batch_size), "yellow"),
+                            ])
+                        print(tpl_table)
+                        success(f"{len(templates)} template(s) found.")
+
+                elif sub_choice == 2:
+                    # Create template
+                    name = question(" => Template name (alphanumeric, hyphens, underscores): ").strip()
+                    if not name:
+                        error("Template name cannot be empty.")
+                        continue
+
+                    niche = question(" => Niche (e.g. finance, tech, fitness): ").strip() or "general"
+                    language = question(" => Language code (e.g. en, es, fr) [default: en]: ").strip() or "en"
+
+                    platforms_input = question(
+                        f" => Platforms (comma-separated, allowed: {', '.join(sorted(_ALLOWED_PLATFORMS))}) [default: youtube]: "
+                    ).strip()
+                    if platforms_input:
+                        platforms = [p.strip().lower() for p in platforms_input.split(",") if p.strip()]
+                    else:
+                        platforms = ["youtube"]
+
+                    batch_size_str = question(" => Batch size (1-50) [default: 5]: ").strip()
+                    try:
+                        batch_size = int(batch_size_str) if batch_size_str else 5
+                    except ValueError:
+                        warning("Invalid batch size, using default 5.")
+                        batch_size = 5
+
+                    auto_publish_str = question(" => Auto-publish? (yes/no) [default: no]: ").strip().lower()
+                    auto_publish = auto_publish_str == "yes"
+
+                    seo_enabled_str = question(" => Enable SEO? (yes/no) [default: yes]: ").strip().lower()
+                    seo_enabled = seo_enabled_str != "no"
+
+                    thumbnail_style = question(
+                        f" => Thumbnail style ({', '.join(sorted(_ALLOWED_THUMBNAIL_STYLES))}) [default: bold]: "
+                    ).strip().lower() or "bold"
+
+                    description = question(" => Description (optional): ").strip()
+
+                    try:
+                        template = ContentTemplate(
+                            name=name,
+                            niche=niche,
+                            language=language,
+                            platforms=platforms,
+                            batch_size=batch_size,
+                            auto_publish=auto_publish,
+                            seo_enabled=seo_enabled,
+                            thumbnail_style=thumbnail_style,
+                            description=description,
+                        )
+                        manager.save_template(template)
+                        success(f"Template '{name}' saved successfully.")
+                    except ValueError as e:
+                        error(f"Failed to create template: {e}")
+
+                elif sub_choice == 3:
+                    # Delete template
+                    templates = manager.list_templates()
+                    if not templates:
+                        warning("No templates found.")
+                        continue
+
+                    tpl_table = PrettyTable()
+                    tpl_table.field_names = ["#", "Name", "Niche", "Platforms", "Batch Size"]
+                    for i, tpl in enumerate(templates):
+                        tpl_table.add_row([
+                            i + 1,
+                            colored(tpl.name, "cyan"),
+                            colored(tpl.niche, "green"),
+                            colored(", ".join(tpl.platforms), "blue"),
+                            colored(str(tpl.batch_size), "yellow"),
+                        ])
+                    print(tpl_table)
+
+                    del_input = question(" => Enter template name to delete: ").strip()
+                    if not del_input:
+                        warning("No name entered.")
+                        continue
+
+                    if not manager.template_exists(del_input):
+                        error(f"Template '{del_input}' not found.")
+                        continue
+
+                    confirm = question(f" => Delete '{del_input}'? (yes/no): ").strip().lower()
+                    if confirm == "yes":
+                        deleted = manager.delete_template(del_input)
+                        if deleted:
+                            success(f"Template '{del_input}' deleted.")
+                        else:
+                            error("Failed to delete template.")
+                    else:
+                        warning("Deletion cancelled.")
+
+                elif sub_choice == 4:
+                    # Generate batch job from template
+                    templates = manager.list_templates()
+                    if not templates:
+                        warning("No templates found. Create one first.")
+                        continue
+
+                    tpl_table = PrettyTable()
+                    tpl_table.field_names = ["#", "Name", "Niche", "Platforms", "Batch Size"]
+                    for i, tpl in enumerate(templates):
+                        tpl_table.add_row([
+                            i + 1,
+                            colored(tpl.name, "cyan"),
+                            colored(tpl.niche, "green"),
+                            colored(", ".join(tpl.platforms), "blue"),
+                            colored(str(tpl.batch_size), "yellow"),
+                        ])
+                    print(tpl_table)
+
+                    tpl_name = question(" => Enter template name to use: ").strip()
+                    if not tpl_name:
+                        warning("No name entered.")
+                        continue
+
+                    try:
+                        tpl = manager.get_template(tpl_name)
+                    except ValueError as e:
+                        error(f"Could not load template: {e}")
+                        continue
+
+                    topics_input = question(
+                        f" => Enter topics (comma-separated, leave blank to use template defaults): "
+                    ).strip()
+
+                    if topics_input:
+                        topics = [t.strip() for t in topics_input.split(",") if t.strip()]
+                    else:
+                        topics = None
+
+                    try:
+                        batch_job = tpl.to_batch_job(topics=topics)
+                        success(f"Batch job created: {len(batch_job.topics)} topic(s) queued.")
+                        info(f"  Niche: {batch_job.niche}", False)
+                        info(f"  Language: {batch_job.language}", False)
+                        info(f"  Platforms: {', '.join(batch_job.publish_platforms)}", False)
+                        info(f"  Auto-publish: {batch_job.auto_publish}", False)
+
+                        run_now = question(" => Run batch job now? (yes/no): ").strip().lower()
+                        if run_now == "yes":
+                            info("Running batch job...")
+                            try:
+                                batch_job.run()
+                                success("Batch job completed.")
+                            except Exception as e:
+                                error(f"Batch job failed: {type(e).__name__}")
+                        else:
+                            info("Batch job created but not run.")
+                    except ValueError as e:
+                        error(f"Failed to create batch job: {e}")
+                    except ImportError:
+                        error("Batch generator not available. Ensure batch_generator.py is installed.")
+
+                elif sub_choice == 5:
+                    if get_verbose():
+                        info(" => Returning to main menu...", False)
+                    break
+                else:
+                    warning("Invalid option. Please enter 1-5.")
+
+        except ImportError:
+            error("Content templates module not available.")
+        except Exception as e:
+            error(f"Content templates failed: {type(e).__name__}")
+
+    elif user_input == 9:
         if get_verbose():
             print(colored(" => Quitting...", "blue"))
         sys.exit(0)

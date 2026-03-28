@@ -1,0 +1,29 @@
+title: "MoviePy v1 to v2 Migration Guide"
+source: "https://zulko.github.io/moviepy/getting_started/updating_to_v2.html"
+date: "2026-03-28"
+relevance: "Fixing pre-existing moviepy.editor test failure"
+
+import_changes:
+  before: "from moviepy.editor import *"
+  after: "from moviepy import *  # or: from moviepy import VideoFileClip"
+  note: "moviepy.editor namespace completely removed in v2.0"
+
+method_renames:
+  - old: ".set_X()"
+    new: ".with_X()"
+    note: "outplace, returns copy"
+  - old: ".fx(effect)"
+    new: ".with_effects(EffectClass())"
+  - old: ".resize()"
+    new: ".resized()"
+  - old: ".crop()"
+    new: ".cropped()"
+  - old: ".rotate()"
+    new: ".rotated()"
+
+removed_modules:
+  - "moviepy.video.tools.tracking"
+  - "moviepy.video.tools.segmenting"
+  - "moviepy.video.io.sliders"
+
+dropped_deps: "ImageMagick, PyGame, OpenCV, scipy, scikit → consolidated on Pillow"

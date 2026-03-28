@@ -1,0 +1,33 @@
+title: "FastMCP 3.0 Testing Patterns for MCP Servers"
+source: "https://gofastmcp.com/servers/testing"
+date: "2026-03-28"
+relevance: "Direct reference for MCP server implementation"
+
+key_patterns:
+  in_process_client: |
+    from fastmcp.client import Client
+    @pytest.fixture
+    async def client():
+        async with Client(transport=mcp) as c:
+            yield c
+    async def test_tool(client):
+        result = await client.call_tool("name", {"arg": "value"})
+        assert result.data == expected
+
+  tool_registration: |
+    from fastmcp import FastMCP
+    mcp = FastMCP("ServerName")
+    @mcp.tool
+    async def my_tool(param: Annotated[str, "Description"]) -> dict:
+        """Tool docstring becomes description."""
+        return {"result": "value"}
+
+  transports:
+    - stdio: "Default. For Claude Desktop, IDE integrations"
+    - streamable_http: "mcp.run(transport='http', host='0.0.0.0', port=8000)"
+
+  best_practices:
+    - "Use ToolError for expected failures"
+    - "Never use print() — corrupts stdio stream"
+    - "Use Depends() for hidden dependency injection"
+    - "Configure asyncio_mode = 'auto' in pytest"

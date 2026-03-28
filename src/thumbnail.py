@@ -527,7 +527,7 @@ class ThumbnailGenerator:
         Falls back to gradient background on failure.
         """
         try:
-            from moviepy.editor import VideoFileClip
+            from moviepy import VideoFileClip
 
             clip = VideoFileClip(video_path)
             # Get frame at 30% of the video duration

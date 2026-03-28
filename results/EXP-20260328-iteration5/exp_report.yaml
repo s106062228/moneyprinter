@@ -1,0 +1,59 @@
+title: "Experiment Report — Iteration 5"
+date: "2026-03-28"
+hypotheses_tested: ["H18", "H19", "H20"]
+
+test_suite:
+  total_tests: 839
+  passed: 839
+  failed: 0
+  errors: 0
+  runtime_seconds: 41.03
+  coverage_total: 77.68
+  coverage_threshold: 40.0
+
+new_tests:
+  test_mcp_server:
+    tests: 32
+    coverage: 100.00
+    file: "tests/test_mcp_server.py"
+  test_template_cli:
+    tests: 21
+    coverage: "N/A (mocked imports)"
+    file: "tests/test_template_cli.py"
+
+hypothesis_metrics:
+  H18_mcp_server:
+    status: "CONFIRMED"
+    tools_registered: 4
+    tool_names: ["analyze_video", "publish_content", "schedule_content", "get_analytics"]
+    tests_passing: 32
+    coverage: 100.00
+    lines_of_code: 100
+    new_dependencies: ["fastmcp>=0.4.0"]
+  H19_dep_fixes:
+    status: "CONFIRMED"
+    failures_fixed: 4
+    fixes:
+      - "thumbnail.py: from moviepy.editor import → from moviepy import"
+      - "test_thumbnail.py: patch.dict sys.modules moviepy=None for ImportError"
+      - "test_smart_clipper.py: sys.modules['faster_whisper'] pre-mock"
+    production_code_changes: 1
+    test_code_changes: 2
+    total_suite_passing: 839
+    total_suite_failing: 0
+  H20_template_cli:
+    status: "CONFIRMED"
+    menu_option: 8
+    sub_menu_options: ["List", "Create", "Delete", "Generate batch", "Back"]
+    tests_passing: 21
+    stale_assertion_fixed: "test_smart_clipper_cli.py options count 8→9"
+
+comparison_to_previous:
+  previous_total_tests: 786
+  previous_passing: 782
+  previous_failing: 4
+  current_total_tests: 839
+  current_passing: 839
+  current_failing: 0
+  tests_added: 53
+  coverage_change: "76.72% → 77.68% (+0.96%)"
