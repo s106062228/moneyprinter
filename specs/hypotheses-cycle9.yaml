@@ -1,0 +1,75 @@
+## Hypotheses — Iteration 9 (2026-03-29)
+## Based on survey findings from JOURNAL.md 2026-03-29
+
+hypotheses:
+  - id: H29
+    title: "Video Template System (Intros/Outros)"
+    priority: HIGH
+    status: CONFIRMED
+    deferred_from: "iteration 7, 8"
+    hypothesis: >
+      Adding a video_templates.py module that defines reusable intro/outro
+      clips as MoviePy v2 CompositeVideoClip objects — with configurable text,
+      duration, background color, and fade transitions — will enable
+      YouTube.py's combine() to prepend/append branded intros/outros.
+      Templates stored as JSON configs, rendered at combine-time.
+    metric: >
+      Module passes unit tests with >90% coverage; generates valid VideoClip
+      objects for intro and outro; integrates with concatenate_videoclips
+      pipeline; supports at least 3 template presets (minimal, gradient, image-bg).
+    rationale: >
+      Deferred twice (iterations 7, 8). Survey confirms MoviePy v2
+      concatenate_videoclips([intro, main, outro]) is the standard pattern.
+      No official template engine exists — custom JSON-config approach is the
+      right abstraction. YouTube.py already imports concatenate_videoclips.
+
+  - id: H30
+    title: "AI Hook Generator"
+    priority: HIGH
+    status: CONFIRMED
+    hypothesis: >
+      Adding a hook_generator.py module that uses LLM prompts with proven
+      hook templates (curiosity, controversy, statistic, question) and
+      platform-specific constraints (TikTok 2s, Reels 3s, Shorts 3-5s)
+      will generate engaging opening lines for video scripts.
+    metric: >
+      Module passes unit tests with >90% coverage; generates hooks for
+      all supported platforms; uses existing generate_text() from
+      llm_provider.py; includes fallback hooks when LLM is unavailable;
+      supports at least 5 hook categories.
+    rationale: >
+      Survey shows 71% of viewers decide within 3 seconds. AI-driven hook
+      optimization yields 30% higher retention. This addresses the TODO
+      item "AI hook optimization" and integrates naturally with the existing
+      LLM pipeline.
+
+  - id: H31
+    title: "Multi-Platform Export Optimizer"
+    priority: MEDIUM
+    status: CONFIRMED
+    hypothesis: >
+      Adding an export_optimizer.py module that takes a source VideoClip
+      and produces platform-specific variants (16:9 YouTube, 9:16 TikTok/Shorts/Reels,
+      1:1 Instagram feed, 4:5 feed optimized) with smart center-crop
+      reframing will enable one-source multi-platform publishing.
+    metric: >
+      Module passes unit tests with >90% coverage; correctly calculates
+      crop dimensions for all 4 aspect ratios; produces valid MoviePy
+      clip objects; integrates with existing publisher.py platform dispatch.
+    rationale: >
+      Survey confirms standard aspect ratios (16:9, 9:16, 1:1, 4:5) and
+      AI-based reframing as industry standard. MoviePy v2's cropped() and
+      resized() methods already support this. Addresses TODO "Multi-platform
+      export optimizer" item.
+
+priority_ranking:
+  1: H29  # Deferred twice, highest backlog debt, clear MoviePy v2 path
+  2: H30  # High impact (30% retention boost), integrates with existing LLM
+  3: H31  # Medium priority, enables cross-platform strategy
+
+implementation_recommendation: >
+  All 3 hypotheses are independent modules with no cross-dependencies.
+  Implement in parallel using 3 agents. H29 and H30 are HIGH priority
+  and should be the focus. H31 is MEDIUM but straightforward with MoviePy v2.
+  PyCaps integration (animated captions) deferred — alpha stage, heavy
+  Playwright dependency, too risky for this iteration.

@@ -1145,3 +1145,149 @@ Designed implementation for H26 (A/B testing), H27 (calendar drag-drop), and H28
 - Modified files: src/dashboard.py, src/templates/calendar.html, tests/test_dashboard.py
 
 ---
+
+## Survey — 2026-03-29 (Iteration 9)
+
+### Research Focus
+Video template system (intros/outros), AI hook optimization, animated captions (PyCaps), multi-platform export optimization, and YouTube A/B testing API integration. These align with TODO.md medium-priority backlog items.
+
+### Key Findings
+
+#### 1. Video Template System with MoviePy v2
+- **MoviePy v2.2.1** (current): `concatenate_videoclips([intro, main, outro])` is the standard pattern for intro/outro assembly. CompositeVideoClip supports layered text overlays, fades, and background clips.
+- **Templating engine proposal** (GitHub Discussion #2241): Declarative XML-like syntax for video creation proposed but **not implemented** — still a community idea. No official template system exists in MoviePy.
+- **Practical approach**: Define intro/outro as reusable Python functions that return VideoClip objects with configurable text, duration, colors, and transitions. Store template configs as JSON.
+- **Integration point**: YouTube.py's `combine()` method already uses MoviePy v2 — intro/outro clips can be prepended/appended to the existing pipeline.
+
+#### 2. AI Hook Optimization (Trending Hooks)
+- **3-second rule**: 71% of viewers decide within 3 seconds whether to keep watching. Platform algorithms now measure "intro retention" — top creators achieve 70%+ intro retention.
+- **AI hook generation**: Tools like Virvid report 40-60% faster script writing with AI hooks. Brands using AI-driven hook optimization report 30% higher retention and 20% lower production costs.
+- **Platform-specific hooks**: TikTok demands 2-second high-energy hooks, Instagram Reels prefers 3-second polished hooks, YouTube Shorts allows 3-5 second hooks with searchable titles.
+- **Proven templates**: "Did you know..." (22M+ views), "3 mistakes everyone makes" (2x engagement), controversy/curiosity hooks. 97% of pro creators still add human review.
+- **Implementation**: LLM-generated hooks using proven templates + platform-specific constraints. Can integrate with existing `generate_text()` in llm_provider.py.
+
+#### 3. Animated Captions via PyCaps
+- **PyCaps** (github.com/francozanardi/pycaps): Python library for animated video subtitles with CSS styling. Supports Python 3.10-3.12.
+- **Key features**: Built-in Whisper transcription, CSS-based word-level styling (`.word-being-narrated` for highlight effects), animation library (fades, pops, slides), template system.
+- **API**: `CapsPipelineBuilder` for programmatic use, `TemplateLoader` for preset styles.
+- **Status**: **Alpha stage, not on PyPI** — install via git. Requires Playwright + Chromium for CSS rendering. FFmpeg dependency (already in our stack).
+- **Risk**: Alpha status means API instability. Heavy dependency (Playwright/Chromium) for a subtitle renderer. Consider wrapping in optional integration.
+- **Alternative**: MoneyPrinter already has subtitle rendering via MoviePy TextClip. PyCaps adds animated word-by-word highlighting that MoviePy can't do natively.
+
+#### 4. Multi-Platform Export Optimization
+- **Standard aspect ratios**: 16:9 (YouTube), 9:16 (TikTok/Reels/Shorts), 1:1 (Instagram feed), 4:5 (optimized feed posts).
+- **Smart reframing**: AI-based subject tracking for automatic crop positioning when converting between ratios. MoviePy v2's `cropped()` method supports this.
+- **Batch export**: Generate all ratios from a single source video. MoviePy can resize + crop in pipeline.
+- **Implementation**: Export optimizer module that takes a source clip and produces platform-specific variants with correct ratios, resolution, and codec settings.
+
+#### 5. YouTube A/B Testing — Native vs API
+- **YouTube native "Test and Compare"**: Supports up to 3 titles + 3 thumbnails per video. Optimizes for watch time (not CTR). **Not available for Shorts.**
+- **YouTube Data API v3**: `videos.update()` can change title, description, tags, thumbnail programmatically. No native A/B test endpoint — must build rotation logic manually.
+- **Third-party approach**: ThumbnailTest, TubeBuddy automate rotation via browser extensions. Our ab_testing.py can do this via API calls.
+- **Integration path**: Use `videos.update()` to rotate titles/thumbnails on a schedule, collect analytics via YouTube Analytics API, feed to ABTestManager for winner evaluation.
+
+### Competitive Landscape Update
+- **OpusClip** now offers "ClipAnything" for any footage type (not just talking-head). API still in closed beta.
+- **AutoShorts.ai** added batch generation and multi-platform export in Q1 2026.
+- **Descript** added native YouTube A/B testing integration.
+- **Content authenticity**: Raw, authentic content performs 60% better than polished productions — a trend favoring automated tools that produce genuine-feeling content.
+
+### Papers & References
+- No new academic papers found relevant to implementation. Findings are from industry tools and platform documentation.
+
+---
+
+## Hypotheses — 2026-03-29 (Iteration 9)
+
+### H29: Video Template System (Intros/Outros) — HIGH
+**Deferred from iterations 7, 8.** MoviePy v2 `concatenate_videoclips([intro, main, outro])` is the standard pattern. Custom JSON-config templates with CompositeVideoClip rendering. 3 presets: minimal, gradient, image-bg.
+
+### H30: AI Hook Generator — HIGH
+LLM-powered hook generation with proven templates (curiosity, controversy, statistic, question) and platform-specific constraints (TikTok 2s, Reels 3s, Shorts 3-5s). Integrates with `generate_text()`. 71% of viewers decide in 3 seconds — 30% retention boost from AI hooks.
+
+### H31: Multi-Platform Export Optimizer — MEDIUM
+Source video → platform-specific variants (16:9, 9:16, 1:1, 4:5) with smart center-crop reframing via MoviePy v2 `cropped()` + `resized()`. Integrates with publisher.py.
+
+### Deferred
+- PyCaps animated captions — alpha stage, Playwright dependency too heavy
+- YouTube A/B testing API integration — YouTube native Test and Compare not available for Shorts
+
+---
+
+## Evaluation — 2026-03-29 (Iteration 9)
+
+### H29: Video Template System (Intros/Outros) — CONFIRMED
+- **Result**: `video_templates.py` created with VideoTemplate dataclass + VideoTemplateManager class
+- **Features**: 3 presets (minimal, gradient, branded), atomic JSON persistence, MoviePy v2 render_clip() with CompositeVideoClip + fade transitions, CRUD operations
+- **Coverage**: 94.79% (target >90%)
+- **Tests**: 100 tests, all passing
+- **Deferred debt cleared**: Was deferred in iterations 7 and 8. Now complete.
+- **Verdict**: CONFIRMED. Module renders intro/outro clips as MoviePy v2 VideoClip objects. Ready for YouTube.py combine() integration.
+
+### H30: AI Hook Generator — CONFIRMED
+- **Result**: `hook_generator.py` created with HookResult dataclass + HookGenerator class
+- **Features**: 5 hook categories (curiosity, controversy, statistic, question, listicle), 5 platform constraints (youtube, youtube_shorts, tiktok, instagram_reels, twitter), LLM integration with JSON parse + regex fallback + template fallback
+- **Coverage**: 95.28% (target >90%)
+- **Tests**: 73 tests, all passing
+- **Verdict**: CONFIRMED. Hook generation works with LLM, gracefully degrades when LLM unavailable, respects platform word/char limits.
+
+### H31: Multi-Platform Export Optimizer — CONFIRMED
+- **Result**: `export_optimizer.py` created with ExportProfile dataclass + ExportOptimizer class
+- **Features**: 6 platform profiles (youtube, youtube_shorts, tiktok, instagram_reels, instagram_feed, instagram_optimized), smart center-crop reframing, batch export, lazy MoviePy import
+- **Coverage**: 97.70% (target >90%)
+- **Tests**: 72 tests, all passing
+- **Verdict**: CONFIRMED. Crop calculations are mathematically correct for all aspect ratio conversions. Batch export produces platform-specific variants.
+
+### Summary
+- 3/3 hypotheses confirmed
+- 245 new tests added (100 + 73 + 72)
+- Total test suite: 1314 passing, 0 failing
+- Coverage: 81.20% (was 79.57%, +1.63%)
+- 9th consecutive iteration with 0 test failures
+
+---
+
+## Retrospective — 2026-03-29 (Iteration 9)
+
+### What Worked
+- **3 parallel implementation agents** completed all work efficiently. H30 (hooks) finished fastest at ~147s, H29 (templates) at ~207s, H31 (export) at ~244s. Consistent with iteration 8's parallelization pattern.
+- **245 new tests in one iteration** — the highest single-iteration test increase (surpassing iteration 8's 154). All passing on first full-suite run with 0 regressions.
+- **Cleared H29 deferred debt** — the video template system was deferred in iterations 7 and 8. Finally completed with 100 tests and 94.79% coverage. Deferred items should be prioritized more aggressively.
+- **Coverage crossed 81%** — from 79.57% to 81.20%. The 3 new modules add 425 production statements, all well-tested. Coverage growth continues despite codebase expansion.
+- **Survey-to-implementation alignment** — all 3 hypotheses directly addressed TODO.md medium-priority items. The hook generator was the most impactful new capability based on survey data (30% retention boost from AI hooks).
+
+### What Didn't Work
+- **Coverage gains still modest** (+1.63%) despite 245 tests. The large untested modules (YouTube.py at 21%, Twitter.py at 47%) continue to dominate. Each new well-tested module raises the floor but can't compensate for the legacy modules.
+- **PyCaps deferred** — animated captions remain unaddressed. PyCaps is alpha-stage and requires Playwright/Chromium, making it unsuitable for automated pipeline. Need a lighter alternative or wait for PyPI release.
+
+### Surprises
+- **H29 generated 100 tests** — the video template agent created significantly more tests than the 50+ target, the most tests from a single agent in any iteration.
+- **Export optimizer hit 97.70% coverage** — the highest coverage of the 3 new modules, likely because _calculate_crop is pure math with deterministic test cases.
+- **9 consecutive iterations with 0 test failures** — the project's testing discipline remains unbroken since iteration 1.
+
+### What to Try Next
+1. **YouTube.py combine() integration** — wire video_templates.py into the actual video pipeline (prepend intro, append outro). This is the natural next step for H29.
+2. **Hook generator + script pipeline integration** — integrate hook_generator.py into YouTube.py's generate_script() to prepend hooks to video scripts.
+3. **Export optimizer + publisher integration** — wire export_optimizer.py into publisher.py for automatic multi-platform format conversion.
+4. **PyCaps monitoring** — check for PyPI release or Playwright-free renderer before attempting integration.
+5. **Coverage push on YouTube.py/Twitter.py** — these are the bottleneck for overall coverage improvement.
+6. **Auto-caption styling** — explore alternatives to PyCaps (MoviePy TextClip word-by-word rendering, or ass/ssa subtitle format).
+
+### Action Items
+- [x] H29: Video template system (100 tests, 94.79% coverage) — DONE
+- [x] H30: AI hook generator (73 tests, 95.28% coverage) — DONE
+- [x] H31: Multi-platform export optimizer (72 tests, 97.70% coverage) — DONE
+
+### Cycle Stats
+- Hypotheses tested: 3
+- Confirmed: 3
+- Rejected: 0
+- Inconclusive: 0
+- Tasks completed: 7
+- Tasks failed: 0
+- New tests added: 245
+- Total test suite: 1314 passing, 0 failing
+- Coverage: 81.20% (full-source)
+- New files: src/video_templates.py, src/hook_generator.py, src/export_optimizer.py, tests/test_video_templates.py, tests/test_hook_generator.py, tests/test_export_optimizer.py
+
+---

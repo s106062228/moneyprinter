@@ -1,0 +1,163 @@
+## Architecture — Iteration 9 (2026-03-29)
+## Video Templates + AI Hook Generator + Export Optimizer
+
+overview: >
+  Three independent modules following established MoneyPrinter patterns:
+  dataclasses for state, JSON persistence in .mp/, LLM integration via
+  generate_text(), logger via get_logger(), and atomic file writes.
+
+modules:
+  - name: video_templates.py
+    hypothesis: H29
+    location: src/video_templates.py
+    description: >
+      Reusable video intro/outro templates rendered as MoviePy v2 clips.
+      Templates defined as JSON configs, rendered via CompositeVideoClip
+      with text overlays, solid/gradient backgrounds, and fade transitions.
+    classes:
+      - name: VideoTemplate
+        type: dataclass
+        fields:
+          - template_id: str
+          - name: str
+          - template_type: str  # "intro" | "outro"
+          - duration: float  # seconds (default 3.0)
+          - text: str  # overlay text (e.g. channel name, CTA)
+          - font_size: int  # default 80
+          - text_color: str  # hex color
+          - bg_color: str  # hex color for solid background
+          - bg_gradient: list[str]  # 2 hex colors for gradient
+          - bg_image_path: str  # optional background image
+          - fade_duration: float  # default 0.5
+          - resolution: tuple[int, int]  # default (1080, 1920)
+        methods:
+          - to_dict() -> dict
+          - from_dict(data: dict) -> VideoTemplate (classmethod, with validation)
+
+      - name: VideoTemplateManager
+        type: class
+        persistence: .mp/video_templates.json (atomic writes)
+        methods:
+          - __init__()
+          - save_template(template: VideoTemplate)
+          - get_template(template_id: str) -> VideoTemplate | None
+          - list_templates(template_type: str = None) -> list[VideoTemplate]
+          - delete_template(template_id: str) -> bool
+          - render_clip(template: VideoTemplate) -> VideoClip
+          - get_preset(name: str) -> VideoTemplate  # "minimal", "gradient", "branded"
+
+    presets:
+      - minimal: solid black bg, white centered text, 3s, fade in/out
+      - gradient: two-color gradient bg, bold text with shadow, 4s
+      - branded: background image with overlaid text, logo area, 5s
+
+    integration: >
+      YouTube.py combine() can call render_clip() to get intro/outro clips,
+      then prepend/append via concatenate_videoclips([intro, main, outro]).
+
+  - name: hook_generator.py
+    hypothesis: H30
+    location: src/hook_generator.py
+    description: >
+      AI-powered hook generation using proven templates and platform-specific
+      constraints. Uses LLM to generate engaging opening lines for video scripts.
+    classes:
+      - name: HookResult
+        type: dataclass
+        fields:
+          - hook_text: str
+          - hook_category: str  # curiosity, controversy, statistic, question, listicle
+          - platform: str
+          - max_duration_seconds: float  # platform-specific constraint
+          - estimated_word_count: int
+
+      - name: HookGenerator
+        type: class
+        methods:
+          - __init__(platform: str = "youtube")
+          - generate_hook(topic: str, category: str = None) -> HookResult
+          - generate_hooks(topic: str, count: int = 3) -> list[HookResult]
+          - get_fallback_hook(topic: str, category: str) -> HookResult
+
+    hook_categories:
+      - curiosity: "Most people don't know that..."
+      - controversy: "Stop doing X immediately..."
+      - statistic: "97% of people fail at..."
+      - question: "What if I told you..."
+      - listicle: "3 things that will change..."
+
+    platform_constraints:
+      youtube_shorts: {max_duration: 5, max_words: 15}
+      tiktok: {max_duration: 2, max_words: 8}
+      instagram_reels: {max_duration: 3, max_words: 10}
+      twitter: {max_duration: null, max_chars: 50}
+
+    integration: >
+      YouTube.py generate_script() can prepend hook to script.
+      ViralityScorer can evaluate hook quality before use.
+
+  - name: export_optimizer.py
+    hypothesis: H31
+    location: src/export_optimizer.py
+    description: >
+      Multi-platform video export with smart aspect ratio conversion.
+      Takes a source video path and produces platform-optimized variants.
+    classes:
+      - name: ExportProfile
+        type: dataclass
+        fields:
+          - platform: str
+          - aspect_ratio: tuple[int, int]  # (width, height) ratio e.g. (9, 16)
+          - resolution: tuple[int, int]  # pixel dimensions e.g. (1080, 1920)
+          - max_duration: float | None  # platform limit in seconds
+          - codec: str  # default "libx264"
+          - audio_codec: str  # default "aac"
+
+      - name: ExportOptimizer
+        type: class
+        methods:
+          - __init__()
+          - get_profile(platform: str) -> ExportProfile
+          - list_profiles() -> list[ExportProfile]
+          - optimize_clip(source_path: str, platform: str, output_dir: str) -> str
+          - batch_export(source_path: str, platforms: list[str], output_dir: str) -> dict[str, str]
+          - _calculate_crop(src_w: int, src_h: int, target_ratio: tuple) -> tuple
+
+    profiles:
+      - youtube: {ratio: "16:9", resolution: "1920x1080", max_duration: null}
+      - youtube_shorts: {ratio: "9:16", resolution: "1080x1920", max_duration: 60}
+      - tiktok: {ratio: "9:16", resolution: "1080x1920", max_duration: 180}
+      - instagram_reels: {ratio: "9:16", resolution: "1080x1920", max_duration: 90}
+      - instagram_feed: {ratio: "1:1", resolution: "1080x1080", max_duration: 60}
+      - instagram_optimized: {ratio: "4:5", resolution: "1080x1350", max_duration: 60}
+
+    integration: >
+      publisher.py can call batch_export() before cross-platform publishing.
+      Batch generator can use this for multi-platform batch runs.
+
+test_strategy:
+  approach: >
+    Each module gets a dedicated test file. Mock MoviePy and LLM calls.
+    Target >90% coverage per module. All existing 1069 tests must pass.
+  test_files:
+    - tests/test_video_templates.py  # H29
+    - tests/test_hook_generator.py   # H30
+    - tests/test_export_optimizer.py  # H31
+
+implementation_plan:
+  parallel: true
+  agents: 3
+  estimated_time: "~4 minutes per agent based on iteration 8 timings"
+  tasks:
+    - agent_1: "Implement video_templates.py + tests (H29)"
+    - agent_2: "Implement hook_generator.py + tests (H30)"
+    - agent_3: "Implement export_optimizer.py + tests (H31)"
+
+todo_updates:
+  - "Create src/video_templates.py with VideoTemplate, VideoTemplateManager [H29]"
+  - "Write tests for video_templates module (target 50+ tests) [H29]"
+  - "Create src/hook_generator.py with HookResult, HookGenerator [H30]"
+  - "Write tests for hook_generator module (target 50+ tests) [H30]"
+  - "Create src/export_optimizer.py with ExportProfile, ExportOptimizer [H31]"
+  - "Write tests for export_optimizer module (target 50+ tests) [H31]"
+  - "Run full test suite (1069+ existing + new, 0 failures) [H29, H30, H31]"

@@ -102,6 +102,12 @@
 - [x] Virality scorer module (`virality_scorer.py`) with LLM-based metadata scoring, platform-specific weights
 - [x] Unit tests for A/B testing (71 tests, 96.15% coverage), virality scorer (71 tests, 95.29% coverage), PATCH endpoint (12 tests)
 
+## Completed — Iteration 9 (2026-03-29)
+- [x] Video template system (`video_templates.py`) with VideoTemplate, VideoTemplateManager, 3 presets (100 tests, 94.79% coverage) [H29]
+- [x] AI hook generator (`hook_generator.py`) with HookResult, HookGenerator, 5 categories, 5 platforms (73 tests, 95.28% coverage) [H30]
+- [x] Multi-platform export optimizer (`export_optimizer.py`) with ExportProfile, ExportOptimizer, 6 platform profiles (72 tests, 97.70% coverage) [H31]
+- [x] Unit tests: 245 new tests, 1314 total suite, 0 failures [H29, H30, H31]
+
 ## Completed — Iteration 8 (2026-03-29)
 - [x] A/B testing module (`ab_testing.py`) with ABVariant, ABTest, ABTestManager (71 tests, 96.15% coverage) [H26]
 - [x] Calendar drag-and-drop rescheduling (PATCH endpoint + FullCalendar editable + eventDrop) [H27]
@@ -142,18 +148,27 @@
 - [x] Write tests for virality_scorer module (71 tests, 95.29% coverage) [H28]
 - [x] Run full test suite (1069/1069 passing, 0 failures) [H26, H27, H28]
 
+## Implementation Tasks — Iteration 9 (2026-03-29)
+- [x] Create src/video_templates.py with VideoTemplate, VideoTemplateManager [H29]
+- [x] Write tests for video_templates module (100 tests, 94.79% coverage) [H29]
+- [x] Create src/hook_generator.py with HookResult, HookGenerator [H30]
+- [x] Write tests for hook_generator module (73 tests, 95.28% coverage) [H30]
+- [x] Create src/export_optimizer.py with ExportProfile, ExportOptimizer [H31]
+- [x] Write tests for export_optimizer module (72 tests, 97.70% coverage) [H31]
+- [x] Run full test suite (1314/1314 passing, 0 failures) [H29, H30, H31]
+
 ## Planned — High Priority
 - [x] Content calendar UI (frontend for content scheduler) — DONE (iteration 7)
 - [x] Dashboard frontend polish (charts, job management, content calendar view) — DONE (iteration 7)
 
 ## Planned — Medium Priority
-- [ ] Video template system (custom intros/outros)
+- [x] Video template system (custom intros/outros) — DONE (iteration 9)
 - [x] A/B testing for video titles and thumbnails — DONE (iteration 8)
-- [ ] AI hook optimization (trending hooks for better engagement)
+- [x] AI hook optimization (trending hooks for better engagement) — DONE (iteration 9)
 - [ ] Auto-caption styling (animated captions like CapCut)
 - [x] Virality scoring (predict clip engagement before posting) — DONE (iteration 8)
 - [ ] Shoppable content integration (product links in video descriptions)
-- [ ] Multi-platform export optimizer (platform-specific aspect ratios and formats)
+- [x] Multi-platform export optimizer (platform-specific aspect ratios and formats) — DONE (iteration 9)
 - [ ] Multi-language dubbing (AI lip-sync for cross-language distribution)
 
 ## Planned — Low Priority

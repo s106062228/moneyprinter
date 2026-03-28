@@ -1,0 +1,25 @@
+== Auto Research Pipeline — Iteration 9 ==
+== Step 1: Survey ==
+== Timestamp: 2026-03-29 05:54 ==
+
+Search queries executed:
+1. "video template system intros outros MoviePy 2026 automated video production"
+2. "AI hook optimization trending hooks short-form video engagement 2026"
+3. "auto caption styling animated captions PyCaps CapCut API 2026 Python"
+4. "multi-platform video export optimizer aspect ratio automation 2026"
+5. "PyCaps Python animated captions library features CSS styling 2026 installation"
+6. "MoviePy v2 template system video intro outro concatenate Python 2026"
+7. "short form video A/B testing YouTube API thumbnail title rotation automation 2026"
+
+Web fetches:
+1. https://github.com/francozanardi/pycaps — PyCaps API and installation
+2. https://github.com/Zulko/moviepy/discussions/2241 — MoviePy templating proposal
+
+Key findings:
+- Video templates: MoviePy v2 concatenate_videoclips is the standard pattern. No official template engine.
+- AI hooks: 3-second rule, 71% viewer decision point, platform-specific hook strategies.
+- PyCaps: Alpha stage, not on PyPI, requires Playwright+Chromium. CSS-based animated captions.
+- Multi-platform export: Standard ratios 16:9, 9:16, 1:1, 4:5. MoviePy cropped() for reframing.
+- YouTube A/B testing: Native Test and Compare NOT available for Shorts. API v3 videos.update() for manual rotation.
+
+Survey written to JOURNAL.md.
