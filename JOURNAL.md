@@ -371,3 +371,122 @@ Designed implementation for H11 (9 test fixes in 3 categories) and H12 (smart cl
 - [ ] MCP integration exploration (future iteration)
 
 ---
+
+## Survey — 2026-03-28 (Iteration 4)
+
+### Research Focus
+Web dashboard architecture (FastAPI + HTMX + SSE), MCP server integration for AI tool exposure, and latest short-form video automation trends.
+
+### Key Findings
+
+#### 1. FastAPI + HTMX + SSE Dashboard Stack Is Production-Ready
+- **Performance**: FastAPI+HTMX server-side rendering achieves 92% lower time-to-interactive vs React (45ms vs 650ms) per TechEmpower benchmarks.
+- **SSE superiority for dashboards**: SSE handles 100K concurrent connections, simpler than WebSockets. Like a radio station — server broadcasts, clients listen. Perfect for monitoring dashboards.
+- **Jinja2 templating**: Server dictates UI via HTML fragments, zero client-side JS needed. HTMX SSE extension handles real-time DOM swaps.
+- **FastAPI BackgroundTasks**: Built-in for lightweight background work (content generation status, job monitoring). For heavy work, Celery+Redis is production standard.
+- **Reference implementation**: github.com/vlcinsky/fastapi-sse-htmx demonstrates the pattern end-to-end.
+
+#### 2. Datastar Emerges as HTMX Alternative for Real-Time UIs
+- **Datastar** combines HTMX + Alpine.js functionality in a single ~14KB package (smaller than HTMX alone).
+- Uses SSE natively (vs HTMX's AJAX-first approach), making real-time updates a first-class citizen.
+- However, HTMX remains the safer choice: larger ecosystem, more documentation, simpler learning curve.
+- **Decision**: Stick with HTMX for this iteration — proven pattern, zero risk. Datastar is worth revisiting.
+
+#### 3. MCP Python SDK (FastMCP) Has Matured
+- **FastMCP 3.0** (Jan 2026): Component versioning, granular authorization, OpenTelemetry instrumentation.
+- **Adopted by**: Anthropic, OpenAI, Google DeepMind, Microsoft. Now under Linux Foundation.
+- **Transport update**: SSE transport deprecated; prefer Streamable HTTP or stdio for new integrations.
+- **Tool registration**: `@mcp.tool()` decorator auto-generates input schemas from type hints and docstrings.
+- **Minimal example**: 10 lines of Python to expose a function as an MCP tool.
+- **Implication for MPV2**: Expose SmartClipper, publisher, scheduler, analytics as MCP tools — any AI assistant can orchestrate content pipelines.
+
+#### 4. Short-Form Video Automation Continues Maturing
+- **Create-once-publish-everywhere**: Single long-form → 8-10 TikToks + 8-10 Reels + 5-7 Shorts via AI clipping.
+- **Production volume**: Top operations now produce 1,000+ clips/month using batch workflows.
+- **AI editing mainstreaming**: Tools auto-detect highlights, subtitle, suggest titles — all in a few clicks.
+- **Key competitors**: OpusClip (virality scoring), CapCut (editing UX), AutoShorts.ai, VDClip.
+- **MPV2 differentiator**: Open-source, self-hosted, LLM-agnostic, full pipeline (script→video→upload→analytics).
+
+#### 5. PySceneDetect Python API Confirms Our Architecture
+- PySceneDetect's `detect()` + `split_video_ffmpeg()` API is exactly what our SmartClipper uses.
+- CLI: `scenedetect -i video.mp4 detect-adaptive split-video` — we can expose same UX in our menu.
+- Requires Python 3.10+ (we use 3.14, no issues).
+
+### Papers & References
+| Source | URL | Relevance |
+|--------|-----|-----------|
+| FastAPI+HTMX SSE patterns | medium.com/codex/building-real-time-dashboards-with-fastapi-and-htmx | Dashboard architecture |
+| FastAPI SSE vs WebSocket 2026 | medium.com/@rameshkannanyt0078/fastapi-real-time-api | Transport comparison |
+| MCP Python SDK | github.com/modelcontextprotocol/python-sdk | MCP integration |
+| FastMCP 3.0 Guide | fast.io/resources/mcp-server-python/ | Tool registration |
+| MCP 2026 Complete Guide | dev.to/universe7creator/mcp-building-ai-native-applications-in-2026 | MCP ecosystem |
+| Datastar vs HTMX | everydaysuperpowers.dev/articles/why-i-switched-from-htmx-to-datastar | Framework comparison |
+| Short-form video trends 2026 | opus.pro/blog/short-form-video-strategy-2026 | Competition landscape |
+| Video automation tools 2026 | plainlyvideos.com/blog/video-automation-softwares | Tool landscape |
+| IoT Dashboard (FastAPI+HTMX) | github.com/volfpeter/fastapi-htmx-tailwind-example | Reference implementation |
+
+## Hypothesis — 2026-03-28 (Iteration 4)
+
+### Hypotheses
+
+| ID | Hypothesis | Priority | Risk |
+|----|-----------|----------|------|
+| H15 | Web dashboard backend (FastAPI + Jinja2 + HTMX SSE) | HIGH | Medium — new deps |
+| H16 | Smart clipper CLI integration (menu option in main.py) | HIGH | Low — integration only |
+| H17 | MCP server for content pipeline tools | MEDIUM | Medium — new paradigm |
+
+### Implementation Recommendation
+Focus on **H15** (dashboard) and **H16** (CLI). Both have been deferred multiple iterations. H15 is the top remaining roadmap item. H16 completes the smart clipper user-facing pipeline. H17 is stretch if time permits.
+
+## Architecture — 2026-03-28 (Iteration 4)
+Designed implementation for H15 (web dashboard) and H16 (smart clipper CLI). 8 tasks. H15 adds 2 new files (dashboard.py ~250 lines, dashboard.html ~120 lines), modifies constants.py + main.py + requirements.txt, adds 3 deps (fastapi, uvicorn, jinja2). H16 modifies constants.py + main.py only, zero new deps. Full spec in specs/architecture-20260328-iteration4.yaml.
+
+---
+
+## Evaluation — 2026-03-28 (Iteration 4)
+
+### Hypotheses Tested This Iteration
+
+| ID | Hypothesis | Verdict | Key Metric |
+|----|-----------|---------|------------|
+| H15 | Web dashboard (FastAPI + Jinja2 + HTMX SSE) | **CONFIRMED** | 26 tests, 88.89% coverage |
+| H16 | Smart clipper CLI integration | **CONFIRMED** | 15 tests, all passing |
+| H17 | MCP server for content pipeline | DEFERRED | Next iteration |
+
+### Key Observations
+1. Dashboard backend is 144 statements — well under the 300-line target. FastAPI + Jinja2 + HTMX SSE is genuinely trivial.
+2. Dashboard reads from existing data stores (.mp/ JSON files) — zero new persistence mechanisms needed.
+3. Smart clipper CLI is pure integration — wraps existing SmartClipper.find_highlights() + split_clips() with interactive prompts.
+4. SSE endpoint uses async generator with 2-second intervals — tested via mock asyncio.sleep to avoid hanging tests.
+5. Full suite: 782 passing out of 786 (4 pre-existing dep failures: 3x faster_whisper not installed, 1x moviepy.editor API removed in moviepy 2.2).
+6. Coverage: 76.72% overall, 88.89% for dashboard.py.
+
+---
+
+## Retrospective — 2026-03-28 (Iteration 4)
+
+### What Worked
+- FastAPI + HTMX + SSE stack confirmed as trivially simple — 144 lines of Python for a fully functional real-time dashboard
+- Dashboard reads from all existing data stores without any new persistence code
+- Smart clipper CLI integration was straightforward — just wiring existing SmartClipper to the interactive menu
+- Testing the SSE endpoint required a creative mock approach (mock asyncio.sleep to raise CancelledError after first event) — but worked cleanly
+- 41 new tests, all passing on first run (after fixing 2 minor issues: 1KB file rounding to 0.0 MB, missing asyncio import)
+
+### What Didn't Work
+- SSE test initially hung because the event generator is an infinite async loop. Had to mock asyncio.sleep to break the loop. TestClient streaming API could use better documentation for SSE testing.
+- 4 pre-existing test failures surfaced due to system Python missing faster_whisper and moviepy.editor API change in moviepy 2.2. These are dependency issues, not code issues.
+
+### What to Try Next
+1. **H17: MCP Server** — Expose SmartClipper, publisher, scheduler, analytics as MCP tools. FastMCP 3.0 is mature.
+2. **Dashboard frontend polish** — Add real-time charts (via HTMX SSE), content calendar view, job management actions.
+3. **Fix pre-existing dep failures** — Pin moviepy<2.2 or migrate to new API; install faster_whisper in CI.
+4. **Content calendar UI** — Build on the dashboard foundation with a visual calendar for scheduled content.
+
+### Action Items
+- [x] H15: Web dashboard (26 tests, 88.89% coverage, 144 lines) — DONE
+- [x] H16: Smart clipper CLI integration (15 tests, all passing) — DONE
+- [ ] H17: MCP server (next iteration)
+- [ ] Dashboard frontend polish (future iteration)
+- [ ] Fix moviepy.editor pre-existing failures (future iteration)
+
+---

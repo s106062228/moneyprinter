@@ -527,6 +527,100 @@ def main():
                 )
 
     elif user_input == 6:
+        info("Starting Dashboard...")
+
+        try:
+            from dashboard import run_dashboard
+            run_dashboard()
+        except ImportError:
+            error("Dashboard dependencies not installed. Run: pip install fastapi uvicorn jinja2")
+        except Exception as e:
+            error(f"Dashboard failed: {type(e).__name__}")
+
+    elif user_input == 7:
+        info("Starting Smart Clip Extraction...")
+
+        video_path = question(" => Enter the path to the video file: ").strip()
+        if not video_path:
+            error("No video path provided.")
+            return
+
+        try:
+            validate_path(video_path)
+        except ValueError:
+            error("Invalid video path. Please check the path and try again.")
+            return
+
+        # Get clip parameters
+        min_dur_str = question(" => Min clip duration in seconds (default 15): ").strip()
+        max_dur_str = question(" => Max clip duration in seconds (default 60): ").strip()
+        output_dir = question(f" => Output directory (default .mp/clips/): ").strip()
+
+        min_dur = 15.0
+        max_dur = 60.0
+        if min_dur_str:
+            try:
+                min_dur = float(min_dur_str)
+            except ValueError:
+                warning("Invalid min duration, using default 15s.")
+        if max_dur_str:
+            try:
+                max_dur = float(max_dur_str)
+            except ValueError:
+                warning("Invalid max duration, using default 60s.")
+
+        if not output_dir:
+            output_dir = os.path.join(ROOT_DIR, ".mp", "clips")
+
+        try:
+            from smart_clipper import SmartClipper
+            clipper = SmartClipper(
+                min_clip_duration=min_dur,
+                max_clip_duration=max_dur,
+            )
+            info("Analyzing video for highlights...")
+            highlights = clipper.find_highlights(video_path)
+
+            if not highlights:
+                warning("No highlights found in the video.")
+                return
+
+            # Display results
+            clips_table = PrettyTable()
+            clips_table.field_names = ["#", "Start", "End", "Duration", "Score", "Reason"]
+            for i, clip in enumerate(highlights):
+                clips_table.add_row([
+                    i + 1,
+                    f"{clip.start_time:.1f}s",
+                    f"{clip.end_time:.1f}s",
+                    f"{clip.duration:.1f}s",
+                    f"{clip.score:.1f}",
+                    clip.reason[:40] + "..." if len(clip.reason) > 40 else clip.reason,
+                ])
+            print(clips_table)
+            success(f"Found {len(highlights)} highlight(s).")
+
+            # Ask to extract
+            extract = question(" => Extract clips to files? (Yes/No): ").strip()
+            if extract.lower() == "yes":
+                info(f"Extracting clips to {output_dir}...")
+                output_files = clipper.split_clips(
+                    video_path=video_path,
+                    clips=highlights,
+                    output_dir=output_dir,
+                )
+                for f in output_files:
+                    success(f"  Saved: {f}")
+                success(f"Extracted {len(output_files)} clip(s).")
+            else:
+                info("Clip extraction skipped.")
+
+        except ImportError:
+            error("Smart clipper dependencies not installed. Run: pip install scenedetect[opencv]")
+        except Exception as e:
+            error(f"Smart clipper failed: {type(e).__name__}")
+
+    elif user_input == 8:
         if get_verbose():
             print(colored(" => Quitting...", "blue"))
         sys.exit(0)

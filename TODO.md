@@ -81,13 +81,17 @@
 - [x] Smart clipper video splitting (`split_clips()` method) — ffmpeg clip extraction via PySceneDetect's built-in `split_video_ffmpeg()` API
 - [x] Unit tests for smart clipper split_clips (11 new tests, 96.83% coverage, 745 total suite)
 - [x] Zero pre-existing test failures remaining (was 9, now 0)
+- [x] Web dashboard backend (`src/dashboard.py`) — FastAPI + Jinja2 + HTMX SSE, 5 endpoints, real-time monitoring
+- [x] Unit tests for dashboard (26 tests, 88.89% coverage, 786 total suite)
+- [x] Smart clipper CLI integration (menu option 7 in main.py for clip extraction)
+- [x] Unit tests for smart clipper CLI (15 tests, all passing)
 
 ## In Progress
 
 ## Planned — High Priority
-- [ ] Web dashboard for monitoring content generation (FastAPI + HTMX + SSE — zero JS deps, sub-50ms updates)
+- [ ] MCP server for content pipeline tools (expose SmartClipper, publisher, scheduler as MCP tools)
 - [ ] Content calendar UI (frontend for content scheduler)
-- [ ] Smart clipper CLI integration (menu option in main.py for clip extraction)
+- [ ] Dashboard frontend polish (charts, job management, content calendar view)
 
 ## Planned — Medium Priority
 - [ ] Content template CLI integration (menu option for template management)

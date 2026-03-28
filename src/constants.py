@@ -11,6 +11,8 @@ OPTIONS = [
     "Affiliate Marketing",
     "Outreach",
     "Instagram Reels",
+    "Dashboard",
+    "Smart Clip Extraction",
     "Quit"
 ]
 

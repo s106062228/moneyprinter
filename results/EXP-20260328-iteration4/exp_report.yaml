@@ -1,0 +1,69 @@
+# Experiment Report — 2026-03-28 (Iteration 4)
+
+date: "2026-03-28"
+iteration: 4
+
+hypotheses_tested:
+  H15:
+    name: "Web Dashboard Backend (FastAPI + Jinja2 + HTMX SSE)"
+    verdict: CONFIRMED
+    new_files:
+      - src/dashboard.py (144 statements)
+      - src/templates/dashboard.html (120 lines)
+    modified_files:
+      - src/constants.py (added "Dashboard" option)
+      - src/main.py (added option 6 handler)
+      - requirements.txt (added fastapi, uvicorn, jinja2)
+    tests:
+      file: tests/test_dashboard.py
+      total: 26
+      passed: 26
+      failed: 0
+    coverage: 88.89%
+    features:
+      - GET /dashboard — HTML page with HTMX SSE auto-refresh
+      - GET /api/health — system health (Ollama, disk, cache)
+      - GET /api/jobs — scheduled job listing
+      - GET /api/analytics — analytics summary
+      - GET /api/stream — SSE event stream (2s interval)
+    dependencies_added: [fastapi, uvicorn, jinja2]
+    code_lines: 144  # under 300 target
+
+  H16:
+    name: "Smart Clipper CLI Integration"
+    verdict: CONFIRMED
+    modified_files:
+      - src/constants.py (added "Smart Clip Extraction" option)
+      - src/main.py (added option 7 handler)
+    tests:
+      file: tests/test_smart_clipper_cli.py
+      total: 15
+      passed: 15
+      failed: 0
+    features:
+      - Menu option 7 "Smart Clip Extraction"
+      - Video path input with validation
+      - Configurable min/max clip duration
+      - PrettyTable display of ranked highlights
+      - Optional clip extraction via split_clips()
+      - Graceful error handling
+    dependencies_added: []
+
+  H17:
+    name: "MCP Server for Content Pipeline"
+    verdict: DEFERRED
+    reason: "H15 and H16 were higher priority. MCP deferred to future iteration."
+
+suite_results:
+  total_tests: 786
+  passed: 782
+  failed: 4
+  new_tests: 41
+  pre_existing_failures: 4
+  failure_details:
+    - "test_transcribes_segments: No module 'faster_whisper' (pre-existing dep)"
+    - "test_empty_audio: No module 'faster_whisper' (pre-existing dep)"
+    - "test_skips_whitespace_only_segments: No module 'faster_whisper' (pre-existing dep)"
+    - "test_fallback_on_import_error: moviepy.editor removed in moviepy 2.2 (pre-existing dep)"
+  coverage_total: 76.72%
+  coverage_dashboard: 88.89%

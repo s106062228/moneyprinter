@@ -1,0 +1,154 @@
+# Architecture — 2026-03-28 (Iteration 4)
+# H15: Web Dashboard + H16: Smart Clipper CLI
+
+iteration: 4
+date: "2026-03-28"
+hypotheses: [H15, H16]
+
+# ============================================================
+# H15: Web Dashboard Backend (FastAPI + Jinja2 + HTMX SSE)
+# ============================================================
+
+h15_dashboard:
+  description: >
+    FastAPI backend serving Jinja2 templates with HTMX SSE extension.
+    Provides real-time monitoring of content generation jobs, analytics,
+    and pipeline health. Zero frontend JS dependencies.
+
+  new_files:
+    - path: src/dashboard.py
+      description: FastAPI app with routes and SSE event generator
+      lines_estimate: 250
+      details: |
+        - FastAPI app instance with Jinja2Templates
+        - GET /dashboard — renders HTML template with current state
+        - GET /api/health — JSON health check (Ollama status, disk space, uptime)
+        - GET /api/jobs — JSON list of recent publish/schedule jobs from cache
+        - GET /api/analytics — JSON analytics summary from analytics.py
+        - GET /api/stream — SSE endpoint that pushes updates every 2s
+        - Reads from existing: analytics._load_analytics(), cache.get_accounts(),
+          content_scheduler (job files), publisher (result cache)
+        - No new data stores — reads existing .mp/ JSON files
+        - Optional: --port flag, defaults to 8765
+
+    - path: src/templates/dashboard.html
+      description: Single-page Jinja2 template with HTMX SSE
+      lines_estimate: 120
+      details: |
+        - HTMX loaded from CDN (htmx.org/dist/htmx.min.js)
+        - HTMX SSE extension loaded from CDN
+        - Three panels: Health, Recent Jobs, Analytics Summary
+        - SSE connection to /api/stream auto-updates panels
+        - Minimal inline CSS (TailwindCSS CDN for styling)
+        - No custom JavaScript
+
+  modified_files:
+    - path: src/constants.py
+      change: Add "Dashboard" to OPTIONS list (between "Instagram Reels" and "Quit")
+    - path: src/main.py
+      change: Add elif branch for dashboard menu option (option 6), shift Quit to 7
+    - path: requirements.txt
+      change: Add fastapi, uvicorn[standard], jinja2
+
+  dependencies_added:
+    - fastapi
+    - uvicorn[standard]
+    - jinja2
+
+  data_sources:
+    - analytics._load_analytics() → event counts, platform breakdown, success rates
+    - cache.get_accounts("youtube"|"twitter"|"instagram") → account counts
+    - .mp/scheduler_jobs.json → pending/completed scheduled jobs
+    - config.get_ollama_model() → current model info
+
+  test_plan:
+    file: tests/test_dashboard.py
+    tests_estimate: 25
+    categories:
+      - health_endpoint: 3 tests (success, Ollama down, disk info)
+      - jobs_endpoint: 4 tests (empty, with jobs, pagination, error handling)
+      - analytics_endpoint: 4 tests (empty, with events, platform filter, summary)
+      - sse_endpoint: 4 tests (connection, event format, keep-alive, disconnect)
+      - dashboard_html: 3 tests (renders, contains HTMX, has SSE connection)
+      - integration: 3 tests (full page load, SSE connects, data flows)
+      - edge_cases: 4 tests (missing analytics file, corrupt data, concurrent SSE)
+
+# ============================================================
+# H16: Smart Clipper CLI Integration
+# ============================================================
+
+h16_smart_clipper_cli:
+  description: >
+    Add "Smart Clip Extraction" menu option to main.py that wraps
+    SmartClipper.find_highlights() + split_clips() for end-user access.
+
+  modified_files:
+    - path: src/constants.py
+      change: Add "Smart Clip Extraction" to OPTIONS (option 7, Quit becomes 8)
+    - path: src/main.py
+      change: |
+        Add elif branch for smart clipper (option 7):
+        1. Prompt for video file path (validate_path)
+        2. Prompt for min/max clip duration (with defaults 15/60)
+        3. Prompt for output directory (default: .mp/clips/)
+        4. Create SmartClipper with user params
+        5. Run find_highlights() — display ranked table (PrettyTable)
+        6. Ask user to confirm clip extraction
+        7. Run split_clips() — display output file paths
+        8. Handle errors: missing ffmpeg, invalid video, no highlights
+
+  dependencies_added: []  # SmartClipper already installed
+
+  test_plan:
+    file: tests/test_smart_clipper_cli.py
+    tests_estimate: 12
+    categories:
+      - menu_option: 2 tests (option exists in OPTIONS, correct index)
+      - input_validation: 3 tests (invalid path, empty path, valid path)
+      - pipeline_flow: 4 tests (full flow with mocks, no highlights, user cancel, error)
+      - output_display: 3 tests (table format, file paths, error messages)
+
+# ============================================================
+# Task Breakdown
+# ============================================================
+
+tasks:
+  - id: T1
+    hypothesis: H15
+    description: "Install FastAPI + uvicorn + jinja2 and update requirements.txt"
+    estimate: 5min
+
+  - id: T2
+    hypothesis: H15
+    description: "Create src/dashboard.py with FastAPI app and 5 routes"
+    estimate: 30min
+
+  - id: T3
+    hypothesis: H15
+    description: "Create src/templates/dashboard.html with HTMX SSE"
+    estimate: 20min
+
+  - id: T4
+    hypothesis: H15
+    description: "Add Dashboard menu option to constants.py and main.py"
+    estimate: 10min
+
+  - id: T5
+    hypothesis: H15
+    description: "Write tests/test_dashboard.py (25+ tests)"
+    estimate: 30min
+
+  - id: T6
+    hypothesis: H16
+    description: "Add Smart Clip Extraction to constants.py and main.py"
+    estimate: 15min
+
+  - id: T7
+    hypothesis: H16
+    description: "Write tests/test_smart_clipper_cli.py (12+ tests)"
+    estimate: 15min
+
+  - id: T8
+    hypothesis: H15+H16
+    description: "Run full test suite, fix any regressions"
+    estimate: 15min
