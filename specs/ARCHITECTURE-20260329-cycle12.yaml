@@ -1,0 +1,211 @@
+# Architecture — 2026-03-29 (Iteration 12)
+
+## Scope
+Implementing wiring for: H38 (ffmpeg→export_optimizer), H39 (ffmpeg→smart_clipper), H40 (uniqueness→publisher)
+
+## Key Design Decisions
+- All 3 changes modify existing modules — no new files created
+- Each change is isolated to 1 source file + 1 test file
+- All 3 can be implemented in parallel (no cross-dependencies)
+
+---
+
+## H38: Wire ffmpeg_utils into export_optimizer
+
+### Component: src/export_optimizer.py
+- **Current**: optimize_clip() lazy-imports MoviePy, uses VideoFileClip → cropped → resized → subclipped → write_videofile
+- **Change**: Replace MoviePy chain with ffmpeg_utils calls:
+  1. Use `ffmpeg_utils.get_video_info()` to get source dimensions (replaces `VideoFileClip(source_path); clip.size`)
+  2. Use `ffmpeg_utils.transcode()` with FFmpeg filter chain for crop+scale+trim in one pass
+  3. The crop calculation (`_calculate_crop()`) is pure math — keep unchanged
+  4. Build an FFmpeg `-vf` filter: `crop=w:h:x:y,scale=tw:th` + optional `-t duration`
+  5. Remove `from moviepy import VideoFileClip, CompositeVideoClip` lazy import
+
+### FFmpeg filter chain design
+```
+# Current MoviePy chain (4 separate operations):
+clip = VideoFileClip(source_path)          # decode
+clip = clip.cropped(x1, y1, x2, y2)       # crop
+clip = clip.resized((target_w, target_h))  # scale
+clip = clip.subclipped(0, max_duration)    # trim
+clip.write_videofile(output, codec, audio_codec)  # encode
+
+# New FFmpeg single-pass equivalent:
+ffmpeg -y -i source_path \
+  -vf "crop=new_w:new_h:x1:y1,scale=target_w:target_h" \
+  -t max_duration \
+  -c:v libx264 -c:a aac \
+  output_path
+```
+
+### Implementation approach
+- Add a new private method `_ffmpeg_optimize()` that builds the FFmpeg command
+- `optimize_clip()` calls `_ffmpeg_optimize()` instead of MoviePy chain
+- Use `ffmpeg_utils.get_video_info()` to get source dimensions
+- Use `subprocess.run()` directly for the combined filter (ffmpeg_utils.transcode()
+  doesn't support `-vf crop+scale` combo — need direct subprocess call or extend transcode)
+- Actually: add a `crop` parameter to the subprocess command construction inline,
+  since this is a one-off combination. Keep it in export_optimizer, not ffmpeg_utils.
+
+### Key risk mitigation
+- FFmpeg crop uses `crop=w:h:x:y` (width, height, x-offset, y-offset from top-left)
+- MoviePy crop uses `cropped(x1, y1, x2, y2)` (coordinates)
+- Translation: x_offset = x1 = cx - new_w/2, y_offset = y1 = cy - new_h/2
+- Need to ensure even pixel dimensions (FFmpeg libx264 requires even w/h)
+
+### Test changes: tests/test_export_optimizer.py
+- Update mocks: replace `unittest.mock.patch('export_optimizer.VideoFileClip')`
+  with `unittest.mock.patch('export_optimizer.get_video_info')` and
+  `unittest.mock.patch('export_optimizer.subprocess')`
+- Existing 72 tests: some will need mock target updates, all must pass
+- Add 15+ new tests for FFmpeg filter chain construction, even-pixel handling,
+  subprocess error handling, batch_export with FFmpeg backend
+
+---
+
+## H39: Wire ffmpeg_utils into smart_clipper
+
+### Component: src/smart_clipper.py (split_clips method only)
+- **Current**: split_clips() imports `scenedetect.video_splitter.split_video_ffmpeg`,
+  `scenedetect.open_video`, `scenedetect.frame_timecode.FrameTimecode`, converts
+  ClipCandidates to FrameTimecode pairs, calls split_video_ffmpeg()
+- **Change**: Replace with loop calling `ffmpeg_utils.trim_clip()` per candidate:
+  1. Remove imports: split_video_ffmpeg, is_ffmpeg_available, open_video, FrameTimecode
+  2. Import: `from ffmpeg_utils import trim_clip, check_ffmpeg`
+  3. For each candidate: call `trim_clip(video_path, output_path, start, end, codec='copy')`
+  4. Build output filenames from template (replace PySceneDetect template vars)
+
+### Implementation approach
+```python
+def split_clips(self, video_path, candidates, output_dir=".", filename_template="..."):
+    from ffmpeg_utils import trim_clip, check_ffmpeg
+
+    if not check_ffmpeg():
+        raise RuntimeError("ffmpeg is not available...")
+
+    os.makedirs(output_dir, exist_ok=True)
+    sorted_candidates = sorted(candidates, key=lambda c: c.start_time)
+    output_paths = []
+
+    for i, candidate in enumerate(sorted_candidates, 1):
+        # Build filename from template
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        filename = filename_template.replace("$VIDEO_NAME", video_name)
+        filename = filename.replace("$SCENE_NUMBER", f"{i:03d}")
+        filename = filename.replace("$START_TIME", f"{candidate.start_time:.1f}")
+        filename = filename.replace("$END_TIME", f"{candidate.end_time:.1f}")
+        output_path = os.path.join(output_dir, f"{filename}.mp4")
+
+        trim_clip(video_path, output_path, candidate.start_time, candidate.end_time, codec='copy')
+        output_paths.append(output_path)
+
+    return output_paths
+```
+
+### Key simplification
+- No more FrameTimecode conversion (float seconds → trim_clip directly)
+- No more open_video() call just to get fps
+- No more split_video_ffmpeg() wrapping — direct trim per candidate
+- detect_scenes() still uses scenedetect (only split_clips changes)
+
+### Test changes: tests/test_smart_clipper.py
+- Update split_clips test mocks: replace scenedetect mocks with ffmpeg_utils mocks
+- Existing 62 tests: most are for detect_scenes/transcribe/merge/score — unchanged
+- The ~11 split_clips tests need mock target updates
+- Add 10+ new tests for template variable substitution, ffmpeg error handling
+
+---
+
+## H40: Wire uniqueness_scorer into publisher
+
+### Component: src/publisher.py (publish method)
+- **Current**: publish() validates job → iterates platforms → publish → track analytics → webhook
+- **Change**: Add uniqueness check BEFORE platform iteration:
+  1. Import `UniquenessScorer` from `uniqueness_scorer`
+  2. Add `uniqueness_mode` config option: 'block', 'warn', or 'off' (default: 'warn')
+  3. In publish(), before platform loop:
+     - Call `scorer.score_content(title, script="", tags, description)`
+     - If mode='block' and flagged: return early with all PublishResult(success=False, error_type='UniquenessBlocked')
+     - If mode='warn' and flagged: log warning, add `uniqueness_flagged=True` to result details
+     - After successful publish: call `scorer.add_to_history(...)` to update rolling history
+  4. Script field: publisher doesn't have script text — use description as proxy,
+     or add optional `script` field to PublishJob
+
+### Implementation approach
+```python
+class ContentPublisher:
+    def __init__(self):
+        self._retry_failed = get_retry_failed()
+        self._max_retries = get_max_retries()
+        self._uniqueness_mode = _get_publisher_config().get("uniqueness_mode", "warn")
+
+    def publish(self, job: PublishJob) -> list:
+        # ... existing validation ...
+
+        # Pre-publish uniqueness check
+        uniqueness_result = self._check_uniqueness(job)
+        if uniqueness_result is not None:
+            return uniqueness_result  # blocked
+
+        # ... existing platform loop ...
+
+        # Post-publish: add to history
+        self._update_uniqueness_history(job)
+
+        return results
+```
+
+### PublishJob extension
+- Add optional `script: str = ""` field to PublishJob dataclass
+- This is backward-compatible (default empty string)
+- Uniqueness scorer uses description as fallback if script is empty
+
+### Config extension
+```json
+{
+  "publisher": {
+    "uniqueness_mode": "warn",  // "block", "warn", or "off"
+    ...
+  }
+}
+```
+
+### Test changes: tests/test_publisher.py
+- Add tests for uniqueness check: block mode, warn mode, off mode
+- Test with flagged content (mock scorer to return flagged=True)
+- Test with passing content (mock scorer to return flagged=False)
+- Test history update after successful publish
+- Test graceful fallback when uniqueness_scorer import fails
+- 15+ new tests
+
+---
+
+## Data Flow
+
+### H38 (export_optimizer)
+```
+source_path → get_video_info() → _calculate_crop() → build ffmpeg cmd → subprocess.run() → output_path
+```
+
+### H39 (smart_clipper)
+```
+candidates → sorted by start_time → for each: trim_clip(video, output, start, end) → output_paths
+```
+
+### H40 (publisher)
+```
+PublishJob → score_content() → if flagged: block/warn → platform dispatch → add_to_history()
+```
+
+## Implementation Order
+All 3 are independent. Implement in parallel:
+1. H38: export_optimizer.py + test_export_optimizer.py
+2. H39: smart_clipper.py + test_smart_clipper.py
+3. H40: publisher.py + test_publisher.py
+
+## Out of Scope
+- YouTube.py coverage push (iteration 13)
+- Shoppable content (YouTube has no API; TikTok requires partner approval)
+- Multi-language dubbing (GPU-dependent)
+- New file creation (all changes are to existing files)
+- ffmpeg_utils.py modifications (H38 uses it as-is + direct subprocess for combo filters)

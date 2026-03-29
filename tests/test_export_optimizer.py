@@ -7,24 +7,45 @@ Coverage categories:
   - get_profile: all 6 platforms, invalid platform
   - list_profiles: returns all 6 profiles
   - _calculate_crop: mathematical correctness for all aspect ratio conversions
-  - optimize_clip: mocked MoviePy, verify crop/resize/write called correctly
+  - optimize_clip: mocked ffmpeg_utils + subprocess, verify command construction
   - batch_export: mocked optimize_clip, verify all platforms processed
   - Edge cases: empty platforms list, non-existent source, max_duration trimming
+  - FFmpeg command construction: per-platform, even-pixel enforcement, duration trim
+  - subprocess error handling
 """
 
 import os
 import sys
 import pytest
-from unittest.mock import patch, MagicMock, call, PropertyMock
+from unittest.mock import patch, MagicMock, call
 
 # ---------------------------------------------------------------------------
-# Mock moviepy before importing the module under test so the import-time
-# reference inside the lazy-import branches never actually loads MoviePy.
+# Ensure src/ is on the path before importing module under test.
 # ---------------------------------------------------------------------------
-_mock_moviepy = MagicMock()
-sys.modules.setdefault("moviepy", _mock_moviepy)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from export_optimizer import ExportOptimizer, ExportProfile, _SUPPORTED_PLATFORMS
+
+
+# ===========================================================================
+# Helpers
+# ===========================================================================
+
+def _make_video_info(width=1920, height=1080, duration=30.0):
+    """Create a mock VideoInfo-like object."""
+    info = MagicMock()
+    info.width = width
+    info.height = height
+    info.duration = duration
+    return info
+
+
+def _make_subprocess_result(returncode=0, stderr=""):
+    """Create a mock subprocess.CompletedProcess."""
+    result = MagicMock()
+    result.returncode = returncode
+    result.stderr = stderr
+    return result
 
 
 # ===========================================================================
@@ -459,137 +480,129 @@ class TestCalculateCrop:
 
 
 # ===========================================================================
-# optimize_clip tests (MoviePy mocked)
+# optimize_clip tests (ffmpeg_utils + subprocess mocked)
 # ===========================================================================
 
-def _make_moviepy_patch(clip_mock):
-    """
-    Return a context manager that patches the lazy moviepy imports used inside
-    optimize_clip(). Because VideoFileClip and CompositeVideoClip are imported
-    *inside* the method body, we patch the moviepy module objects directly.
-    """
-    mock_vfc = MagicMock(return_value=clip_mock)
-    mock_cvr = MagicMock()
-    _mock_moviepy.VideoFileClip = mock_vfc
-    _mock_moviepy.CompositeVideoClip = mock_cvr
-    return mock_vfc, mock_cvr
-
-
 class TestOptimizeClip:
-    """Tests for ExportOptimizer.optimize_clip() with MoviePy mocked."""
-
-    def _make_clip_mock(self, width=1920, height=1080, duration=30.0):
-        """Create a mock VideoFileClip with chained method returns."""
-        clip = MagicMock()
-        clip.size = (width, height)
-        clip.duration = duration
-        # Methods return new mock clips that also chain
-        cropped = MagicMock()
-        cropped.size = (width, height)
-        cropped.duration = duration
-        resized = MagicMock()
-        resized.size = (width, height)
-        resized.duration = duration
-        trimmed = MagicMock()
-        trimmed.size = (width, height)
-        trimmed.duration = duration
-
-        clip.cropped.return_value = cropped
-        cropped.resized.return_value = resized
-        resized.subclipped.return_value = trimmed
-        return clip, cropped, resized, trimmed
-
-    def test_optimize_calls_write_videofile(self, optimizer, tmp_path):
-        clip, cropped, resized, _ = self._make_clip_mock(duration=20.0)
-        source = str(tmp_path / "input.mp4")
-        open(source, "w").close()
-
-        _make_moviepy_patch(clip)
-        optimizer.optimize_clip(source, "youtube", str(tmp_path))
-
-        resized.write_videofile.assert_called_once()
+    """Tests for ExportOptimizer.optimize_clip() with ffmpeg_utils mocked."""
 
     def test_optimize_returns_output_path(self, optimizer, tmp_path):
-        clip, cropped, resized, _ = self._make_clip_mock(duration=20.0)
         source = str(tmp_path / "input.mp4")
         open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
 
-        _make_moviepy_patch(clip)
-        result = optimizer.optimize_clip(source, "youtube", str(tmp_path))
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()):
+            result = optimizer.optimize_clip(source, "youtube", str(tmp_path))
 
         assert result.endswith(".mp4")
         assert "youtube" in result
         assert str(tmp_path) in result
 
-    def test_optimize_calls_cropped(self, optimizer, tmp_path):
-        clip, cropped, resized, _ = self._make_clip_mock(
-            width=1920, height=1080, duration=20.0
-        )
-        source = str(tmp_path / "video.mp4")
-        open(source, "w").close()
-
-        _make_moviepy_patch(clip)
-        optimizer.optimize_clip(source, "youtube_shorts", str(tmp_path))
-
-        clip.cropped.assert_called_once()
-
-    def test_optimize_calls_resized(self, optimizer, tmp_path):
-        clip, cropped, resized, _ = self._make_clip_mock(duration=20.0)
+    def test_optimize_calls_subprocess_run(self, optimizer, tmp_path):
         source = str(tmp_path / "input.mp4")
         open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
 
-        _make_moviepy_patch(clip)
-        optimizer.optimize_clip(source, "tiktok", str(tmp_path))
+        with patch("export_optimizer.get_video_info", return_value=info) as mock_info, \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube", str(tmp_path))
 
-        cropped.resized.assert_called_once_with((1080, 1920))
+        mock_run.assert_called_once()
+
+    def test_optimize_command_contains_ffmpeg(self, optimizer, tmp_path):
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube", str(tmp_path))
+
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == "ffmpeg"
+        assert "-y" in cmd
+
+    def test_optimize_command_contains_vf(self, optimizer, tmp_path):
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube", str(tmp_path))
+
+        cmd = mock_run.call_args[0][0]
+        assert "-vf" in cmd
+
+    def test_optimize_command_contains_codec_flags(self, optimizer, tmp_path):
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube", str(tmp_path))
+
+        cmd = mock_run.call_args[0][0]
+        assert "-c:v" in cmd
+        assert "-c:a" in cmd
+
+    def test_optimize_uses_profile_codec_libx264(self, optimizer, tmp_path):
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube", str(tmp_path))
+
+        cmd = mock_run.call_args[0][0]
+        cv_idx = cmd.index("-c:v")
+        ca_idx = cmd.index("-c:a")
+        assert cmd[cv_idx + 1] == "libx264"
+        assert cmd[ca_idx + 1] == "aac"
 
     def test_optimize_trims_when_over_max_duration(self, optimizer, tmp_path):
-        """Clip longer than max_duration should call subclipped."""
-        clip, cropped, resized, _ = self._make_clip_mock(duration=120.0)
-        resized.duration = 120.0
+        """Clip longer than max_duration should add -t flag."""
         source = str(tmp_path / "long_video.mp4")
         open(source, "w").close()
+        info = _make_video_info(1080, 1920, 120.0)  # 120s > 60s limit
 
-        _make_moviepy_patch(clip)
-        optimizer.optimize_clip(source, "youtube_shorts", str(tmp_path))  # max 60s
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube_shorts", str(tmp_path))
 
-        resized.subclipped.assert_called_once_with(0, 60.0)
+        cmd = mock_run.call_args[0][0]
+        assert "-t" in cmd
+        t_idx = cmd.index("-t")
+        assert cmd[t_idx + 1] == "60.0"
 
     def test_optimize_no_trim_under_max_duration(self, optimizer, tmp_path):
-        """Clip shorter than max_duration should NOT call subclipped."""
-        clip, cropped, resized, _ = self._make_clip_mock(duration=30.0)
-        resized.duration = 30.0
+        """Clip shorter than max_duration should NOT add -t flag."""
         source = str(tmp_path / "short.mp4")
         open(source, "w").close()
+        info = _make_video_info(1080, 1920, 30.0)  # 30s < 60s limit
 
-        _make_moviepy_patch(clip)
-        optimizer.optimize_clip(source, "youtube_shorts", str(tmp_path))  # max 60s
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube_shorts", str(tmp_path))
 
-        resized.subclipped.assert_not_called()
+        cmd = mock_run.call_args[0][0]
+        assert "-t" not in cmd
 
     def test_optimize_no_trim_when_no_max_duration(self, optimizer, tmp_path):
-        """Platforms with max_duration=None should never trim."""
-        clip, cropped, resized, _ = self._make_clip_mock(duration=3600.0)
-        resized.duration = 3600.0
+        """Platforms with max_duration=None should never add -t flag."""
         source = str(tmp_path / "long.mp4")
         open(source, "w").close()
+        info = _make_video_info(1920, 1080, 3600.0)  # 1 hour
 
-        _make_moviepy_patch(clip)
-        optimizer.optimize_clip(source, "youtube", str(tmp_path))  # no max
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube", str(tmp_path))  # no max
 
-        resized.subclipped.assert_not_called()
-
-    def test_optimize_uses_profile_codec(self, optimizer, tmp_path):
-        clip, cropped, resized, _ = self._make_clip_mock(duration=20.0)
-        source = str(tmp_path / "input.mp4")
-        open(source, "w").close()
-
-        _make_moviepy_patch(clip)
-        optimizer.optimize_clip(source, "youtube", str(tmp_path))
-
-        call_kwargs = resized.write_videofile.call_args[1]
-        assert call_kwargs.get("codec") == "libx264"
-        assert call_kwargs.get("audio_codec") == "aac"
+        cmd = mock_run.call_args[0][0]
+        assert "-t" not in cmd
 
     def test_optimize_invalid_platform_raises(self, optimizer, tmp_path):
         source = str(tmp_path / "input.mp4")
@@ -609,36 +622,25 @@ class TestOptimizeClip:
         with pytest.raises(ValueError, match="Output directory does not exist"):
             optimizer.optimize_clip(source, "youtube", "/nonexistent/output/dir")
 
-    def test_optimize_closes_clip(self, optimizer, tmp_path):
-        """After writing, close() is called on the final clip chain (resized)."""
-        clip, cropped, resized, _ = self._make_clip_mock(duration=20.0)
-        source = str(tmp_path / "input.mp4")
-        open(source, "w").close()
-
-        _make_moviepy_patch(clip)
-        optimizer.optimize_clip(source, "youtube", str(tmp_path))
-
-        # The local 'clip' variable in optimize_clip ends up as 'resized'
-        # (after clip = clip.cropped(...) then clip = clip.resized(...))
-        resized.close.assert_called_once()
-
     def test_optimize_output_filename_contains_platform(self, optimizer, tmp_path):
-        clip, cropped, resized, _ = self._make_clip_mock(duration=20.0)
         source = str(tmp_path / "myvideo.mp4")
         open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
 
-        _make_moviepy_patch(clip)
-        result = optimizer.optimize_clip(source, "tiktok", str(tmp_path))
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()):
+            result = optimizer.optimize_clip(source, "tiktok", str(tmp_path))
 
         assert os.path.basename(result).startswith("tiktok_")
 
     def test_optimize_writes_to_correct_directory(self, optimizer, tmp_path):
-        clip, cropped, resized, _ = self._make_clip_mock(duration=20.0)
         source = str(tmp_path / "input.mp4")
         open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
 
-        _make_moviepy_patch(clip)
-        result = optimizer.optimize_clip(source, "youtube", str(tmp_path))
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()):
+            result = optimizer.optimize_clip(source, "youtube", str(tmp_path))
 
         assert os.path.dirname(result) == str(tmp_path)
 
@@ -766,3 +768,328 @@ class TestSupportedPlatformsConstant:
             "instagram_reels", "instagram_feed", "instagram_optimized",
         }
         assert _SUPPORTED_PLATFORMS == expected
+
+
+# ===========================================================================
+# New integration tests: FFmpeg command construction
+# ===========================================================================
+
+class TestFFmpegCommandConstruction:
+    """Verify FFmpeg command is correctly built for each platform."""
+
+    def _run_optimize(self, optimizer, tmp_path, platform, width=1920, height=1080, duration=30.0):
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(width, height, duration)
+        mock_result = _make_subprocess_result(returncode=0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=mock_result) as mock_run:
+            path = optimizer.optimize_clip(source, platform, str(tmp_path))
+            cmd = mock_run.call_args[0][0]
+        return path, cmd
+
+    def test_youtube_command_has_correct_resolution_in_vf(self, optimizer, tmp_path):
+        """youtube target is 1920x1080 — scale filter must use those values."""
+        _, cmd = self._run_optimize(optimizer, tmp_path, "youtube", 1920, 1080)
+        vf_idx = cmd.index("-vf")
+        vf = cmd[vf_idx + 1]
+        assert "scale=1920:1080" in vf
+
+    def test_youtube_shorts_command_has_correct_resolution_in_vf(self, optimizer, tmp_path):
+        """youtube_shorts target is 1080x1920."""
+        _, cmd = self._run_optimize(optimizer, tmp_path, "youtube_shorts", 1920, 1080)
+        vf_idx = cmd.index("-vf")
+        vf = cmd[vf_idx + 1]
+        assert "scale=1080:1920" in vf
+
+    def test_tiktok_command_has_correct_resolution_in_vf(self, optimizer, tmp_path):
+        """tiktok target is 1080x1920."""
+        _, cmd = self._run_optimize(optimizer, tmp_path, "tiktok", 1920, 1080)
+        vf_idx = cmd.index("-vf")
+        vf = cmd[vf_idx + 1]
+        assert "scale=1080:1920" in vf
+
+    def test_instagram_feed_command_square_scale(self, optimizer, tmp_path):
+        """instagram_feed target is 1080x1080 square."""
+        _, cmd = self._run_optimize(optimizer, tmp_path, "instagram_feed", 1920, 1080)
+        vf_idx = cmd.index("-vf")
+        vf = cmd[vf_idx + 1]
+        assert "scale=1080:1080" in vf
+
+    def test_instagram_optimized_command_four_five_scale(self, optimizer, tmp_path):
+        """instagram_optimized target is 1080x1350."""
+        _, cmd = self._run_optimize(optimizer, tmp_path, "instagram_optimized", 1920, 1080)
+        vf_idx = cmd.index("-vf")
+        vf = cmd[vf_idx + 1]
+        assert "scale=1080:1350" in vf
+
+    def test_vf_filter_contains_crop_and_scale(self, optimizer, tmp_path):
+        """The -vf value must chain crop and scale."""
+        _, cmd = self._run_optimize(optimizer, tmp_path, "tiktok", 1920, 1080)
+        vf_idx = cmd.index("-vf")
+        vf = cmd[vf_idx + 1]
+        assert vf.startswith("crop=")
+        assert ",scale=" in vf
+
+    def test_command_source_path_present(self, optimizer, tmp_path):
+        """The -i flag must reference the source file."""
+        source_name = "myvid.mp4"
+        source = str(tmp_path / source_name)
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube", str(tmp_path))
+        cmd = mock_run.call_args[0][0]
+
+        i_idx = cmd.index("-i")
+        assert cmd[i_idx + 1] == source
+
+    def test_command_output_path_is_last_arg(self, optimizer, tmp_path):
+        """The last element of the FFmpeg command must be the output path."""
+        _, cmd = self._run_optimize(optimizer, tmp_path, "youtube", 1920, 1080)
+        assert cmd[-1].endswith(".mp4")
+        assert "youtube" in os.path.basename(cmd[-1])
+
+    def test_command_uses_capture_output_text(self, optimizer, tmp_path):
+        """subprocess.run must be called with capture_output=True, text=True."""
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube", str(tmp_path))
+
+        _, kwargs = mock_run.call_args
+        assert kwargs.get("capture_output") is True
+        assert kwargs.get("text") is True
+
+
+class TestEvenPixelEnforcement:
+    """Even-pixel enforcement for libx264 compatibility."""
+
+    def test_odd_source_width_becomes_even_in_crop(self, optimizer, tmp_path):
+        """Source with odd-width crop result gets rounded down to even."""
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        # 1921x1080 → crop to 9:16 will produce odd intermediate width
+        info = _make_video_info(1921, 1081, 20.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube_shorts", str(tmp_path))
+
+        cmd = mock_run.call_args[0][0]
+        vf_idx = cmd.index("-vf")
+        vf = cmd[vf_idx + 1]
+        # Extract crop dimensions: crop=W:H:x:y
+        crop_part = vf.split(",")[0]  # "crop=W:H:x:y"
+        parts = crop_part[len("crop="):].split(":")
+        crop_w = int(parts[0])
+        crop_h = int(parts[1])
+        assert crop_w % 2 == 0, f"crop width {crop_w} is not even"
+        assert crop_h % 2 == 0, f"crop height {crop_h} is not even"
+
+    def test_scale_target_dimensions_are_even(self, optimizer, tmp_path):
+        """All platform target resolutions are even (sanity check via vf filter)."""
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
+
+        for platform in _SUPPORTED_PLATFORMS:
+            with patch("export_optimizer.get_video_info", return_value=info), \
+                 patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+                optimizer.optimize_clip(source, platform, str(tmp_path))
+
+            cmd = mock_run.call_args[0][0]
+            vf_idx = cmd.index("-vf")
+            vf = cmd[vf_idx + 1]
+            scale_part = vf.split(",scale=")[1]
+            scale_w, scale_h = [int(x) for x in scale_part.split(":")]
+            assert scale_w % 2 == 0, f"[{platform}] scale width {scale_w} is odd"
+            assert scale_h % 2 == 0, f"[{platform}] scale height {scale_h} is odd"
+
+
+class TestDurationTrimming:
+    """Duration trimming logic via -t flag."""
+
+    def test_trim_tiktok_over_180s(self, optimizer, tmp_path):
+        """tiktok max is 180s — a 200s clip should be trimmed."""
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1080, 1920, 200.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "tiktok", str(tmp_path))
+
+        cmd = mock_run.call_args[0][0]
+        assert "-t" in cmd
+        t_idx = cmd.index("-t")
+        assert float(cmd[t_idx + 1]) == 180.0
+
+    def test_no_trim_tiktok_exactly_180s(self, optimizer, tmp_path):
+        """Clip of exactly max_duration should NOT be trimmed."""
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1080, 1920, 180.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "tiktok", str(tmp_path))
+
+        cmd = mock_run.call_args[0][0]
+        assert "-t" not in cmd
+
+    def test_trim_instagram_reels_over_90s(self, optimizer, tmp_path):
+        """instagram_reels max is 90s."""
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1080, 1920, 100.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "instagram_reels", str(tmp_path))
+
+        cmd = mock_run.call_args[0][0]
+        assert "-t" in cmd
+        t_idx = cmd.index("-t")
+        assert float(cmd[t_idx + 1]) == 90.0
+
+    def test_trim_instagram_feed_over_60s(self, optimizer, tmp_path):
+        """instagram_feed max is 60s."""
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 90.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "instagram_feed", str(tmp_path))
+
+        cmd = mock_run.call_args[0][0]
+        assert "-t" in cmd
+
+
+class TestSubprocessErrorHandling:
+    """subprocess.run non-zero returncode raises RuntimeError."""
+
+    def test_nonzero_returncode_raises_runtime_error(self, optimizer, tmp_path):
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
+        fail_result = _make_subprocess_result(returncode=1, stderr="codec not found")
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=fail_result):
+            with pytest.raises(RuntimeError, match="ffmpeg export failed"):
+                optimizer.optimize_clip(source, "youtube", str(tmp_path))
+
+    def test_error_message_includes_returncode(self, optimizer, tmp_path):
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
+        fail_result = _make_subprocess_result(returncode=2, stderr="some error")
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=fail_result):
+            with pytest.raises(RuntimeError, match="exit 2"):
+                optimizer.optimize_clip(source, "youtube", str(tmp_path))
+
+    def test_error_message_includes_stderr(self, optimizer, tmp_path):
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
+        fail_result = _make_subprocess_result(returncode=1, stderr="libx264 not found")
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=fail_result):
+            with pytest.raises(RuntimeError, match="libx264 not found"):
+                optimizer.optimize_clip(source, "youtube", str(tmp_path))
+
+    def test_success_returncode_zero_does_not_raise(self, optimizer, tmp_path):
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result(returncode=0)):
+            # Should not raise
+            result = optimizer.optimize_clip(source, "youtube", str(tmp_path))
+        assert result is not None
+
+
+class TestVariousSourceDimensions:
+    """Test optimize_clip with wide, tall, and square source videos."""
+
+    def test_wide_source_landscape_to_portrait(self, optimizer, tmp_path):
+        """2560x1080 ultra-wide to youtube_shorts (9:16)."""
+        source = str(tmp_path / "ultra.mp4")
+        open(source, "w").close()
+        info = _make_video_info(2560, 1080, 30.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube_shorts", str(tmp_path))
+
+        cmd = mock_run.call_args[0][0]
+        assert "-vf" in cmd
+
+    def test_tall_source_portrait_to_landscape(self, optimizer, tmp_path):
+        """1080x2340 tall phone video to youtube (16:9)."""
+        source = str(tmp_path / "tall.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1080, 2340, 30.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "youtube", str(tmp_path))
+
+        cmd = mock_run.call_args[0][0]
+        vf_idx = cmd.index("-vf")
+        vf = cmd[vf_idx + 1]
+        # scale must end with 1920:1080
+        assert "scale=1920:1080" in vf
+
+    def test_square_source_to_portrait(self, optimizer, tmp_path):
+        """1080x1080 square to tiktok (9:16)."""
+        source = str(tmp_path / "square.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1080, 1080, 30.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()) as mock_run:
+            optimizer.optimize_clip(source, "tiktok", str(tmp_path))
+
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == "ffmpeg"
+
+    def test_batch_export_with_ffmpeg_backend(self, optimizer, tmp_path):
+        """batch_export calls optimize_clip for each platform; errors are captured."""
+        source = str(tmp_path / "vid.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 30.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info), \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()):
+            results = optimizer.batch_export(source, ["youtube", "tiktok"], str(tmp_path))
+
+        assert "youtube" in results
+        assert "tiktok" in results
+        for v in results.values():
+            assert isinstance(v, str)
+            assert v.endswith(".mp4")
+
+    def test_get_video_info_called_once_per_optimize(self, optimizer, tmp_path):
+        """get_video_info must be called exactly once per optimize_clip call."""
+        source = str(tmp_path / "input.mp4")
+        open(source, "w").close()
+        info = _make_video_info(1920, 1080, 20.0)
+
+        with patch("export_optimizer.get_video_info", return_value=info) as mock_info, \
+             patch("export_optimizer.subprocess.run", return_value=_make_subprocess_result()):
+            optimizer.optimize_clip(source, "youtube", str(tmp_path))
+
+        mock_info.assert_called_once_with(source)

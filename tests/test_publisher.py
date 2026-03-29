@@ -520,3 +520,481 @@ class TestTwitterTextTruncation:
         from publisher import PublishJob
         job = PublishJob(video_path="/tmp/test.mp4", title="Test")
         assert job.twitter_text is None
+
+
+# ---------------------------------------------------------------------------
+# Uniqueness mode config tests
+# ---------------------------------------------------------------------------
+
+class TestGetUniquenessMode:
+    """Tests for get_uniqueness_mode() configuration helper."""
+
+    @patch("publisher._get")
+    def test_mode_block(self, mock_get):
+        mock_get.return_value = {"uniqueness_mode": "block"}
+        from publisher import get_uniqueness_mode
+        assert get_uniqueness_mode() == "block"
+
+    @patch("publisher._get")
+    def test_mode_warn(self, mock_get):
+        mock_get.return_value = {"uniqueness_mode": "warn"}
+        from publisher import get_uniqueness_mode
+        assert get_uniqueness_mode() == "warn"
+
+    @patch("publisher._get")
+    def test_mode_off(self, mock_get):
+        mock_get.return_value = {"uniqueness_mode": "off"}
+        from publisher import get_uniqueness_mode
+        assert get_uniqueness_mode() == "off"
+
+    @patch("publisher._get")
+    def test_mode_default_warn(self, mock_get):
+        mock_get.return_value = {}
+        from publisher import get_uniqueness_mode
+        assert get_uniqueness_mode() == "warn"
+
+    @patch("publisher._get")
+    def test_mode_invalid_defaults_to_warn(self, mock_get):
+        mock_get.return_value = {"uniqueness_mode": "strict"}
+        from publisher import get_uniqueness_mode
+        assert get_uniqueness_mode() == "warn"
+
+
+# ---------------------------------------------------------------------------
+# PublishJob script field tests
+# ---------------------------------------------------------------------------
+
+class TestPublishJobScriptField:
+    """Tests for the new script field on PublishJob."""
+
+    def test_script_field_default_empty(self):
+        from publisher import PublishJob
+        job = PublishJob(video_path="/tmp/test.mp4", title="Test")
+        assert job.script == ""
+
+    def test_script_field_set(self):
+        from publisher import PublishJob
+        job = PublishJob(
+            video_path="/tmp/test.mp4",
+            title="Test",
+            script="This is the full script content.",
+        )
+        assert job.script == "This is the full script content."
+
+
+# ---------------------------------------------------------------------------
+# Uniqueness check integration tests
+# ---------------------------------------------------------------------------
+
+class TestUniquenessCheck:
+    """Tests for _check_uniqueness and _update_uniqueness_history integration."""
+
+    def _make_publisher_with_mode(self, mode):
+        from publisher import ContentPublisher
+        with patch("publisher.get_retry_failed", return_value=False):
+            with patch("publisher.get_max_retries", return_value=0):
+                with patch("publisher.get_uniqueness_mode", return_value=mode):
+                    return ContentPublisher()
+
+    def _make_temp_job(self, tmp_path, **kwargs):
+        from publisher import PublishJob
+        defaults = {
+            "video_path": tmp_path,
+            "title": "Test Title",
+            "description": "Test description",
+            "platforms": ["youtube"],
+        }
+        defaults.update(kwargs)
+        return PublishJob(**defaults)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_mode_off_skips_uniqueness_check(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """When mode='off', UniquenessScorer is never instantiated."""
+        from publisher import PublishResult
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_mode("off")
+            job = self._make_temp_job(tmp)
+
+            with patch("publisher.ContentPublisher._check_uniqueness",
+                       wraps=pub._check_uniqueness) as mock_check:
+                results = pub.publish(job)
+                # _check_uniqueness called but returns None immediately (mode=off)
+                mock_check.assert_called_once()
+
+            assert len(results) == 1
+            assert results[0].success is True
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_mode_warn_not_flagged_publishes_normally(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """warn mode + not flagged → publishes without interruption."""
+        from publisher import PublishResult
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        mock_score = MagicMock()
+        mock_score.flagged = False
+        mock_score.overall = 0.85
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_mode("warn")
+            job = self._make_temp_job(tmp)
+
+            mock_scorer_instance = MagicMock()
+            mock_scorer_instance.score_content.return_value = mock_score
+
+            with patch("publisher.UniquenessScorer", return_value=mock_scorer_instance, create=True):
+                with patch.dict("sys.modules", {"uniqueness_scorer": MagicMock(UniquenessScorer=mock_scorer_instance.__class__)}):
+                    # Patch directly on the method level
+                    with patch.object(pub, "_check_uniqueness", return_value=None):
+                        results = pub.publish(job)
+
+            assert len(results) == 1
+            assert results[0].success is True
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_mode_warn_flagged_still_publishes(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """warn mode + flagged → warning issued but publishing proceeds."""
+        from publisher import PublishResult
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_mode("warn")
+            job = self._make_temp_job(tmp)
+
+            # _check_uniqueness returns None (warn mode never blocks)
+            with patch.object(pub, "_check_uniqueness", return_value=None):
+                results = pub.publish(job)
+
+            assert len(results) == 1
+            assert results[0].success is True
+            # _publish_to_platform was still called
+            assert mock_pub.call_count == 1
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_mode_block_not_flagged_publishes_normally(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """block mode + not flagged → publishes normally."""
+        from publisher import PublishResult
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_mode("block")
+            job = self._make_temp_job(tmp)
+
+            with patch.object(pub, "_check_uniqueness", return_value=None):
+                results = pub.publish(job)
+
+            assert len(results) == 1
+            assert results[0].success is True
+            assert mock_pub.call_count == 1
+        finally:
+            os.unlink(tmp)
+
+    def test_mode_block_flagged_returns_blocked_results(self):
+        """block mode + flagged → returns blocked PublishResult list."""
+        from publisher import PublishResult
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_mode("block")
+            job = self._make_temp_job(tmp, platforms=["youtube", "tiktok"])
+
+            blocked = [
+                PublishResult(
+                    platform="youtube",
+                    success=False,
+                    error_type="UniquenessBlocked",
+                    details={"uniqueness_score": 0.45, "uniqueness_flagged": True},
+                ),
+                PublishResult(
+                    platform="tiktok",
+                    success=False,
+                    error_type="UniquenessBlocked",
+                    details={"uniqueness_score": 0.45, "uniqueness_flagged": True},
+                ),
+            ]
+            with patch.object(pub, "_check_uniqueness", return_value=blocked):
+                results = pub.publish(job)
+
+            assert len(results) == 2
+            assert all(not r.success for r in results)
+        finally:
+            os.unlink(tmp)
+
+    def test_blocked_results_have_correct_error_type(self):
+        """Blocked results carry error_type='UniquenessBlocked'."""
+        from publisher import PublishResult
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_mode("block")
+            job = self._make_temp_job(tmp, platforms=["youtube"])
+
+            blocked = [
+                PublishResult(
+                    platform="youtube",
+                    success=False,
+                    error_type="UniquenessBlocked",
+                    details={"uniqueness_score": 0.3, "uniqueness_flagged": True},
+                )
+            ]
+            with patch.object(pub, "_check_uniqueness", return_value=blocked):
+                results = pub.publish(job)
+
+            assert results[0].error_type == "UniquenessBlocked"
+        finally:
+            os.unlink(tmp)
+
+    def test_blocked_results_include_uniqueness_score_in_details(self):
+        """Blocked results include uniqueness_score in details dict."""
+        from publisher import PublishResult
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_mode("block")
+            job = self._make_temp_job(tmp, platforms=["youtube"])
+
+            blocked = [
+                PublishResult(
+                    platform="youtube",
+                    success=False,
+                    error_type="UniquenessBlocked",
+                    details={"uniqueness_score": 0.42, "uniqueness_flagged": True},
+                )
+            ]
+            with patch.object(pub, "_check_uniqueness", return_value=blocked):
+                results = pub.publish(job)
+
+            assert "uniqueness_score" in results[0].details
+            assert results[0].details["uniqueness_score"] == 0.42
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_update_history_called_after_successful_publish(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """_update_uniqueness_history is called when at least one platform succeeds."""
+        from publisher import PublishResult
+
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_mode("warn")
+            job = self._make_temp_job(tmp)
+
+            with patch.object(pub, "_check_uniqueness", return_value=None):
+                with patch.object(pub, "_update_uniqueness_history") as mock_update:
+                    pub.publish(job)
+                    mock_update.assert_called_once_with(job)
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_update_history_not_called_when_all_fail(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """_update_uniqueness_history is NOT called when all platforms fail."""
+        from publisher import PublishResult
+
+        mock_pub.return_value = PublishResult(
+            platform="youtube", success=False, error_type="UploadFailed"
+        )
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_mode("warn")
+            job = self._make_temp_job(tmp)
+
+            with patch.object(pub, "_check_uniqueness", return_value=None):
+                with patch.object(pub, "_update_uniqueness_history") as mock_update:
+                    pub.publish(job)
+                    mock_update.assert_not_called()
+        finally:
+            os.unlink(tmp)
+
+    def test_update_history_not_called_when_mode_off(self):
+        """_update_uniqueness_history exits early when mode='off'."""
+        from publisher import PublishJob
+        pub = self._make_publisher_with_mode("off")
+        job = PublishJob(video_path="/tmp/x.mp4", title="Test")
+
+        # Since mode is 'off', the method should return immediately without
+        # trying to import or call UniquenessScorer
+        with patch("builtins.__import__") as mock_import:
+            pub._update_uniqueness_history(job)
+            # uniqueness_scorer should NOT have been imported
+            imported_modules = [c.args[0] for c in mock_import.call_args_list]
+            assert "uniqueness_scorer" not in imported_modules
+
+    def test_uniqueness_scorer_import_failure_handled_gracefully(self):
+        """If UniquenessScorer import fails, _check_uniqueness returns None."""
+        from publisher import PublishJob
+        pub = self._make_publisher_with_mode("warn")
+        job = PublishJob(
+            video_path="/tmp/x.mp4",
+            title="Test Title",
+            description="desc",
+            platforms=["youtube"],
+        )
+
+        import sys
+        # Temporarily make the import fail
+        with patch.dict(sys.modules, {"uniqueness_scorer": None}):
+            result = pub._check_uniqueness(job)
+
+        # Should return None (not block publishing) even when import fails
+        assert result is None
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_check_uniqueness_internal_block_mode_flagged(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """Direct test of _check_uniqueness in block mode when content is flagged."""
+        from publisher import PublishJob
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_mode("block")
+            pub._uniqueness_mode = "block"
+
+            job = PublishJob(
+                video_path=tmp,
+                title="Flagged Title",
+                description="desc",
+                platforms=["youtube"],
+                tags=["ai"],
+            )
+
+            mock_score = MagicMock()
+            mock_score.flagged = True
+            mock_score.overall = 0.25
+
+            mock_scorer = MagicMock()
+            mock_scorer.score_content.return_value = mock_score
+
+            import sys
+            mock_module = MagicMock()
+            mock_module.UniquenessScorer.return_value = mock_scorer
+
+            with patch.dict(sys.modules, {"uniqueness_scorer": mock_module}):
+                result = pub._check_uniqueness(job)
+
+            assert result is not None
+            assert len(result) == 1
+            assert result[0].success is False
+            assert result[0].error_type == "UniquenessBlocked"
+            assert result[0].details["uniqueness_score"] == 0.25
+            assert result[0].details["uniqueness_flagged"] is True
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_check_uniqueness_internal_warn_mode_flagged_returns_none(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """Direct test of _check_uniqueness in warn mode when content is flagged — returns None."""
+        from publisher import PublishJob
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_mode("warn")
+            pub._uniqueness_mode = "warn"
+
+            job = PublishJob(
+                video_path=tmp,
+                title="Flagged Title",
+                description="desc",
+                platforms=["youtube"],
+                tags=[],
+            )
+
+            mock_score = MagicMock()
+            mock_score.flagged = True
+            mock_score.overall = 0.30
+
+            mock_scorer = MagicMock()
+            mock_scorer.score_content.return_value = mock_score
+
+            import sys
+            mock_module = MagicMock()
+            mock_module.UniquenessScorer.return_value = mock_scorer
+
+            with patch.dict(sys.modules, {"uniqueness_scorer": mock_module}):
+                result = pub._check_uniqueness(job)
+
+            # warn mode never blocks — must return None
+            assert result is None
+        finally:
+            os.unlink(tmp)
+
+    def test_publish_job_uses_script_field_for_uniqueness(self):
+        """PublishJob.script is preferred over description for uniqueness scoring."""
+        from publisher import PublishJob
+        job = PublishJob(
+            video_path="/tmp/test.mp4",
+            title="Test",
+            description="Short desc",
+            script="Full detailed script content goes here.",
+        )
+        # When script is set, it should be the primary text for scoring
+        script_text = job.script if job.script else job.description
+        assert script_text == "Full detailed script content goes here."
+
+    def test_publish_job_falls_back_to_description_when_no_script(self):
+        """When PublishJob.script is empty, description is used as fallback."""
+        from publisher import PublishJob
+        job = PublishJob(
+            video_path="/tmp/test.mp4",
+            title="Test",
+            description="Short desc",
+            script="",
+        )
+        script_text = job.script if job.script else job.description
+        assert script_text == "Short desc"

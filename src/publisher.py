@@ -75,6 +75,7 @@ class PublishJob:
     platforms: list = field(default_factory=list)
     twitter_text: Optional[str] = None
     tags: list = field(default_factory=list)
+    script: str = ""  # for uniqueness scoring
 
     def validate(self) -> None:
         """
@@ -148,6 +149,15 @@ def get_max_retries() -> int:
     return min(int(val), 10)
 
 
+def get_uniqueness_mode() -> str:
+    """Returns the uniqueness check mode: 'block', 'warn', or 'off'."""
+    mode = _get_publisher_config().get("uniqueness_mode", "warn")
+    if mode not in ("block", "warn", "off"):
+        logger.warning(f"Invalid uniqueness_mode '{mode}', defaulting to 'warn'")
+        return "warn"
+    return mode
+
+
 # ---------------------------------------------------------------------------
 # Publisher
 # ---------------------------------------------------------------------------
@@ -164,6 +174,7 @@ class ContentPublisher:
     def __init__(self):
         self._retry_failed = get_retry_failed()
         self._max_retries = get_max_retries()
+        self._uniqueness_mode = get_uniqueness_mode()
 
     def publish(self, job: PublishJob) -> list:
         """
@@ -183,6 +194,12 @@ class ContentPublisher:
         job.validate()
 
         verbose = get_verbose()
+
+        # Pre-publish uniqueness check
+        blocked = self._check_uniqueness(job)
+        if blocked is not None:
+            return blocked
+
         results = []
 
         if verbose:
@@ -230,7 +247,87 @@ class ContentPublisher:
                 f"{failed} failed."
             )
 
+        # Post-publish: update uniqueness history
+        if any(r.success for r in results):
+            self._update_uniqueness_history(job)
+
         return results
+
+    def _check_uniqueness(self, job: PublishJob) -> Optional[list]:
+        """Run uniqueness check before publishing.
+
+        Returns None if publishing should proceed.
+        Returns list of PublishResult if publishing should be blocked.
+        """
+        if self._uniqueness_mode == "off":
+            return None
+
+        try:
+            from uniqueness_scorer import UniquenessScorer
+            scorer = UniquenessScorer()
+
+            # Use script if available, fallback to description
+            script_text = job.script if job.script else job.description
+
+            result = scorer.score_content(
+                title=job.title,
+                script=script_text,
+                tags=job.tags,
+                description=job.description,
+            )
+
+            if result.flagged:
+                if self._uniqueness_mode == "block":
+                    warning(
+                        f" => Content flagged as non-unique (score={result.overall:.2f}). "
+                        f"Publishing blocked."
+                    )
+                    logger.warning(
+                        f"Uniqueness check BLOCKED publish: score={result.overall:.3f}"
+                    )
+                    return [
+                        PublishResult(
+                            platform=p,
+                            success=False,
+                            error_type="UniquenessBlocked",
+                            details={
+                                "uniqueness_score": result.overall,
+                                "uniqueness_flagged": True,
+                            },
+                        )
+                        for p in (job.platforms or get_default_platforms())
+                    ]
+                else:  # warn mode
+                    warning(
+                        f" => Content uniqueness warning (score={result.overall:.2f}). "
+                        f"Publishing anyway."
+                    )
+                    logger.warning(
+                        f"Uniqueness check WARNING: score={result.overall:.3f}"
+                    )
+        except Exception as e:
+            # Don't block publishing if uniqueness scorer fails
+            logger.warning(f"Uniqueness check failed: {type(e).__name__}: {e}")
+
+        return None
+
+    def _update_uniqueness_history(self, job: PublishJob) -> None:
+        """Add published content to uniqueness history."""
+        if self._uniqueness_mode == "off":
+            return
+
+        try:
+            from uniqueness_scorer import UniquenessScorer
+            scorer = UniquenessScorer()
+            script_text = job.script if job.script else job.description
+            scorer.add_to_history(
+                title=job.title,
+                script=script_text,
+                tags=job.tags,
+                description=job.description,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to update uniqueness history: {type(e).__name__}: {e}")
 
     def _publish_to_platform(
         self, job: PublishJob, platform: str

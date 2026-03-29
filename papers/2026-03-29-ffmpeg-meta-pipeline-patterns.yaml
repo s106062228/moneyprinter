@@ -1,0 +1,37 @@
+title: FFmpeg at Meta - Media Processing at Scale
+date: 2026-03-29
+source: https://engineering.fb.com/2026/03/02/video-engineering/ffmpeg-at-meta-media-processing-at-scale/
+relevance: HIGH - validates our ffmpeg_utils subprocess approach, informs export_optimizer wiring
+
+key_findings:
+  scale:
+    - tens of billions of FFmpeg executions per day
+    - over 1 billion video uploads daily
+    - each upload requires multiple FFmpeg runs
+
+  architecture_patterns:
+    multi_lane_transcoding:
+      description: decode source once, encode to multiple outputs in parallel
+      benefit: eliminates redundant decode operations
+      applicability: our export_optimizer has per-platform profiles - wire to decode once, encode to all platforms
+
+    in_loop_decoding:
+      description: insert decoder after each encoder for real-time quality metrics
+      benefit: quality monitoring during transcoding
+      applicability: could add quality checks to export pipeline
+
+  performance_optimizations:
+    - parallelized encoding across all output lanes
+    - single decode shared across encoders (deduplication)
+    - hardware acceleration via standard APIs (NVENC, QSV, AMD UVD)
+    - FFmpeg 6.0+ improved threading
+
+  integration_approach:
+    - raw FFmpeg CLI binaries (no Python wrapper)
+    - standard API interfaces for hardware
+    - fully deprecated internal fork in favor of upstream
+
+implications_for_mpv2:
+  - subprocess-based ffmpeg_utils is validated by Meta's approach
+  - export_optimizer should implement multi-lane pattern (decode once → encode many)
+  - no need for Python FFmpeg wrappers - subprocess.run is sufficient

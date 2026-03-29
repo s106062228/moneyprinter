@@ -1,0 +1,117 @@
+## Hypotheses — Iteration 12 (2026-03-29)
+## Based on survey findings from JOURNAL.md 2026-03-29 (Iteration 12)
+## and "What to Try Next" from Iteration 11 retro
+
+hypotheses:
+  - id: H38
+    title: "Wire ffmpeg_utils into export_optimizer (replace MoviePy for transcode)"
+    priority: HIGH
+    status: CONFIRMED
+    hypothesis: >
+      Replacing the MoviePy-based video processing in export_optimizer.py's
+      optimize_clip() method with ffmpeg_utils.transcode() + ffmpeg_utils.trim_clip()
+      will eliminate the MoviePy import dependency for export operations while
+      maintaining identical output quality. The current code uses MoviePy's
+      VideoFileClip → cropped → resized → subclipped → write_videofile chain;
+      this can be replaced with a single ffmpeg subprocess call that handles
+      crop, scale, duration trim, and codec selection in one pass.
+    metric: >
+      export_optimizer.py uses ffmpeg_utils functions instead of MoviePy for
+      optimize_clip() and batch_export(). All existing 72 export_optimizer tests
+      pass. New integration tests added (15+). No MoviePy import in export_optimizer.py.
+      Total coverage for export_optimizer stays >90%.
+    success_threshold: >
+      All existing 72 tests pass + 15 new integration tests. Coverage >90%.
+      Zero MoviePy import in export_optimizer.py. batch_export() works unchanged.
+    rationale: >
+      Iteration 11 retro #1 priority. Survey finding #3 (Meta's FFmpeg at scale)
+      and #4 (functional composition pattern) confirm FFmpeg subprocess is the
+      right approach. export_optimizer currently lazy-imports MoviePy for every
+      optimize_clip() call — replacing with ffmpeg_utils removes this overhead.
+    risk: >
+      FFmpeg crop/scale/trim filter chain syntax must exactly match MoviePy's
+      center-crop behavior. Edge cases: odd pixel dimensions, missing audio
+      tracks, non-standard codecs. Existing tests mock MoviePy — need to
+      update mocks to target ffmpeg_utils instead.
+    dependencies:
+      - src/ffmpeg_utils.py (iteration 11, H35)
+      - src/export_optimizer.py (iteration 9, H31)
+
+  - id: H39
+    title: "Wire ffmpeg_utils into smart_clipper (replace PySceneDetect split)"
+    priority: HIGH
+    status: CONFIRMED
+    hypothesis: >
+      Replacing smart_clipper.py's split_clips() dependency on PySceneDetect's
+      split_video_ffmpeg() with ffmpeg_utils.trim_clip(codec='copy') will
+      simplify the dependency chain (no need to import scenedetect for splitting)
+      and provide finer control over output format and naming. The current
+      split_clips() converts ClipCandidates to FrameTimecode pairs and calls
+      split_video_ffmpeg — this indirection can be replaced with direct
+      ffmpeg_utils.trim_clip() calls per candidate.
+    metric: >
+      smart_clipper.py split_clips() uses ffmpeg_utils.trim_clip() instead of
+      scenedetect.video_splitter.split_video_ffmpeg(). All existing 62 smart_clipper
+      tests pass. New integration tests (10+). split_clips() no longer imports
+      scenedetect for splitting (detect_scenes() still uses it for detection).
+    success_threshold: >
+      All existing 62 tests pass + 10 new tests. Coverage stays >96%.
+      split_clips() uses only ffmpeg_utils, not scenedetect.video_splitter.
+    rationale: >
+      Iteration 11 retro #2 priority. ffmpeg_utils.trim_clip(codec='copy')
+      provides instant lossless extraction — the same thing split_video_ffmpeg
+      does internally, but with our API's error handling and logging.
+    risk: >
+      PySceneDetect's split_video_ffmpeg handles FrameTimecode → timestamp
+      conversion internally. Our trim_clip uses float seconds. Need to verify
+      frame-accurate cutting. Output file naming changes from PySceneDetect's
+      template to our custom naming.
+    dependencies:
+      - src/ffmpeg_utils.py (iteration 11, H35)
+      - src/smart_clipper.py (iterations 3-4)
+
+  - id: H40
+    title: "Wire uniqueness_scorer into publisher (pre-publish check)"
+    priority: HIGH
+    status: CONFIRMED
+    hypothesis: >
+      Adding a pre-publish uniqueness check to ContentPublisher.publish() that
+      calls UniquenessScorer.score_content() before platform dispatch will
+      block or warn on content that scores below the uniqueness threshold.
+      This integrates the defensive capability built in iteration 11 (H36)
+      into the actual publishing pipeline, protecting against YouTube's 2026
+      "inauthentic content" enforcement.
+    metric: >
+      publisher.py imports and calls UniquenessScorer.score_content() in
+      publish() method. Content below threshold (default 0.6) logs a warning
+      and sets a flag on PublishResult. Configurable: 'block' mode rejects
+      publish, 'warn' mode publishes with warning. 15+ new tests. Coverage >90%.
+    success_threshold: >
+      All existing 34 publisher tests pass + 15 new integration tests.
+      Uniqueness check runs before platform dispatch. Configurable block/warn mode.
+    rationale: >
+      Iteration 11 retro #3 priority. Survey finding #1 (YouTube enforcement:
+      4.7B views erased, $10M revenue lost). Our uniqueness_scorer exists but
+      isn't wired to anything — it's a defensive tool that's currently unused.
+    risk: >
+      False positives could block legitimate content. Must be configurable
+      (block vs warn). History file may not exist on first run (need graceful
+      fallback). Scorer adds latency before publish (should be <100ms for
+      text-only scoring).
+    dependencies:
+      - src/uniqueness_scorer.py (iteration 11, H36)
+      - src/publisher.py (iteration 3)
+
+priority_ranking:
+  1: H38  # Wire ffmpeg→export_optimizer: removes MoviePy dep, enables 10-100x speedup
+  2: H39  # Wire ffmpeg→smart_clipper: simplifies dep chain, finer control
+  3: H40  # Wire uniqueness→publisher: defensive against YouTube demonetization
+
+implementation_recommendation: >
+  All three hypotheses are wiring/integration tasks — modifying existing modules
+  rather than creating new ones. H38 and H39 both wire ffmpeg_utils but into
+  different modules with no overlap. H40 is completely independent. All three
+  can be implemented in parallel. Each involves modifying 1 source file +
+  updating its test file. YouTube.py coverage push (21%) deferred to iteration 13
+  as it requires significant mock infrastructure. Shoppable content deferred —
+  YouTube Shopping has no API, TikTok Shop requires partner approval.

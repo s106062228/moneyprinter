@@ -355,11 +355,9 @@ class SmartClipper:
         output_dir: str = ".",
         filename_template: str = "$VIDEO_NAME-clip-$SCENE_NUMBER",
     ) -> list[str]:
-        """
-        Split video into clips based on ClipCandidate metadata.
+        """Split video into clips based on ClipCandidate metadata.
 
-        Converts ClipCandidates to PySceneDetect scene_list format,
-        then calls split_video_ffmpeg() for fast lossless extraction.
+        Uses ffmpeg_utils.trim_clip() for fast lossless extraction.
 
         Args:
             video_path: Path to source video file.
@@ -382,56 +380,44 @@ class SmartClipper:
             logger.info("No candidates to split.")
             return []
 
-        from scenedetect.video_splitter import split_video_ffmpeg, is_ffmpeg_available
-        from scenedetect import open_video
-        from scenedetect.frame_timecode import FrameTimecode
+        from ffmpeg_utils import trim_clip, check_ffmpeg
 
-        if not is_ffmpeg_available():
+        if not check_ffmpeg():
             raise RuntimeError(
                 "ffmpeg is not available. Install ffmpeg to use clip splitting."
             )
 
         os.makedirs(output_dir, exist_ok=True)
 
-        # Open video to get framerate for FrameTimecode
-        video = open_video(video_path)
-        fps = video.frame_rate
-
-        # Convert ClipCandidates to PySceneDetect scene_list format
         # Sort by start_time for sequential processing
         sorted_candidates = sorted(candidates, key=lambda c: c.start_time)
-        scene_list = []
-        for candidate in sorted_candidates:
-            start_tc = FrameTimecode(candidate.start_time, fps=fps)
-            end_tc = FrameTimecode(candidate.end_time, fps=fps)
-            scene_list.append((start_tc, end_tc))
+        output_paths = []
+
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
 
         logger.info(
-            f"Splitting {len(scene_list)} clips from {video_path} "
+            f"Splitting {len(sorted_candidates)} clips from {video_path} "
             f"to {output_dir}"
         )
 
-        ret = split_video_ffmpeg(
-            input_video_path=video_path,
-            scene_list=scene_list,
-            output_dir=output_dir,
-            output_file_template=filename_template,
-            show_progress=False,
-        )
+        for i, candidate in enumerate(sorted_candidates, 1):
+            # Build filename from template
+            filename = filename_template
+            filename = filename.replace("$VIDEO_NAME", video_name)
+            filename = filename.replace("$SCENE_NUMBER", f"{i:03d}")
+            filename = filename.replace("$START_TIME", f"{candidate.start_time:.1f}")
+            filename = filename.replace("$END_TIME", f"{candidate.end_time:.1f}")
 
-        if ret != 0:
-            logger.warning(f"ffmpeg returned non-zero exit code: {ret}")
+            output_path = os.path.join(output_dir, f"{filename}.mp4")
 
-        # Collect output files by scanning output_dir
-        video_name = os.path.splitext(os.path.basename(video_path))[0]
-        output_files = sorted(
-            f
-            for f in (
-                os.path.join(output_dir, name)
-                for name in os.listdir(output_dir)
+            trim_clip(
+                video_path,
+                output_path,
+                candidate.start_time,
+                candidate.end_time,
+                codec="copy",
             )
-            if os.path.isfile(f) and video_name in os.path.basename(f)
-        )
+            output_paths.append(output_path)
 
-        logger.info(f"Split complete: {len(output_files)} clips created.")
-        return output_files
+        logger.info(f"Split complete: {len(output_paths)} clips written.")
+        return output_paths

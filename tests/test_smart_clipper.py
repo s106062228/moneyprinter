@@ -614,7 +614,7 @@ class TestFindHighlights:
 # ---------------------------------------------------------------------------
 
 class TestSplitClips:
-    """Tests for SmartClipper.split_clips()."""
+    """Tests for SmartClipper.split_clips() using ffmpeg_utils.trim_clip()."""
 
     def _make_candidates(self, count=2):
         """Helper to create test ClipCandidates."""
@@ -631,33 +631,8 @@ class TestSplitClips:
             ))
         return candidates
 
-    def _setup_mocks(self, tmp_path, output_dir, num_clips=1, ffmpeg_available=True,
-                     ffmpeg_return=0, frame_rate=30.0):
-        """Configure scenedetect mocks for split_clips tests."""
-        mock_video = MagicMock()
-        mock_video.frame_rate = frame_rate
-
-        _mock_scenedetect.open_video = MagicMock(return_value=mock_video)
-        _mock_video_splitter.is_ffmpeg_available = MagicMock(return_value=ffmpeg_available)
-        _mock_frame_timecode.FrameTimecode = MagicMock(
-            side_effect=lambda t, fps: MagicMock(_seconds=t)
-        )
-
-        def fake_split(**kwargs):
-            od = kwargs.get("output_dir", output_dir)
-            os.makedirs(od, exist_ok=True)
-            vname = os.path.splitext(os.path.basename(kwargs.get("input_video_path", "video.mp4")))[0]
-            for i in range(num_clips):
-                p = os.path.join(od, f"{vname}-clip-{i+1:03d}.mp4")
-                with open(p, "w") as f:
-                    f.write("clip")
-            return ffmpeg_return
-
-        _mock_video_splitter.split_video_ffmpeg = MagicMock(side_effect=fake_split)
-        return mock_video
-
     def test_split_basic(self, tmp_path):
-        """Basic split with mocked ffmpeg returns output file paths."""
+        """Basic split with mocked trim_clip returns correct output paths."""
         clipper = SmartClipper()
         candidates = self._make_candidates(2)
         video_path = str(tmp_path / "video.mp4")
@@ -665,23 +640,28 @@ class TestSplitClips:
         with open(video_path, "w") as f:
             f.write("fake")
 
-        self._setup_mocks(tmp_path, output_dir, num_clips=2)
-        result = clipper.split_clips(video_path, candidates, output_dir)
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip") as mock_trim:
+            result = clipper.split_clips(video_path, candidates, output_dir)
 
         assert len(result) == 2
+        assert mock_trim.call_count == 2
         for p in result:
-            assert os.path.isfile(p)
             assert "video" in os.path.basename(p)
+            assert p.endswith(".mp4")
 
     def test_split_empty_candidates(self, tmp_path):
-        """Empty candidates list returns empty list."""
+        """Empty candidates list returns empty list without calling trim_clip."""
         clipper = SmartClipper()
         video_path = str(tmp_path / "video.mp4")
         with open(video_path, "w") as f:
             f.write("fake")
 
-        result = clipper.split_clips(video_path, [], str(tmp_path / "out"))
+        with patch("ffmpeg_utils.trim_clip") as mock_trim:
+            result = clipper.split_clips(video_path, [], str(tmp_path / "out"))
+
         assert result == []
+        mock_trim.assert_not_called()
 
     def test_split_file_not_found(self):
         """FileNotFoundError for missing video."""
@@ -691,16 +671,16 @@ class TestSplitClips:
             clipper.split_clips("/nonexistent/video.mp4", candidates)
 
     def test_split_ffmpeg_unavailable(self, tmp_path):
-        """RuntimeError when ffmpeg is not available."""
+        """RuntimeError when check_ffmpeg() returns False."""
         clipper = SmartClipper()
         candidates = self._make_candidates(1)
         video_path = str(tmp_path / "video.mp4")
         with open(video_path, "w") as f:
             f.write("fake")
 
-        self._setup_mocks(tmp_path, str(tmp_path / "out"), ffmpeg_available=False)
-        with pytest.raises(RuntimeError, match="ffmpeg is not available"):
-            clipper.split_clips(video_path, candidates, str(tmp_path / "out"))
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=False):
+            with pytest.raises(RuntimeError, match="ffmpeg is not available"):
+                clipper.split_clips(video_path, candidates, str(tmp_path / "out"))
 
     def test_split_creates_output_dir(self, tmp_path):
         """Output directory is created if it doesn't exist."""
@@ -711,31 +691,125 @@ class TestSplitClips:
         with open(video_path, "w") as f:
             f.write("fake")
 
-        self._setup_mocks(tmp_path, output_dir, num_clips=1, frame_rate=24.0)
-        result = clipper.split_clips(video_path, candidates, output_dir)
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip"):
+            clipper.split_clips(video_path, candidates, output_dir)
 
         assert os.path.isdir(output_dir)
-        assert len(result) == 1
 
     def test_split_custom_filename_template(self, tmp_path):
-        """Custom filename template is passed to split_video_ffmpeg."""
+        """Custom filename template variables are substituted in output paths."""
         clipper = SmartClipper()
         candidates = self._make_candidates(1)
-        video_path = str(tmp_path / "video.mp4")
+        video_path = str(tmp_path / "myvideo.mp4")
         output_dir = str(tmp_path / "clips")
         os.makedirs(output_dir)
         with open(video_path, "w") as f:
             f.write("fake")
 
-        self._setup_mocks(tmp_path, output_dir, num_clips=1)
         custom_template = "$VIDEO_NAME-highlight-$SCENE_NUMBER"
-        clipper.split_clips(video_path, candidates, output_dir, custom_template)
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip"):
+            result = clipper.split_clips(video_path, candidates, output_dir, custom_template)
 
-        call_kwargs = _mock_video_splitter.split_video_ffmpeg.call_args[1]
-        assert call_kwargs["output_file_template"] == custom_template
+        assert len(result) == 1
+        assert "myvideo-highlight-001" in result[0]
+
+    def test_filename_template_video_name_substitution(self, tmp_path):
+        """$VIDEO_NAME is replaced with the video file's stem."""
+        clipper = SmartClipper()
+        candidates = self._make_candidates(1)
+        video_path = str(tmp_path / "myclip.mp4")
+        output_dir = str(tmp_path / "out")
+        with open(video_path, "w") as f:
+            f.write("fake")
+
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip"):
+            result = clipper.split_clips(video_path, candidates, output_dir)
+
+        assert "myclip" in result[0]
+
+    def test_filename_template_scene_number_zero_padded(self, tmp_path):
+        """$SCENE_NUMBER is zero-padded to 3 digits."""
+        clipper = SmartClipper()
+        candidates = self._make_candidates(1)
+        video_path = str(tmp_path / "video.mp4")
+        output_dir = str(tmp_path / "out")
+        with open(video_path, "w") as f:
+            f.write("fake")
+
+        template = "$SCENE_NUMBER"
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip"):
+            result = clipper.split_clips(video_path, candidates, output_dir, template)
+
+        assert "001" in result[0]
+
+    def test_filename_template_start_time_substitution(self, tmp_path):
+        """$START_TIME is replaced with the candidate's start_time."""
+        clipper = SmartClipper()
+        candidate = ClipCandidate(
+            start_time=12.5, end_time=27.5, duration=15.0,
+            score=7.0, transcript="test", reason="ok", scene_count=1,
+        )
+        video_path = str(tmp_path / "video.mp4")
+        output_dir = str(tmp_path / "out")
+        with open(video_path, "w") as f:
+            f.write("fake")
+
+        template = "clip-$START_TIME"
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip"):
+            result = clipper.split_clips(video_path, [candidate], output_dir, template)
+
+        assert "12.5" in result[0]
+
+    def test_filename_template_end_time_substitution(self, tmp_path):
+        """$END_TIME is replaced with the candidate's end_time."""
+        clipper = SmartClipper()
+        candidate = ClipCandidate(
+            start_time=5.0, end_time=33.7, duration=28.7,
+            score=6.0, transcript="test", reason="ok", scene_count=1,
+        )
+        video_path = str(tmp_path / "video.mp4")
+        output_dir = str(tmp_path / "out")
+        with open(video_path, "w") as f:
+            f.write("fake")
+
+        template = "clip-$END_TIME"
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip"):
+            result = clipper.split_clips(video_path, [candidate], output_dir, template)
+
+        assert "33.7" in result[0]
+
+    def test_trim_clip_called_with_correct_args(self, tmp_path):
+        """trim_clip is called with video_path, output_path, start, end, codec='copy'."""
+        clipper = SmartClipper()
+        candidate = ClipCandidate(
+            start_time=10.0, end_time=25.0, duration=15.0,
+            score=8.0, transcript="test", reason="ok", scene_count=1,
+        )
+        video_path = str(tmp_path / "video.mp4")
+        output_dir = str(tmp_path / "clips")
+        with open(video_path, "w") as f:
+            f.write("fake")
+
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip") as mock_trim:
+            result = clipper.split_clips(video_path, [candidate], output_dir)
+
+        mock_trim.assert_called_once()
+        args, kwargs = mock_trim.call_args
+        assert args[0] == video_path
+        assert args[1] == result[0]
+        assert args[2] == 10.0    # start_time
+        assert args[3] == 25.0    # end_time
+        assert kwargs.get("codec") == "copy"
 
     def test_split_candidates_sorted_by_start_time(self, tmp_path):
-        """Candidates are sorted by start_time before splitting."""
+        """Candidates are processed in ascending start_time order."""
         clipper = SmartClipper()
         candidates = [
             ClipCandidate(start_time=40.0, end_time=55.0, duration=15.0,
@@ -745,30 +819,23 @@ class TestSplitClips:
         ]
         video_path = str(tmp_path / "video.mp4")
         output_dir = str(tmp_path / "clips")
-        os.makedirs(output_dir)
         with open(video_path, "w") as f:
             f.write("fake")
 
-        # Track the start times passed to FrameTimecode
-        tc_calls = []
-        _mock_scenedetect.open_video = MagicMock(return_value=MagicMock(frame_rate=30.0))
-        _mock_video_splitter.is_ffmpeg_available = MagicMock(return_value=True)
-        _mock_video_splitter.split_video_ffmpeg = MagicMock(return_value=0)
+        trim_calls = []
+        def capture_trim(vp, out, start, end, *, codec="copy"):
+            trim_calls.append((start, end))
 
-        def track_tc(t, fps):
-            tc_calls.append(t)
-            return MagicMock(_seconds=t)
-        _mock_frame_timecode.FrameTimecode = MagicMock(side_effect=track_tc)
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip", side_effect=capture_trim):
+            clipper.split_clips(video_path, candidates, output_dir)
 
-        clipper.split_clips(video_path, candidates, output_dir)
-
-        # FrameTimecode is called with (start, fps), (end, fps) for each candidate
-        # After sorting by start_time, first candidate should be start=10.0
-        assert tc_calls[0] == 10.0  # first start time
-        assert tc_calls[2] == 40.0  # second start time
+        # First call should be for the earlier candidate (start=10.0)
+        assert trim_calls[0][0] == 10.0
+        assert trim_calls[1][0] == 40.0
 
     def test_split_single_candidate(self, tmp_path):
-        """Single candidate produces one clip."""
+        """Single candidate produces exactly one clip."""
         clipper = SmartClipper()
         candidates = self._make_candidates(1)
         video_path = str(tmp_path / "video.mp4")
@@ -776,59 +843,81 @@ class TestSplitClips:
         with open(video_path, "w") as f:
             f.write("fake")
 
-        self._setup_mocks(tmp_path, output_dir, num_clips=1)
-        result = clipper.split_clips(video_path, candidates, output_dir)
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip") as mock_trim:
+            result = clipper.split_clips(video_path, candidates, output_dir)
 
         assert len(result) == 1
-
-    def test_split_ffmpeg_nonzero_return(self, tmp_path):
-        """Non-zero ffmpeg return code logs warning but doesn't raise."""
-        clipper = SmartClipper()
-        candidates = self._make_candidates(1)
-        video_path = str(tmp_path / "video.mp4")
-        output_dir = str(tmp_path / "clips")
-        os.makedirs(output_dir)
-        with open(video_path, "w") as f:
-            f.write("fake")
-
-        self._setup_mocks(tmp_path, output_dir, num_clips=0, ffmpeg_return=1)
-        # Override to NOT create files (simulating failure)
-        _mock_video_splitter.split_video_ffmpeg = MagicMock(return_value=1)
-        result = clipper.split_clips(video_path, candidates, output_dir)
-
-        assert result == []
+        mock_trim.assert_called_once()
 
     def test_split_many_candidates(self, tmp_path):
-        """Splitting many candidates works correctly."""
+        """Splitting 6 candidates calls trim_clip 6 times and returns 6 paths."""
         clipper = SmartClipper()
-        candidates = self._make_candidates(5)
+        candidates = self._make_candidates(6)
         video_path = str(tmp_path / "video.mp4")
         output_dir = str(tmp_path / "clips")
         with open(video_path, "w") as f:
             f.write("fake")
 
-        self._setup_mocks(tmp_path, output_dir, num_clips=5)
-        result = clipper.split_clips(video_path, candidates, output_dir)
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip") as mock_trim:
+            result = clipper.split_clips(video_path, candidates, output_dir)
 
-        assert len(result) == 5
+        assert len(result) == 6
+        assert mock_trim.call_count == 6
 
-    def test_split_passes_correct_args_to_ffmpeg(self, tmp_path):
-        """Verifies split_video_ffmpeg is called with correct args."""
+    def test_trim_clip_error_propagates(self, tmp_path):
+        """RuntimeError from trim_clip propagates to the caller."""
         clipper = SmartClipper()
         candidates = self._make_candidates(1)
         video_path = str(tmp_path / "video.mp4")
         output_dir = str(tmp_path / "clips")
-        os.makedirs(output_dir)
         with open(video_path, "w") as f:
             f.write("fake")
 
-        self._setup_mocks(tmp_path, output_dir, num_clips=1)
-        clipper.split_clips(video_path, candidates, output_dir)
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip",
+                   side_effect=RuntimeError("ffmpeg trim failed")):
+            with pytest.raises(RuntimeError, match="ffmpeg trim failed"):
+                clipper.split_clips(video_path, candidates, output_dir)
 
-        _mock_scenedetect.open_video.assert_called_once_with(video_path)
-        _mock_video_splitter.split_video_ffmpeg.assert_called_once()
-        call_kwargs = _mock_video_splitter.split_video_ffmpeg.call_args[1]
-        assert call_kwargs["input_video_path"] == video_path
-        assert call_kwargs["output_dir"] == output_dir
-        assert len(call_kwargs["scene_list"]) == 1
-        assert call_kwargs["show_progress"] is False
+    def test_split_output_paths_include_scene_numbers(self, tmp_path):
+        """Output path filenames contain sequential scene numbers for multiple clips."""
+        clipper = SmartClipper()
+        candidates = self._make_candidates(3)
+        video_path = str(tmp_path / "video.mp4")
+        output_dir = str(tmp_path / "clips")
+        with open(video_path, "w") as f:
+            f.write("fake")
+
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip"):
+            result = clipper.split_clips(video_path, candidates, output_dir)
+
+        basenames = [os.path.basename(p) for p in result]
+        assert any("001" in b for b in basenames)
+        assert any("002" in b for b in basenames)
+        assert any("003" in b for b in basenames)
+
+    def test_split_all_template_variables_in_one_template(self, tmp_path):
+        """All four template variables are substituted correctly in a single template."""
+        clipper = SmartClipper()
+        candidate = ClipCandidate(
+            start_time=5.0, end_time=20.0, duration=15.0,
+            score=7.0, transcript="t", reason="r", scene_count=1,
+        )
+        video_path = str(tmp_path / "myvid.mp4")
+        output_dir = str(tmp_path / "out")
+        with open(video_path, "w") as f:
+            f.write("fake")
+
+        template = "$VIDEO_NAME-$SCENE_NUMBER-$START_TIME-$END_TIME"
+        with patch("ffmpeg_utils.check_ffmpeg", return_value=True), \
+             patch("ffmpeg_utils.trim_clip"):
+            result = clipper.split_clips(video_path, [candidate], output_dir, template)
+
+        basename = os.path.basename(result[0])
+        assert "myvid" in basename
+        assert "001" in basename
+        assert "5.0" in basename
+        assert "20.0" in basename

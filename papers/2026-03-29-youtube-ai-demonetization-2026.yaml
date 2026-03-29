@@ -1,0 +1,44 @@
+title: YouTube AI Demonetization 2026 - Enforcement Wave & Uniqueness Signals
+date: 2026-03-29
+sources:
+  - url: https://fliki.ai/blog/youtube-ai-demonetization
+    title: YouTube AI Demonetization 2026 - How to Protect Your Channel
+  - url: https://shortvids.co/youtube-ai-content-demonetization-policy/
+    title: YouTube Demonetization Policy - How to Stay Compliant in 2026
+  - url: https://flocker.tv/posts/youtube-inauthentic-content-ai-enforcement/
+    title: YouTube Inauthentic Content Policy - AI Enforcement Wave 2026
+relevance: HIGH - directly impacts our automated content pipeline
+
+key_findings:
+  enforcement_scope:
+    - 4.7 billion lifetime views erased
+    - 35 million subscribers affected
+    - $10M+ annual creator revenue vanished
+    - Largest demonetization wave ever
+
+  detection_signals:
+    - upload_velocity: multiple long-form videos daily triggers flags
+    - script_fingerprinting: recycled/reworded transcripts detected
+    - pattern_consistency: identical hooks/pacing/arcs across videos
+    - pipeline_analysis: fully automated workflows get highest scrutiny
+    - interchangeability: core test - could channel be swapped with hundreds of others
+
+  uniqueness_signals_rewarded:
+    - distinctive brand identity (visual + audio + perspective)
+    - human creative judgment shaping outputs
+    - varied video structures breaking templates
+    - original commentary beyond AI assistance
+    - upload pace: 2-4 quality videos/week guideline
+
+  content_types_flagged:
+    - text-to-speech without human commentary
+    - low-effort recycled footage without transformation
+    - slideshow-style compilations
+    - generic news updates from web sources
+    - AI avatars with zero human touch
+
+implications_for_mpv2:
+  - uniqueness_scorer integration into publisher is critical
+  - need to vary video structure templates per-video
+  - upload rate limiting (max 2-4/week) should be enforced
+  - human review checkpoint before auto-publish

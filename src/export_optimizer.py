@@ -19,10 +19,12 @@ Usage:
 """
 
 import os
+import subprocess
 import tempfile
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
+from ffmpeg_utils import get_video_info, check_ffmpeg
 from mp_logger import get_logger
 from validation import validate_path, sanitize_filename
 
@@ -227,9 +229,6 @@ class ExportOptimizer:
         Raises:
             ValueError: For unsupported platform, missing source, or bad dir.
         """
-        # Lazy import to avoid hard MoviePy dependency in tests
-        from moviepy import VideoFileClip, CompositeVideoClip
-
         # ---- validation ------------------------------------------------
         if platform not in self._profiles:
             raise ValueError(
@@ -247,26 +246,21 @@ class ExportOptimizer:
         profile = self._profiles[platform]
         target_w, target_h = profile.resolution
 
-        # ---- load clip -------------------------------------------------
-        clip = VideoFileClip(source_path)
-        src_w, src_h = clip.size
+        # ---- get source video info -------------------------------------
+        info = get_video_info(source_path)
+        src_w, src_h = info.width, info.height
 
         # ---- crop to target aspect ratio --------------------------------
         new_w, new_h, cx, cy = self._calculate_crop(src_w, src_h, profile.aspect_ratio)
 
-        x1 = cx - new_w / 2
-        y1 = cy - new_h / 2
-        x2 = x1 + new_w
-        y2 = y1 + new_h
+        x_offset = int(cx - new_w / 2)
+        y_offset = int(cy - new_h / 2)
 
-        clip = clip.cropped(x1=x1, y1=y1, x2=x2, y2=y2)
-
-        # ---- resize to target resolution --------------------------------
-        clip = clip.resized((target_w, target_h))
-
-        # ---- trim to max_duration if needed ----------------------------
-        if profile.max_duration is not None and clip.duration > profile.max_duration:
-            clip = clip.subclipped(0, profile.max_duration)
+        # Ensure even pixel dimensions (libx264 requires even w/h)
+        new_w &= ~1
+        new_h &= ~1
+        target_w &= ~1
+        target_h &= ~1
 
         # ---- build output path -----------------------------------------
         source_filename = os.path.basename(source_path)
@@ -278,20 +272,28 @@ class ExportOptimizer:
         output_filename = f"{platform}_{safe_name}"
         output_path = os.path.join(output_dir, output_filename)
 
+        # ---- build FFmpeg command with crop+scale filter ----------------
+        vf = f"crop={new_w}:{new_h}:{x_offset}:{y_offset},scale={target_w}:{target_h}"
+        cmd = ["ffmpeg", "-y", "-i", source_path]
+        cmd += ["-vf", vf]
+        if profile.max_duration is not None:
+            if info.duration > profile.max_duration:
+                cmd += ["-t", str(profile.max_duration)]
+        cmd += ["-c:v", profile.codec, "-c:a", profile.audio_codec]
+        cmd.append(output_path)
+
         # ---- write ---------------------------------------------------------
         logger.info(
             f"Exporting '{source_path}' → '{output_path}' "
             f"({profile.resolution[0]}x{profile.resolution[1]}, "
             f"codec={profile.codec})"
         )
-        clip.write_videofile(
-            output_path,
-            codec=profile.codec,
-            audio_codec=profile.audio_codec,
-            logger=None,
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"ffmpeg export failed (exit {result.returncode}): {result.stderr.strip()}"
+            )
 
-        clip.close()
         logger.info(f"Export complete: {output_path}")
         return output_path
 
