@@ -1,0 +1,48 @@
+title: "Open-Source Video Dubbing Pipeline (Union.ai)"
+source: "https://www.union.ai/blog-post/open-source-video-dubbing-using-whisper-m2m-coqui-xtts-and-sad-talker"
+date_accessed: "2026-03-29"
+
+architecture:
+  stages:
+    - name: "Audio & Image Extraction"
+      tools: ["moviepy", "katna", "ffmpeg"]
+      resources: "5GB RAM, 1 CPU"
+    - name: "Speech-to-Text"
+      model: "OpenAI Whisper Large v2"
+      package: "transformers (HuggingFace)"
+      resources: "1 T4 GPU, 10GB RAM"
+    - name: "Translation"
+      model: "Meta M2M100 1.2B"
+      package: "transformers (M2M100ForConditionalGeneration)"
+      languages: 17
+      resources: "10GB RAM, 3 CPUs, no GPU"
+    - name: "Voice Cloning"
+      model: "Coqui XTTS v2"
+      package: "TTS (tts_models/multilingual/multi-dataset/xtts_v2)"
+      resources: "1 T4 GPU, 15GB RAM"
+    - name: "Lip Sync"
+      model: "SadTalker"
+      resources: "1 T4 GPU, 30GB RAM"
+
+supported_languages:
+  - English
+  - Spanish
+  - French
+  - German
+  - Italian
+  - Portuguese
+  - Polish
+  - Turkish
+  - Russian
+  - Dutch
+  - Czech
+  - Arabic
+  - Chinese
+  - Japanese
+  - Hungarian
+  - Korean
+  - Hindi
+
+cost: "$0.50 per 16-second video on AWS T4"
+
+relevance: "Maps to MoneyPrinter architecture - we have faster-whisper for transcription, need M2M100 for translation, XTTS for voice cloning, SadTalker/Wav2Lip for lip sync"

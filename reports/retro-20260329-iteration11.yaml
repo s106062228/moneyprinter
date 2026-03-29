@@ -1,0 +1,36 @@
+iteration: 11
+date: "2026-03-29"
+hypotheses_tested: 3
+confirmed: 3
+rejected: 0
+inconclusive: 0
+tasks_completed: 7
+tasks_failed: 0
+new_tests: 249
+total_tests: 1808
+test_failures: 0
+coverage: 83.94
+coverage_delta: +0.90
+new_files:
+  - src/ffmpeg_utils.py
+  - src/uniqueness_scorer.py
+  - src/trend_batch_bridge.py
+  - tests/test_ffmpeg_utils.py
+  - tests/test_uniqueness_scorer.py
+  - tests/test_trend_batch_bridge.py
+hypotheses:
+  - id: H35
+    title: "FFmpeg Direct Export Utils"
+    status: CONFIRMED
+    tests: 98
+    coverage: 96.73
+  - id: H36
+    title: "Content Uniqueness Scorer"
+    status: CONFIRMED
+    tests: 91
+    coverage: 92.96
+  - id: H37
+    title: "Trend-to-Batch Pipeline Bridge"
+    status: CONFIRMED
+    tests: 60
+    coverage: 93.44

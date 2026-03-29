@@ -102,6 +102,12 @@
 - [x] Virality scorer module (`virality_scorer.py`) with LLM-based metadata scoring, platform-specific weights
 - [x] Unit tests for A/B testing (71 tests, 96.15% coverage), virality scorer (71 tests, 95.29% coverage), PATCH endpoint (12 tests)
 
+## Completed — Iteration 11 (2026-03-29)
+- [x] FFmpeg direct export utils (`ffmpeg_utils.py`) with VideoInfo, check_ffmpeg, get_video_info, trim_clip, concat_clips, transcode, extract_audio (98 tests, 96.73% coverage) [H35]
+- [x] Content uniqueness scorer (`uniqueness_scorer.py`) with UniquenessScore, UniquenessScorer, 4-dimension scoring, rolling history (91 tests, 92.96% coverage) [H36]
+- [x] Trend-to-batch pipeline bridge (`trend_batch_bridge.py`) with generate_trending_batch, topics_to_batch_job (60 tests, 93.44% coverage) [H37]
+- [x] Unit tests: 249 new tests, 1808 total suite, 0 failures [H35, H36, H37]
+
 ## Completed — Iteration 10 (2026-03-29)
 - [x] Animated captions module (`animated_captions.py`) with WordTiming, CaptionSegment, CaptionStyle, AnimatedCaptions, 3 styles (96 tests, 99.07% coverage) [H32]
 - [x] Pipeline integration layer (`pipeline_integrator.py`) with prepend_intro_outro, generate_hooked_script, export_for_platforms, apply_captions (54 tests, 100% coverage) [H33]
@@ -171,6 +177,15 @@
 - [x] Create src/trend_detector.py with TopicCandidate, TrendDetector [H34]
 - [x] Write tests for trend_detector module (95 tests, 96.88% coverage) [H34]
 - [x] Run full test suite (1559/1559 passing, 0 failures) [H32, H33, H34]
+
+## Implementation Tasks — Iteration 11 (2026-03-29)
+- [x] Create src/ffmpeg_utils.py with VideoInfo, check_ffmpeg, get_video_info, trim_clip, concat_clips, transcode, extract_audio [H35]
+- [x] Write tests for ffmpeg_utils module (98 tests, 96.73% coverage) [H35]
+- [x] Create src/uniqueness_scorer.py with UniquenessScore, UniquenessScorer, 4-dimension scoring [H36]
+- [x] Write tests for uniqueness_scorer module (91 tests, 92.96% coverage) [H36]
+- [x] Create src/trend_batch_bridge.py with generate_trending_batch, topics_to_batch_job [H37]
+- [x] Write tests for trend_batch_bridge module (60 tests, 93.44% coverage) [H37]
+- [x] Run full test suite (1808/1808 passing, 0 failures) [H35, H36, H37]
 
 ## Planned — High Priority
 - [x] Content calendar UI (frontend for content scheduler) — DONE (iteration 7)

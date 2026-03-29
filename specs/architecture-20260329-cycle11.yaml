@@ -1,0 +1,247 @@
+## Architecture — Iteration 11 (2026-03-29)
+## FFmpeg Utils + Uniqueness Scorer + Trend-Batch Bridge
+
+overview: >
+  Three independent modules following established MoneyPrinter patterns:
+  dataclasses for state, JSON persistence in .mp/, LLM integration via
+  generate_text(), logger via get_logger(), and atomic file writes.
+  All modules are standalone with no cross-dependencies between them.
+
+scope:
+  implementing: [H35, H36, H37]
+  deferred:
+    - Multi-language dubbing (GPU + heavy deps: XTTS, SadTalker)
+    - Shoppable content (TikTok Shop API requires partner access)
+    - Main pipeline wiring into YouTube.py (too invasive for this cycle)
+    - GPU-accelerated encoding via NVENC (requires NVIDIA GPU)
+
+modules:
+  - name: ffmpeg_utils.py
+    hypothesis: H35
+    location: src/ffmpeg_utils.py
+    description: >
+      Direct FFmpeg subprocess wrappers for non-compositing video operations.
+      Provides 10-100x speedup over MoviePy for trim, concat, transcode, and
+      probe operations. Uses subprocess.run() with proper error capture.
+      Does NOT replace MoviePy for composition/overlay operations.
+
+    functions:
+      - name: get_video_info
+        signature: "get_video_info(video_path: str) -> VideoInfo"
+        description: >
+          Uses ffprobe to extract duration, resolution, codec, fps, bitrate.
+          Returns VideoInfo dataclass. Validates path exists.
+
+      - name: trim_clip
+        signature: "trim_clip(input_path: str, output_path: str, start: float, end: float, *, codec: str = 'copy') -> str"
+        description: >
+          Trims video using -ss/-to with stream copy (instant) or re-encode.
+          Default codec='copy' for lossless instant trim. Returns output_path.
+
+      - name: concat_clips
+        signature: "concat_clips(input_paths: list[str], output_path: str, *, codec: str = 'copy') -> str"
+        description: >
+          Concatenates multiple clips using concat demuxer + temp filelist.
+          Validates all inputs exist. Returns output_path.
+
+      - name: transcode
+        signature: "transcode(input_path: str, output_path: str, *, codec: str = 'libx264', resolution: tuple | None = None, fps: int | None = None, bitrate: str | None = None, preset: str = 'medium') -> str"
+        description: >
+          Re-encodes video with configurable codec, resolution, fps, bitrate.
+          Supports aspect ratio change via resolution tuple. Returns output_path.
+
+      - name: extract_audio
+        signature: "extract_audio(video_path: str, output_path: str, *, format: str = 'wav') -> str"
+        description: >
+          Extracts audio track to wav/mp3/aac. Returns output_path.
+
+      - name: check_ffmpeg
+        signature: "check_ffmpeg() -> bool"
+        description: >
+          Validates ffmpeg and ffprobe binaries are available on PATH.
+
+    dataclasses:
+      - name: VideoInfo
+        fields:
+          - duration: float    # seconds
+          - width: int
+          - height: int
+          - codec: str
+          - fps: float
+          - bitrate: int       # bps
+          - format: str        # container format
+
+    constants:
+      _MAX_DURATION: 86400     # 24h cap
+      _MAX_CONCAT_FILES: 100   # prevent abuse
+      _SUPPORTED_CODECS: ["copy", "libx264", "libx265", "aac", "libmp3lame"]
+      _SUPPORTED_PRESETS: ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]
+
+    security:
+      - All paths validated via existing validate_path()
+      - No shell=True in subprocess calls
+      - Temp concat file uses tempfile.NamedTemporaryFile
+      - Duration and resolution bounds checked
+      - FFmpeg stderr captured for error reporting (no path disclosure)
+
+  - name: uniqueness_scorer.py
+    hypothesis: H36
+    location: src/uniqueness_scorer.py
+    description: >
+      Scores generated content for uniqueness to avoid YouTube's 2026
+      "inauthentic content" demonetization policy. Compares new content
+      against rolling history of recent outputs across 4 dimensions.
+
+    classes:
+      - name: UniquenessScore
+        type: dataclass
+        fields:
+          - overall: float             # 0.0-1.0 composite score
+          - title_similarity: float    # 0.0-1.0 (lower = more unique)
+          - script_variation: float    # 0.0-1.0 (higher = more varied)
+          - metadata_diversity: float  # 0.0-1.0 (higher = more diverse)
+          - posting_regularity: float  # 0.0-1.0 (lower = less robotic)
+          - flagged: bool              # True if below threshold
+          - details: dict              # breakdown per dimension
+
+      - name: UniquenessScorer
+        type: class
+        methods:
+          - score_content(title, script, tags, description, platform) -> UniquenessScore
+          - add_to_history(title, script, tags, description, platform) -> None
+          - get_history(limit=50) -> list[dict]
+          - clear_history() -> None
+        persistence: ".mp/uniqueness_history.json"
+        max_history: 200
+
+    scoring_dimensions:
+      title_similarity:
+        method: "Levenshtein ratio against last N titles"
+        library: "difflib.SequenceMatcher (stdlib)"
+        weight: 0.30
+      script_variation:
+        method: "Structural fingerprint (sentence count, avg length, question ratio, hook pattern)"
+        weight: 0.30
+      metadata_diversity:
+        method: "Tag overlap ratio + description template detection"
+        weight: 0.20
+      posting_regularity:
+        method: "Interval variance (std dev of time between posts)"
+        weight: 0.20
+
+    threshold:
+      default: 0.6
+      configurable: true
+      config_key: "uniqueness_threshold"
+
+  - name: trend_batch_bridge.py
+    hypothesis: H37
+    location: src/trend_batch_bridge.py
+    description: >
+      Thin bridge module wiring TrendDetector.detect() output into
+      BatchGenerator.run() input. Converts TopicCandidate objects into
+      batch topics with appropriate parameters. Follows the "compose
+      don't modify" pattern validated by pipeline_integrator.py.
+
+    functions:
+      - name: generate_trending_batch
+        signature: "generate_trending_batch(niche: str, *, count: int = 5, min_score: float = 5.0, subreddits: list[str] | None = None, auto_publish: bool = False, publish_platforms: list[str] | None = None, delay: int = 30) -> BatchResult"
+        description: >
+          Main entry point. Calls TrendDetector.detect() for the niche,
+          filters by min_score, takes top `count` topics, creates a
+          BatchJob, and calls BatchGenerator.run(). Returns BatchResult.
+
+      - name: topics_to_batch_job
+        signature: "topics_to_batch_job(topics: list[TopicCandidate], niche: str, *, auto_publish: bool = False, publish_platforms: list[str] | None = None, delay: int = 30) -> BatchJob"
+        description: >
+          Pure conversion function. Maps TopicCandidate.topic strings
+          to BatchJob.topics list. Validates count limits.
+
+    constants:
+      _DEFAULT_MIN_SCORE: 5.0
+      _DEFAULT_COUNT: 5
+      _MAX_COUNT: 20
+
+    error_handling: >
+      If TrendDetector returns empty list (pytrends failure, no trends),
+      returns BatchResult with zero succeeded and a warning log.
+      Never falls back to default topics — that's the caller's responsibility.
+
+test_strategy:
+  h35_ffmpeg_utils:
+    unit_tests:
+      - test VideoInfo dataclass validation
+      - test check_ffmpeg() with mock shutil.which
+      - test get_video_info() with mock subprocess (valid/invalid/missing ffprobe)
+      - test trim_clip() with mock subprocess (copy mode, re-encode mode, invalid times)
+      - test concat_clips() with mock subprocess (2 files, max files, empty list)
+      - test transcode() with mock subprocess (codec, resolution, preset validation)
+      - test extract_audio() with mock subprocess (wav, mp3, aac)
+      - test path validation (nonexistent, null bytes, too long)
+      - test subprocess error handling (returncode != 0, timeout)
+      - test duration/resolution bounds
+    mock_strategy: "Mock subprocess.run and shutil.which. No real FFmpeg calls."
+    target_tests: 55+
+    target_coverage: ">90%"
+
+  h36_uniqueness_scorer:
+    unit_tests:
+      - test UniquenessScore dataclass (valid, edge values, flagging)
+      - test title_similarity scoring (identical, similar, unique titles)
+      - test script_variation scoring (same structure, varied structure)
+      - test metadata_diversity scoring (overlapping tags, diverse tags)
+      - test posting_regularity scoring (fixed interval, varied interval)
+      - test score_content() composite calculation
+      - test add_to_history() persistence
+      - test get_history() retrieval and limit
+      - test clear_history()
+      - test history rotation (>200 entries)
+      - test empty history (first content always scores 1.0)
+      - test configurable threshold
+      - test atomic file writes
+    mock_strategy: "Mock file I/O for persistence. Pure computation for scoring."
+    target_tests: 60+
+    target_coverage: ">90%"
+
+  h37_trend_batch_bridge:
+    unit_tests:
+      - test generate_trending_batch() with mock TrendDetector and BatchGenerator
+      - test topics_to_batch_job() conversion (valid topics, empty list, max count)
+      - test min_score filtering (all above, all below, mixed)
+      - test count limiting (fewer available than requested)
+      - test auto_publish passthrough
+      - test publish_platforms passthrough
+      - test delay passthrough
+      - test empty trend results (warning log, zero-result BatchResult)
+      - test niche validation
+      - test subreddits passthrough to TrendDetector
+    mock_strategy: "Mock TrendDetector.detect() and BatchGenerator.run(). Pure glue logic."
+    target_tests: 45+
+    target_coverage: ">90%"
+
+implementation_order:
+  - step: 1
+    parallel: true
+    tasks:
+      - "Create src/ffmpeg_utils.py [H35]"
+      - "Create src/uniqueness_scorer.py [H36]"
+      - "Create src/trend_batch_bridge.py [H37]"
+  - step: 2
+    parallel: true
+    tasks:
+      - "Write tests/test_ffmpeg_utils.py [H35]"
+      - "Write tests/test_uniqueness_scorer.py [H36]"
+      - "Write tests/test_trend_batch_bridge.py [H37]"
+  - step: 3
+    parallel: false
+    tasks:
+      - "Run full test suite — verify 0 failures [H35, H36, H37]"
+
+out_of_scope:
+  - Modifying export_optimizer.py to use ffmpeg_utils (future iteration)
+  - Modifying smart_clipper.py to use ffmpeg_utils (future iteration)
+  - Integrating uniqueness_scorer into publisher.py (future iteration)
+  - GPU-accelerated encoding (NVENC) — requires NVIDIA hardware
+  - Multi-language dubbing pipeline
+  - TikTok Shop API integration
+  - YouTube.py pipeline wiring

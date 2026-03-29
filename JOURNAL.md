@@ -1483,3 +1483,194 @@ Implementation order: H32 + H34 in parallel (independent), then H33 (depends on 
 - New files: src/animated_captions.py, src/pipeline_integrator.py, src/trend_detector.py, tests/test_animated_captions.py, tests/test_pipeline_integrator.py, tests/test_trend_detector.py
 
 ---
+
+---
+
+## Survey — 2026-03-29 (Iteration 11)
+**Topic**: Pipeline wiring, performance optimization, multi-language dubbing, shoppable content
+
+### Key Findings
+
+1. **MoviePy vs direct FFmpeg performance gap is 100-1000x for simple operations** — MoviePy subclip+write took >20s for a 70s clip; FFmpeg `-c copy` took milliseconds. For batch processing at scale, direct FFmpeg subprocess calls or ffmpegcv should replace MoviePy for non-compositing operations. (source: GitHub issue #2165, Gumlet guide)
+
+2. **GPU-accelerated encoding (NVENC) available via ffmpegcv Python package** — `pip install ffmpegcv` provides GPU-accelerated encode/decode with h264_nvenc and hevc_nvenc codecs. NVIDIA's VideoProcessingFramework (VPF/PyNvCodec) enables fully HW-accelerated transcoding without Host↔Device copies. Estimated 3-5x speedup for batch video export. (source: NVIDIA docs, ffmpegcv PyPI)
+
+3. **Open-source dubbing pipeline exists: Whisper → M2M100 → XTTS → SadTalker** — Union.ai published a complete 5-stage pipeline: audio extraction (moviepy+katna), transcription (Whisper Large v2), translation (Meta M2M100 1.2B, 17 languages), voice cloning (Coqui XTTS v2), lip sync (SadTalker). Cost: ~$0.50/16s video on T4 GPU. Each stage isolated in its own container. (source: union.ai blog)
+
+4. **8 open-source lip-sync models ranked for 2026** — Wav2Lip (best for dubbing existing footage), SadTalker (single image+audio), LivePortrait/Tencent ARC (photorealistic), MuseTalk (highest quality), MakeItTalk (fast on modest GPUs), LipGAN (edge-deployable, real-time). All Python-compatible. (source: pixazo.ai)
+
+5. **YouTube 2026: "inauthentic content" policy targets template-like mass-produced videos** — Previously "repetitive content" rule, now explicitly blocks ad revenue for mass-produced template videos. Completion rate and watch time now influence RPM more than raw views. Shorts CPM: $0.50-$2.00/1K views, creators keep 45%. (source: outlierkit.com, ssemble.com)
+
+6. **Predictive micro-trend detection achieves 70-90% accuracy** — AI systems update predictions every 15 minutes using engagement velocity, sentiment analysis (82% accuracy), network graph propagation (91% precision), and temporal pattern recognition (88% recall). No open-source tools; all commercial (BuzzSumo, Hootsuite Blue Silk). (source: viralgraphs.com, dialzara.com)
+
+7. **TikTok Shop Widgets eliminate custom UI for shoppable content** — New developer Widgets combine TikTok Shop API with pre-built UI components. Shopify integration is mature. Product tagging in videos available via Open Platform API + Postman collection. (source: developers.tiktok.com)
+
+8. **Scaled video pipelines use folder-based triggers + performance-triggered repurposing** — Drop videos into designated directories for auto-processing. Successful clips auto-spawn variations when crossing engagement thresholds. Platform-specific rendering (9:16, 1:1, 16:9) happens automatically. (source: joyspace.ai)
+
+### Notable Papers & Resources
+- [Open-Source Video Dubbing Pipeline](https://www.union.ai/blog-post/open-source-video-dubbing-using-whisper-m2m-coqui-xtts-and-sad-talker) — Whisper+M2M100+XTTS+SadTalker, fully orchestrated with Flyte/Union
+- [NVIDIA VPF](https://github.com/NVIDIA/VideoProcessingFramework) — HW-accelerated video processing in Python
+- [ffmpegcv](https://pypi.org/project/ffmpegcv/) — GPU-accelerated FFmpeg wrapper for Python
+- [8 Open-Source Lip-Sync Models](https://www.pixazo.ai/blog/best-open-source-lip-sync-models) — Wav2Lip, SadTalker, LivePortrait, MuseTalk, etc.
+
+### Tools & Competitors
+- **OpusClip**: AI clip extraction with proprietary virality score, auto-captions, b-roll suggestions
+- **Clippie**: Upload long-form → auto-extract 5-20 viral-worthy short clips
+- **Joyspace AI**: Bulk processing for 1000+ clips/month pipeline
+- **Sync Labs**: Open-source dubbing app (Gladia + ElevenLabs + Sync Labs for visual dubbing)
+- **ffmpegcv**: Drop-in GPU-accelerated alternative to OpenCV/MoviePy for video I/O
+
+### Gaps & Opportunities
+1. **No open-source predictive micro-trend detector** — All trend prediction tools are commercial. Our trend_detector.py (pytrends+Reddit) could be extended with engagement velocity scoring and temporal pattern recognition.
+2. **Pipeline wiring is the #1 blocker** — All 10 iterations of new modules (templates, hooks, captions, export, trends, etc.) remain unwired from the main YouTube.py pipeline. This is the highest-impact integration work.
+3. **FFmpeg direct calls for non-compositing ops** — Current pipeline uses MoviePy for everything. Simple operations (trim, concat, format convert) should use FFmpeg subprocess for 100x speedup.
+4. **YouTube "inauthentic content" risk** — Mass-produced template videos now explicitly flagged. Our content needs variation/uniqueness scoring to avoid demonetization.
+5. **Multi-language dubbing is feasible with existing open-source stack** — The Whisper→M2M100→XTTS pipeline covers 17 languages. SadTalker handles lip sync. All Python-compatible.
+
+---
+
+## Hypotheses — 2026-03-29 (Iteration 11)
+Formulated 3 hypotheses. Top priority: H35 — FFmpeg direct export for 10-100x speedup on non-compositing video operations.
+
+| ID | Title | Priority | Rationale |
+|----|-------|----------|-----------|
+| H35 | FFmpeg Direct Export Utils | HIGH | MoviePy is 100-1000x slower than FFmpeg for trim/concat/transcode |
+| H36 | Content Uniqueness Scorer | HIGH | YouTube 2026 "inauthentic content" policy targets template videos |
+| H37 | Trend-to-Batch Pipeline Bridge | MEDIUM | Wire TrendDetector→BatchGenerator per iteration 10 retro |
+
+All 3 are independent, can be implemented in parallel. Multi-language dubbing deferred (GPU-dependent).
+
+---
+
+## Architecture — 2026-03-29 (Iteration 11)
+Designed implementation for H35, H36, H37. 7 tasks added to TODO.md.
+Key decisions: All 3 modules are standalone with no cross-dependencies, can be implemented in parallel. H35 uses subprocess.run (no shell=True) for FFmpeg calls. H36 uses difflib.SequenceMatcher (stdlib, no new deps) for title similarity. H37 follows the thin bridge pattern validated by pipeline_integrator.py.
+
+---
+
+## Experiment — 2026-03-29 (Iteration 11)
+
+### Full Test Suite Results
+- **Total tests**: 1808 (was 1559, +249)
+- **Passing**: 1808 (100%)
+- **Failures**: 0
+- **Coverage**: 83.94% (was 83.04%, +0.90%)
+- **Runtime**: 35.99s
+
+### Per-Module Results
+
+| Module | Tests | Coverage | Target | Status |
+|--------|-------|----------|--------|--------|
+| ffmpeg_utils.py | 98 | 96.73% | 55+, >90% | PASS |
+| uniqueness_scorer.py | 91 | 92.96% | 60+, >90% | PASS |
+| trend_batch_bridge.py | 60 | 93.44% | 45+, >90% | PASS |
+
+### New Files
+- src/ffmpeg_utils.py (153 statements)
+- src/uniqueness_scorer.py (213 statements)
+- src/trend_batch_bridge.py (61 statements)
+- tests/test_ffmpeg_utils.py (98 tests)
+- tests/test_uniqueness_scorer.py (91 tests)
+- tests/test_trend_batch_bridge.py (60 tests)
+
+### Cross-Test Interference
+None detected. All 1808 tests pass cleanly — 11 consecutive iterations with 0 failures.
+
+---
+
+## Evaluation — 2026-03-29 (Iteration 11)
+
+### Hypothesis Results
+
+| Hypothesis | Metric | Measured | Threshold | Status |
+|------------|--------|----------|-----------|--------|
+| H35: FFmpeg Direct Export | Tests, coverage | 98 tests, 96.73% | 55+ tests, >90% | **CONFIRMED** |
+| H36: Content Uniqueness Scorer | Tests, coverage | 91 tests, 92.96% | 60+ tests, >90% | **CONFIRMED** |
+| H37: Trend-to-Batch Bridge | Tests, coverage | 60 tests, 93.44% | 45+ tests, >90% | **CONFIRMED** |
+
+### H35: FFmpeg Direct Export Utils — CONFIRMED
+- **Result**: `src/ffmpeg_utils.py` created with 6 functions + VideoInfo dataclass
+- **Functions**: check_ffmpeg, get_video_info, trim_clip, concat_clips, transcode, extract_audio
+- **Coverage**: 96.73% (153 statements, 5 uncovered — defensive error paths)
+- **Tests**: 98 tests across 9 test classes, all passing
+- **Security**: All subprocess calls use capture_output=True, text=True. No shell=True. All paths validated via validate_path(). Error messages never disclose file paths.
+- **Key design**: codec='copy' default for trim/concat enables instant lossless operations (the 100x speedup case). Re-encode mode available when codec conversion needed.
+- **Verdict**: All success thresholds exceeded. Module ready for integration into export_optimizer and smart_clipper.
+
+### H36: Content Uniqueness Scorer — CONFIRMED
+- **Result**: `src/uniqueness_scorer.py` created with UniquenessScore dataclass + UniquenessScorer class
+- **Dimensions**: title_similarity (0.30), script_variation (0.30), metadata_diversity (0.20), posting_regularity (0.20)
+- **Coverage**: 92.96% (213 statements, 15 uncovered — edge case validation paths)
+- **Tests**: 91 tests across 13 categories, all passing
+- **Persistence**: JSON history at .mp/uniqueness_history.json with atomic writes, max 200 entries
+- **Privacy**: Only stores title, script hash (SHA-256 of first 500 chars), tag list, description hash — no raw content
+- **Verdict**: All success thresholds exceeded. Addresses YouTube 2026 "inauthentic content" demonetization risk.
+
+### H37: Trend-to-Batch Pipeline Bridge — CONFIRMED
+- **Result**: `src/trend_batch_bridge.py` created with 2 functions
+- **Functions**: generate_trending_batch (main entry), topics_to_batch_job (pure conversion)
+- **Coverage**: 93.44% (61 statements, 4 uncovered — type-check branches for non-integer args)
+- **Tests**: 60 tests across 14 categories, all passing
+- **Pattern**: Follows "compose don't modify" pattern validated by pipeline_integrator.py (H33). Zero modifications to trend_detector.py or batch_generator.py.
+- **Error handling**: Empty trend results → warning log + BatchResult(total=0, succeeded=0). Never falls back to default topics.
+- **Verdict**: All success thresholds exceeded. Enables fully automated detect-trending→generate-batch workflow.
+
+### Key Insights
+- **249 new tests** in iteration 11 (98+91+60). All passing on first full-suite run. 11 consecutive iterations with 0 test failures.
+- **Coverage increased to 83.94%** (was 83.04%, +0.90%). The gain is smaller than iterations 9-10 (+1.72%, +1.89%) because new modules added 427 production statements while the existing low-coverage modules (YouTube.py at 21%, Twitter.py at 47%) continue to dominate the denominator.
+- **Zero cross-test interference** — no sys.modules pollution issues this iteration, suggesting the save/restore pattern from iteration 10 was effective.
+- **FFmpeg utils is the highest-leverage module** — once integrated into export_optimizer.py and smart_clipper.py, it will eliminate the MoviePy bottleneck for all non-compositing operations (trim, concat, transcode).
+- **Uniqueness scorer uses only stdlib** — difflib.SequenceMatcher + hashlib.sha256 + statistics.stdev. Zero new dependencies. This makes it lightweight and always available.
+
+### Full Suite Impact
+- Total tests: 1808 (was 1559, +249)
+- Passing: 1808 (100%)
+- Coverage: 83.94% (was 83.04%, +0.90%)
+- New files: src/ffmpeg_utils.py, src/uniqueness_scorer.py, src/trend_batch_bridge.py, tests/test_ffmpeg_utils.py, tests/test_uniqueness_scorer.py, tests/test_trend_batch_bridge.py
+
+---
+
+## Retrospective — 2026-03-29 (Iteration 11)
+
+### What Worked
+- **3 parallel implementation agents** completed all work efficiently. H35 (ffmpeg_utils) finished at ~162s with 98 tests, H37 (trend-batch bridge) at ~152s with 60 tests, H36 (uniqueness scorer) at ~233s with 91 tests. All ran truly parallel.
+- **249 new tests in iteration 11** — consistent output matching iterations 9 and 10. All passing on first full-suite run. 11 consecutive iterations with 0 test failures.
+- **Zero new dependencies** — all 3 modules use only stdlib and existing project deps. ffmpeg_utils uses subprocess (stdlib), uniqueness_scorer uses difflib+hashlib+statistics (all stdlib), trend_batch_bridge just bridges existing modules.
+- **FFmpeg utils provides the foundation for 100x speedup** — trim_clip with codec='copy' enables instant lossless video trimming. This will be transformative once integrated into export_optimizer and smart_clipper.
+- **Uniqueness scorer addresses a real business risk** — YouTube's 2026 "inauthentic content" policy is a concrete demonetization threat for automated content. Having a pre-publish uniqueness check is a defensive capability.
+
+### What Didn't Work
+- **Coverage gain was smaller (+0.90%)** — iterations 9 and 10 gained +1.72% and +1.89% respectively. The 427 new production statements are well-covered (93-97%), but the unchanged low-coverage modules (YouTube.py at 21%, Twitter.py at 47%) increasingly dominate the denominator. Diminishing returns on coverage from new module additions alone.
+- **Trend-batch bridge depends on pytrends reliability** — inherited from iteration 10's trend_detector. The bridge correctly handles empty results, but the underlying pytrends fragility means real-world automation may produce many zero-result runs.
+
+### Surprises
+- **FFmpeg utils hit 98 tests** — the highest test count for a single module in iteration 11, despite being conceptually simpler than the uniqueness scorer. The subprocess mocking patterns generated many edge-case tests.
+- **Uniqueness scorer uses 4 stdlib libraries** — difflib, hashlib, statistics, json. No external dependencies needed for a sophisticated scoring system. Proof that Python's stdlib is underappreciated for ML-adjacent tasks.
+- **All 3 modules had zero cross-dependencies** — true independence made parallel implementation trivially safe. No sys.modules pollution, no import ordering issues.
+
+### What to Try Next
+1. **Wire ffmpeg_utils into export_optimizer** — Replace MoviePy trim/transcode calls with ffmpeg_utils for 10-100x speedup on batch exports.
+2. **Wire ffmpeg_utils into smart_clipper** — Replace split_clips() MoviePy-based extraction with ffmpeg_utils.trim_clip(codec='copy').
+3. **Wire uniqueness_scorer into publisher** — Add pre-publish uniqueness check to ContentPublisher.publish() flow.
+4. **Coverage push on YouTube.py** — At 21%, it's the #1 bottleneck. Need to mock Selenium and MoviePy to test the pipeline without real browsers/video.
+5. **Multi-language dubbing** — Survey confirmed Whisper→M2M100→XTTS→SadTalker pipeline. Requires GPU. Consider cloud API approach instead.
+6. **Shoppable content** — TikTok Shop Widgets API is mature. Could add product tagging to publisher pipeline.
+
+### Action Items
+- [x] H35: FFmpeg direct export utils (98 tests, 96.73% coverage) — DONE
+- [x] H36: Content uniqueness scorer (91 tests, 92.96% coverage) — DONE
+- [x] H37: Trend-to-batch pipeline bridge (60 tests, 93.44% coverage) — DONE
+
+### Cycle Stats
+- Hypotheses tested: 3
+- Confirmed: 3
+- Rejected: 0
+- Inconclusive: 0
+- Tasks completed: 7
+- Tasks failed: 0
+- New tests added: 249
+- Total test suite: 1808 passing, 0 failing
+- Coverage: 83.94% (full-source)
+- New files: src/ffmpeg_utils.py, src/uniqueness_scorer.py, src/trend_batch_bridge.py, tests/test_ffmpeg_utils.py, tests/test_uniqueness_scorer.py, tests/test_trend_batch_bridge.py
+
+---

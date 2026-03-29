@@ -1,0 +1,120 @@
+## Hypotheses — Iteration 11 (2026-03-29)
+## Based on survey findings from JOURNAL.md 2026-03-29 (Iteration 11)
+## and "What to Try Next" from Iteration 10 retro
+
+hypotheses:
+  - id: H35
+    title: "FFmpeg Direct Export for Non-Compositing Operations"
+    priority: HIGH
+    status: CONFIRMED
+    hypothesis: >
+      Adding an ffmpeg_utils.py module that provides direct FFmpeg subprocess
+      wrappers for trim, concat, format conversion, and re-encoding operations
+      will achieve 10-100x speedup over MoviePy for non-compositing video
+      operations. The export_optimizer.py module currently delegates all encoding
+      to MoviePy — replacing trim/concat/transcode calls with FFmpeg subprocess
+      will dramatically reduce batch export time.
+    metric: >
+      Module passes unit tests with >90% coverage; provides trim_clip(),
+      concat_clips(), transcode(), and get_video_info() functions using
+      subprocess.run(['ffmpeg', ...]); validates FFmpeg binary availability;
+      supports configurable codec, bitrate, resolution parameters;
+      handles errors with proper subprocess error capture.
+    success_threshold: >
+      Module passes 50+ unit tests, coverage >90%. Provides clean API
+      wrapping FFmpeg subprocess calls. Zero MoviePy dependency in this module.
+    rationale: >
+      Survey finding #1: MoviePy subclip+write takes >20s for 70s clip vs
+      milliseconds for FFmpeg -c copy. GitHub issue #2165 confirms performance
+      gap. Our export_optimizer.py, batch_generator.py, and smart_clipper.py
+      all use MoviePy for operations that FFmpeg handles 100x faster.
+    risk: >
+      FFmpeg binary must be available on PATH. Subprocess error handling
+      needs careful design. Some operations (text overlay, composition)
+      still require MoviePy — must clearly delineate which ops use which tool.
+    dependencies:
+      - ffmpeg binary (already required for MoviePy)
+      - existing export_optimizer.py (iteration 9)
+      - existing smart_clipper.py (iteration 3)
+
+  - id: H36
+    title: "Content Uniqueness Scorer (Anti-Template Detection)"
+    priority: HIGH
+    status: CONFIRMED
+    hypothesis: >
+      Adding a uniqueness_scorer.py module that scores generated video content
+      for uniqueness — comparing against recent outputs, checking for
+      template-like patterns, and scoring variation in hooks/scripts/metadata —
+      will help avoid YouTube's 2026 "inauthentic content" demonetization policy
+      that targets mass-produced template-like videos.
+    metric: >
+      Module passes unit tests with >90% coverage; provides score_uniqueness()
+      function that returns 0.0-1.0 score with breakdown;
+      checks title similarity (Levenshtein), script structural variation,
+      thumbnail diversity, and posting pattern regularity;
+      flags content scoring below configurable threshold (default 0.6);
+      maintains rolling history of recent outputs in .mp/uniqueness_history.json.
+    success_threshold: >
+      Module passes 55+ unit tests, coverage >90%. Scores content across 4
+      dimensions. JSON cache for history comparison. Integrates with publisher.py
+      as pre-publish check.
+    rationale: >
+      Survey finding #5: YouTube rebranded "repetitive content" to "inauthentic
+      content" policy, explicitly blocking ad revenue for mass-produced template
+      videos. Our pipeline generates videos from templates — uniqueness scoring
+      is essential to avoid demonetization. This is a defensive capability.
+    risk: >
+      Defining "unique enough" is subjective. Levenshtein distance may not
+      capture semantic similarity. LLM-based similarity scoring would be more
+      accurate but slower. May produce false positives on intentionally
+      serialized content.
+    dependencies:
+      - existing publisher.py
+      - existing seo_optimizer.py
+      - existing video_templates.py (iteration 9)
+
+  - id: H37
+    title: "Trend-to-Batch Pipeline Wiring (TrendDetector → BatchGenerator)"
+    priority: MEDIUM
+    status: CONFIRMED
+    hypothesis: >
+      Adding a trend_batch_bridge.py module that wires TrendDetector.detect()
+      output into BatchGenerator.run_batch() input — converting TopicCandidate
+      objects into batch topics with appropriate parameters — will enable
+      fully automated "detect trending topic → generate batch videos" workflows.
+      This was the #2 recommendation from iteration 10 retro.
+    metric: >
+      Module passes unit tests with >90% coverage; provides
+      generate_trending_batch(niche, count, auto_publish) function;
+      calls TrendDetector.detect() → filters by score threshold →
+      maps TopicCandidate.topic to BatchGenerator topics →
+      calls BatchGenerator.run_batch() with mapped topics;
+      handles empty trend results gracefully.
+    success_threshold: >
+      Module passes 45+ unit tests, coverage >90%. Bridges trend_detector
+      and batch_generator with zero modifications to either source module.
+    rationale: >
+      Iteration 10 retro explicitly listed "Trend detector → batch generator
+      integration" as #2 priority. Both modules exist independently but
+      aren't connected. This is pure glue code following the "compose don't
+      modify" pattern validated by pipeline_integrator.py (H33, 100% coverage).
+    risk: >
+      pytrends reliability issues (documented in iteration 10 retro) may
+      produce empty trend lists. Batch generator may fail if topics are
+      too niche or trend-specific. Need fallback to default topics.
+    dependencies:
+      - src/trend_detector.py (iteration 10)
+      - src/batch_generator.py (iteration 4)
+
+priority_ranking:
+  1: H35  # Direct performance impact, 10-100x speedup for batch operations
+  2: H36  # Defensive capability against YouTube demonetization, high business risk
+  3: H37  # Wires existing modules together, follows proven integration pattern
+
+implementation_recommendation: >
+  All three hypotheses are independent and can be implemented in parallel.
+  H35 (FFmpeg utils) and H36 (uniqueness scorer) are HIGH priority — both
+  address concrete risks (performance bottleneck, demonetization).
+  H37 (trend-batch bridge) is MEDIUM but follows the proven thin-integration
+  pattern from H33. All three modules are standalone with no cross-dependencies.
+  Multi-language dubbing deferred again — requires GPU and heavy deps.

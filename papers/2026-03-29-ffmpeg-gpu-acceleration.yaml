@@ -1,0 +1,27 @@
+title: "FFmpeg GPU Acceleration for Python Video Pipelines"
+sources:
+  - "https://docs.nvidia.com/video-technologies/video-codec-sdk/13.0/ffmpeg-with-nvidia-gpu/index.html"
+  - "https://pypi.org/project/ffmpegcv/"
+  - "https://github.com/NVIDIA/VideoProcessingFramework"
+date_accessed: "2026-03-29"
+
+performance_gap:
+  moviepy_subclip_write: ">20s for 70s clip"
+  ffmpeg_copy: "milliseconds for same operation"
+  speedup: "100-1000x for non-compositing operations"
+
+ffmpegcv:
+  install: "pip install ffmpegcv"
+  gpu_codecs: ["h264_nvenc", "hevc_nvenc"]
+  api: ["ffmpegcv.VideoCapture()", "ffmpegcv.VideoWriter()"]
+
+nvidia_vpf:
+  package: "PyNvCodec"
+  feature: "Full HW acceleration, zero-copy Host<->Device"
+
+nvenc_codecs:
+  - "h264_nvenc (H.264)"
+  - "hevc_nvenc (H.265/HEVC)"
+  - "av1_nvenc (AV1)"
+
+relevance: "export_optimizer.py and batch_generator.py would benefit most from GPU encoding. Simple trim/concat should use FFmpeg subprocess."
