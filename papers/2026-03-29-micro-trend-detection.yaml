@@ -1,0 +1,21 @@
+title: "Predictive Micro-Trend Detection for Topic Selection (2026)"
+date: 2026-03-29
+type: technique-survey
+relevance: MEDIUM
+sources:
+  - url: https://contently.com/2025/12/26/how-to-detect-micro-trends-before-they-break-out-top-10-platforms-for-2026/
+    title: "How to Detect Micro-Trends Before They Break Out"
+    key_finding: "Enterprise platforms 75-82% accuracy. Combined with human review ~90%. Free tools ~60%."
+  - url: https://meetglimpse.com/software-guides/pytrends-alternatives/
+    title: "Top 4 Pytrends Alternatives (2026)"
+    key_finding: "Glimpse API is enterprise-grade ($$$). pytrends still works but fragile."
+  - url: https://knowledgehubmedia.com/using-ai-to-analyze-social-listening-and-predict-viral-trends/
+    title: "Using AI to Predict Viral Trends"
+    key_finding: "NLP + velocity tracking (rate of mention growth, not volume) is key signal"
+
+summary: |
+  DIY approach: Google Trends (via SerpApi/pytrends) + Reddit API + TikTok trending
+  hashtags → LLM classifier to score topic viability. 60-75% accuracy for free-tier tools.
+  Micro-trends last 1-3 weeks; must track velocity not volume.
+  Enterprise platforms (Glimpse, Brandwatch) cost $10K+/quarter — not viable for this project.
+  pytrends is functional but breaks often. SerpApi is more reliable but paid.

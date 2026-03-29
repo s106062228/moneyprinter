@@ -1,0 +1,24 @@
+title: "Word-by-Word Animated Captions with MoviePy and Whisper"
+date: 2026-03-29
+type: technique-survey
+relevance: HIGH
+sources:
+  - url: https://www.angel1254.com/blog/posts/word-by-word-captions
+    title: "Generating Word-By-Word Captions w/ Python"
+    key_finding: "whisper-timestamped → per-word TextClip → CompositeVideoClip. No browser deps."
+  - url: https://github.com/Zulko/moviepy/discussions/2017
+    title: "Scrolling word subtitles with MoviePy and Whisper"
+    key_finding: "Open-source Colab notebook for word-level subtitle rendering"
+  - url: https://github.com/francozanardi/pycaps
+    title: "pycaps: CSS-styled video subtitles"
+    key_finding: "Alpha, requires Playwright. PictexSubtitleRenderer is browser-free but limited."
+  - url: https://github.com/Zulko/moviepy/issues/1228
+    title: "MoviePy TextClip word highlighting"
+    key_finding: "Per-word color highlighting possible via separate TextClip overlays"
+
+summary: |
+  Pure MoviePy approach for animated captions is production-viable without browser dependencies.
+  Pipeline: whisper-timestamped (word-level timing) → group words into segments → render
+  per-word TextClip with highlight color on current word → CompositeVideoClip merge.
+  MoviePy v2 API: .with_start(), .with_end(), .with_position(). No CSS animations but
+  sufficient for CapCut-style word highlight effect dominant on Shorts/Reels/TikTok.

@@ -1,0 +1,54 @@
+## Experiment Results — Iteration 10 (2026-03-29)
+
+full_suite:
+  total_tests: 1559
+  passing: 1559
+  failing: 0
+  coverage: 83.04%
+  previous_coverage: 81.15%
+  coverage_delta: +1.89%
+
+new_tests_added: 245  # 96 + 54 + 95
+
+modules:
+  animated_captions:
+    hypothesis: H32
+    file: src/animated_captions.py
+    statements: 214
+    tests: 96
+    coverage: 99.07%
+    uncovered_lines: "434-435 (unreachable defensive else)"
+    classes: [WordTiming, CaptionSegment, CaptionStyle, AnimatedCaptions]
+    methods: [transcribe, _build_segment_clips, _render_word_clip, apply, apply_to_clip, from_srt]
+    caption_styles: [karaoke, pop_on, scroll]
+    dependencies_added: 0  # uses existing faster-whisper + moviepy
+
+  pipeline_integrator:
+    hypothesis: H33
+    file: src/pipeline_integrator.py
+    statements: 133
+    tests: 54
+    coverage: 100.00%
+    uncovered_lines: none
+    functions: [prepend_intro_outro, generate_hooked_script, export_for_platforms, apply_captions]
+    integrates: [video_templates, hook_generator, export_optimizer, animated_captions]
+    youtube_py_modifications: 0
+
+  trend_detector:
+    hypothesis: H34
+    file: src/trend_detector.py
+    statements: 192
+    tests: 95
+    coverage: 96.88%
+    uncovered_lines: "383-389 (OSError temp-file cleanup)"
+    classes: [TopicCandidate, TrendDetector]
+    methods: [fetch_google_trends, fetch_reddit_trending, score_topics, detect, _load_cache, _save_cache]
+    data_sources: [google_trends, reddit]
+    dependencies_added: 1  # pytrends (new)
+
+pre_existing_failures_fixed: 0
+pre_existing_failures_introduced: 0
+
+cross_test_issue_fixed:
+  description: "sys.modules['moviepy'] pollution between test_animated_captions.py and test_export_optimizer.py"
+  fix: "Save/restore sys.modules['moviepy'] around test_animated_captions import block"

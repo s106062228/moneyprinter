@@ -1,0 +1,21 @@
+title: "Shoppable Video & Affiliate Link Automation (2026)"
+date: 2026-03-29
+type: tool-survey
+relevance: MEDIUM
+sources:
+  - url: https://www.twelvelabs.io/blog/shoppable-video
+    title: "Building A Shoppable Video Application with TwelveLabs API"
+    key_finding: "Analyze API detects products in video frames, returns timeline + brand/product names, links to Amazon"
+  - url: https://partner.tiktokshop.com/docv2/page/6697960798b0a502f89e3d00
+    title: "TikTok Affiliate Seller API"
+    key_finding: "Full affiliate seller API for product tagging and commission tracking"
+  - url: https://logie.ai/news/youtube-affiliate-shopping-2025/
+    title: "YouTube Affiliate Shopping with Shorts"
+    key_finding: "Shorts still block clickable links. Workarounds: product stickers, QR codes, shop hubs"
+
+summary: |
+  TikTok Shop API is most actionable for automated affiliate integration.
+  YouTube Shorts still lacks clickable description links in 2026.
+  TwelveLabs provides video product detection but requires paid API.
+  Short-form video delivers 1.6x higher ROI vs static ads.
+  Affiliate commissions 5-20% depending on vertical.

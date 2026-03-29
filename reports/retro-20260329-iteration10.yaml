@@ -1,0 +1,44 @@
+## Retrospective — Iteration 10 (2026-03-29)
+
+iteration: 10
+date: 2026-03-29
+hypotheses_tested: 3
+confirmed: 3
+rejected: 0
+inconclusive: 0
+
+results:
+  H32:
+    title: "Word-by-Word Animated Captions (Pure MoviePy)"
+    status: CONFIRMED
+    tests: 96
+    coverage: 99.07%
+    key_achievement: "3 caption styles (karaoke, pop_on, scroll), zero Playwright dependency"
+
+  H33:
+    title: "Pipeline Integration Layer"
+    status: CONFIRMED
+    tests: 54
+    coverage: 100.00%
+    key_achievement: "Wires 4 modules (iter 9+10) without modifying YouTube.py"
+
+  H34:
+    title: "Trend Detector (Google Trends + Reddit)"
+    status: CONFIRMED
+    tests: 95
+    coverage: 96.88%
+    key_achievement: "Dual-source topic detection with LLM scoring and atomic cache"
+
+suite:
+  total_tests: 1559
+  passing: 1559
+  failing: 0
+  coverage: 83.04%
+  previous_coverage: 81.15%
+  delta: +1.89%
+  new_tests: 245
+
+next_priorities:
+  1: "Main pipeline wiring — YouTube.py generate_and_upload() integration"
+  2: "Trend detector → batch generator auto-topic selection"
+  3: "Caption quality validation with real video files"

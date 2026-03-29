@@ -1,0 +1,118 @@
+## Hypotheses — Iteration 10 (2026-03-29)
+## Based on survey findings from JOURNAL.md 2026-03-29 (Iteration 10)
+
+hypotheses:
+  - id: H32
+    title: "Word-by-Word Animated Captions Module (Pure MoviePy)"
+    priority: HIGH
+    status: CONFIRMED
+    deferred_from: "iterations 7, 8 (as 'auto-caption styling')"
+    hypothesis: >
+      Adding an animated_captions.py module that uses whisper-timestamped for
+      word-level timing and MoviePy v2 TextClip overlays to render CapCut-style
+      word-by-word captions — with current-word highlighting in a contrasting
+      color — will provide auto-caption styling without any browser or Playwright
+      dependency. Pure MoviePy v2 API only.
+    metric: >
+      Module passes unit tests with >90% coverage; generates per-word TextClip
+      overlays with configurable highlight color; groups words into segments
+      matching SRT timing; renders CompositeVideoClip with caption overlay;
+      supports at least 3 caption styles (karaoke, pop-on, scroll);
+      zero new heavy dependencies (uses existing MoviePy v2 + whisper-timestamped).
+    success_threshold: >
+      Module creates AnimatedCaptions class, passes 50+ unit tests, coverage >90%.
+      No Playwright/Chromium dependency. Works with existing Tts.py whisper pipeline.
+    rationale: >
+      Survey confirms pure MoviePy approach is viable: per-word TextClip with
+      .with_start()/.with_end() for timing, highlight color on current word,
+      CompositeVideoClip merge. pycaps still alpha with Playwright dep — too
+      heavy. This TODO item deferred 3 iterations. Addresses "Auto-caption
+      styling (animated captions like CapCut)" in TODO.md.
+    risk: >
+      MoviePy TextClip rendering speed with many overlays may be slow for
+      long videos. Font rendering depends on ImageMagick (already a project dep).
+      whisper-timestamped word accuracy varies by model size.
+    dependencies:
+      - whisper-timestamped (new pip dep, lightweight wrapper around faster-whisper)
+      - existing MoviePy v2 (already installed)
+      - existing src/classes/Tts.py (STT pipeline)
+
+  - id: H33
+    title: "Pipeline Integration Layer (Wire Iteration 9 Modules)"
+    priority: HIGH
+    status: CONFIRMED
+    hypothesis: >
+      Adding a pipeline_integrator.py module that provides thin wrapper functions
+      to wire video_templates.py, hook_generator.py, and export_optimizer.py
+      into the existing YouTube.py workflow — without modifying YouTube.py
+      directly — will enable the iteration 9 modules to produce user-visible
+      results. Functions: prepend_intro_outro(clip, template_ids),
+      generate_hooked_script(topic, platform), export_for_platforms(clip, platforms).
+    metric: >
+      Module passes unit tests with >90% coverage; correctly calls
+      video_templates.render_clip() and concatenates with main clip;
+      calls hook_generator.generate_hook() and prepends to script;
+      calls export_optimizer.optimize() for each target platform;
+      returns valid MoviePy clips / strings / file paths.
+    success_threshold: >
+      Module passes 40+ unit tests, coverage >90%. All 3 iteration 9 modules
+      exercised through the integration layer. Zero changes to YouTube.py.
+    rationale: >
+      Iteration 9 retro explicitly recommended wiring video_templates,
+      hook_generator, and export_optimizer into the pipeline as the
+      "natural next step." Survey confirms modular pipeline architecture
+      with pre/post hooks at each stage is the standard pattern.
+    risk: >
+      Integration layer may need to handle missing templates/configs gracefully.
+      YouTube.py's combine() method is complex — integration must be
+      non-invasive to avoid regressions.
+    dependencies:
+      - src/video_templates.py (iteration 9)
+      - src/hook_generator.py (iteration 9)
+      - src/export_optimizer.py (iteration 9)
+
+  - id: H34
+    title: "Trend Detector Module (Google Trends + Reddit for Topic Selection)"
+    priority: MEDIUM
+    status: CONFIRMED
+    hypothesis: >
+      Adding a trend_detector.py module that queries Google Trends (via pytrends)
+      and Reddit's JSON API (public, no auth needed) for trending topics in
+      configurable niches, then scores candidates via LLM for video-worthiness,
+      will provide automated topic selection for the "Auto-niche detection from
+      trending topics" TODO item.
+    metric: >
+      Module passes unit tests with >90% coverage; fetches trending topics from
+      Google Trends (pytrends) and Reddit (/r/{subreddit}/hot.json);
+      LLM scores each topic on a 1-10 scale for video potential;
+      returns ranked list of TopicCandidate dataclasses;
+      handles API failures gracefully with fallback to cached topics.
+    success_threshold: >
+      Module passes 45+ unit tests, coverage >90%. Fetches from 2 data sources.
+      LLM scoring with fallback. JSON cache in .mp/trending_topics.json.
+    rationale: >
+      Survey confirms micro-trends (1-3 week lifespan) are best detected via
+      velocity tracking. DIY approach using free APIs achieves 60-75% accuracy.
+      pytrends is fragile but functional. Reddit JSON API is public and
+      requires no authentication. LLM scoring adds intelligence layer.
+    risk: >
+      pytrends breaks when Google updates (documented instability). Reddit
+      rate limits at 30 req/min without auth. LLM topic scoring is subjective.
+      Free-tier accuracy (~60%) may produce mediocre topic suggestions.
+    dependencies:
+      - pytrends (new pip dep)
+      - existing llm_provider.py
+      - requests (already installed)
+
+priority_ranking:
+  1: H32  # Deferred 3 iterations, highest backlog debt, pure MoviePy approach proven
+  2: H33  # Directly addresses iteration 9 retro top recommendation
+  3: H34  # Addresses TODO "Auto-niche detection", uses free APIs
+
+implementation_recommendation: >
+  Focus on H32 (animated captions) and H33 (pipeline integration) as HIGH
+  priority. Both are independent and can be implemented in parallel.
+  H34 (trend detector) is MEDIUM — valuable but introduces external API
+  dependencies that may be fragile. Implement if time permits after H32/H33.
+  Multi-language dubbing (survey finding #4) deferred — requires GPU.
+  Shoppable content deferred — YouTube Shorts still lacks clickable links.

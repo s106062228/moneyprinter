@@ -1,0 +1,21 @@
+title: "Multi-Language AI Dubbing Open Source Pipelines (2026)"
+date: 2026-03-29
+type: tool-survey
+relevance: LOW (GPU-dependent, defer)
+sources:
+  - url: https://github.com/Kedreamix/Linly-Dubbing
+    title: "Linly-Dubbing: Multi-language AI dubbing tool"
+    key_finding: "Full pipeline: Demucs → WhisperX → Qwen/GPT → CosyVoice/XTTS → FFmpeg. GPU required."
+  - url: https://www.pixazo.ai/blog/best-open-source-lip-sync-models
+    title: "8 Best Open Source Lip-Sync Models in 2026"
+    key_finding: "MuseTalk is highest quality. Wav2Lip is most stable. All require NVIDIA GPU."
+  - url: https://github.com/medahmedkrichen/ViDubb
+    title: "ViDubb: AI Video Dubbing"
+    key_finding: "Lighter alternative with voice cloning + lip-sync + background preservation"
+
+summary: |
+  Multi-language dubbing is technically feasible with open-source tools but all require
+  NVIDIA GPU + CUDA. Not suitable for CPU-only automated pipeline.
+  Best chain: Demucs (audio sep) → WhisperX (transcription) → LLM (translation) →
+  CosyVoice (voice synthesis) → Wav2Lip (lip-sync) → FFmpeg (assembly).
+  Defer to future iteration with GPU infrastructure.

@@ -102,6 +102,12 @@
 - [x] Virality scorer module (`virality_scorer.py`) with LLM-based metadata scoring, platform-specific weights
 - [x] Unit tests for A/B testing (71 tests, 96.15% coverage), virality scorer (71 tests, 95.29% coverage), PATCH endpoint (12 tests)
 
+## Completed — Iteration 10 (2026-03-29)
+- [x] Animated captions module (`animated_captions.py`) with WordTiming, CaptionSegment, CaptionStyle, AnimatedCaptions, 3 styles (96 tests, 99.07% coverage) [H32]
+- [x] Pipeline integration layer (`pipeline_integrator.py`) with prepend_intro_outro, generate_hooked_script, export_for_platforms, apply_captions (54 tests, 100% coverage) [H33]
+- [x] Trend detector module (`trend_detector.py`) with TopicCandidate, TrendDetector, Google Trends + Reddit (95 tests, 96.88% coverage) [H34]
+- [x] Unit tests: 245 new tests, 1559 total suite, 0 failures [H32, H33, H34]
+
 ## Completed — Iteration 9 (2026-03-29)
 - [x] Video template system (`video_templates.py`) with VideoTemplate, VideoTemplateManager, 3 presets (100 tests, 94.79% coverage) [H29]
 - [x] AI hook generator (`hook_generator.py`) with HookResult, HookGenerator, 5 categories, 5 platforms (73 tests, 95.28% coverage) [H30]
@@ -157,6 +163,15 @@
 - [x] Write tests for export_optimizer module (72 tests, 97.70% coverage) [H31]
 - [x] Run full test suite (1314/1314 passing, 0 failures) [H29, H30, H31]
 
+## Implementation Tasks — Iteration 10 (2026-03-29)
+- [x] Create src/animated_captions.py with WordTiming, CaptionSegment, CaptionStyle, AnimatedCaptions [H32]
+- [x] Write tests for animated_captions module (96 tests, 99.07% coverage) [H32]
+- [x] Create src/pipeline_integrator.py with prepend_intro_outro, generate_hooked_script, export_for_platforms, apply_captions [H33]
+- [x] Write tests for pipeline_integrator module (54 tests, 100% coverage) [H33]
+- [x] Create src/trend_detector.py with TopicCandidate, TrendDetector [H34]
+- [x] Write tests for trend_detector module (95 tests, 96.88% coverage) [H34]
+- [x] Run full test suite (1559/1559 passing, 0 failures) [H32, H33, H34]
+
 ## Planned — High Priority
 - [x] Content calendar UI (frontend for content scheduler) — DONE (iteration 7)
 - [x] Dashboard frontend polish (charts, job management, content calendar view) — DONE (iteration 7)
@@ -165,7 +180,7 @@
 - [x] Video template system (custom intros/outros) — DONE (iteration 9)
 - [x] A/B testing for video titles and thumbnails — DONE (iteration 8)
 - [x] AI hook optimization (trending hooks for better engagement) — DONE (iteration 9)
-- [ ] Auto-caption styling (animated captions like CapCut)
+- [x] Auto-caption styling (animated captions like CapCut) — DONE (iteration 10)
 - [x] Virality scoring (predict clip engagement before posting) — DONE (iteration 8)
 - [ ] Shoppable content integration (product links in video descriptions)
 - [x] Multi-platform export optimizer (platform-specific aspect ratios and formats) — DONE (iteration 9)
@@ -175,7 +190,7 @@
 - [ ] Plugin system for custom platform integrations
 - [ ] Multi-language UI
 - [ ] Video analytics dashboard (views, engagement tracking)
-- [ ] Auto-niche detection from trending topics
+- [x] Auto-niche detection from trending topics — DONE (iteration 10)
 - [ ] Encrypt cache files containing account data at rest
 - [ ] Kubernetes Helm chart for scaled deployment
 - [ ] Predictive micro-trend detection for topic selection

@@ -1,0 +1,251 @@
+## Architecture — Iteration 10 (2026-03-29)
+## Animated Captions + Pipeline Integration + Trend Detector
+
+overview: >
+  Three independent modules following established MoneyPrinter patterns:
+  dataclasses for state, JSON persistence in .mp/, LLM integration via
+  generate_text(), logger via get_logger(), and atomic file writes.
+  All modules are standalone with no cross-dependencies.
+
+scope:
+  implementing: [H32, H33, H34]
+  deferred:
+    - Multi-language dubbing (GPU-dependent)
+    - Shoppable content (YouTube Shorts lacks clickable links)
+    - pycaps integration (alpha, Playwright dependency)
+
+modules:
+  - name: animated_captions.py
+    hypothesis: H32
+    location: src/animated_captions.py
+    description: >
+      Word-by-word animated captions using pure MoviePy v2 API.
+      Transcribes audio via faster-whisper with word-level timestamps,
+      groups words into display segments, renders per-word TextClip
+      overlays with current-word highlighting, composites onto video.
+    classes:
+      - name: CaptionSegment
+        type: dataclass
+        fields:
+          - text: str           # full segment text
+          - words: list[WordTiming]  # word-level timings
+          - start_time: float   # segment start (seconds)
+          - end_time: float     # segment end (seconds)
+
+      - name: WordTiming
+        type: dataclass
+        fields:
+          - word: str
+          - start: float        # word start time (seconds)
+          - end: float          # word end time (seconds)
+
+      - name: CaptionStyle
+        type: dataclass
+        fields:
+          - font: str               # default "Arial-Bold"
+          - font_size: int           # default 70
+          - text_color: str          # default "#FFFFFF"
+          - highlight_color: str     # default "#FFD700" (gold)
+          - bg_color: str            # default "#00000080" (semi-transparent black)
+          - position: str            # "bottom", "center", "top"
+          - style_type: str          # "karaoke", "pop_on", "scroll"
+          - stroke_color: str        # default "#000000"
+          - stroke_width: int        # default 3
+          - max_words_per_line: int  # default 5
+
+      - name: AnimatedCaptions
+        type: class
+        methods:
+          - __init__(style: CaptionStyle = None)
+          - transcribe(audio_path: str) -> list[CaptionSegment]
+            # Uses faster-whisper word_timestamps=True
+          - _build_segment_clips(segment: CaptionSegment, resolution: tuple) -> list[VideoClip]
+            # Creates per-word TextClip overlays for a single segment
+            # Karaoke: all words visible, current word highlighted
+            # Pop-on: words appear one at a time
+            # Scroll: sliding text effect
+          - _render_word_clip(word: str, start: float, end: float,
+                              is_highlighted: bool, pos: tuple) -> VideoClip
+            # Single word TextClip with timing and color
+          - apply(video_path: str, output_path: str = None) -> str
+            # Full pipeline: transcribe → build clips → composite → write
+          - apply_to_clip(clip, segments: list[CaptionSegment]) -> VideoClip
+            # In-memory: overlay caption clips onto existing VideoClip
+          - from_srt(srt_path: str) -> list[CaptionSegment]
+            # Parse existing SRT file into CaptionSegments (no transcription needed)
+
+    presets:
+      - karaoke: all words visible, current word in highlight_color, others in text_color
+      - pop_on: words appear one by one as spoken, fade in effect
+      - scroll: text slides up from bottom, current word highlighted
+
+    data_flow: >
+      audio_path → faster-whisper (word_timestamps=True) → list[CaptionSegment]
+      → _build_segment_clips() → list[TextClip with .with_start()/.with_end()]
+      → CompositeVideoClip([original_video] + caption_clips) → output.mp4
+
+    dependencies:
+      - faster-whisper (already installed for smart_clipper.py)
+      - MoviePy v2 (already installed)
+      - No new pip dependencies needed
+
+  - name: pipeline_integrator.py
+    hypothesis: H33
+    location: src/pipeline_integrator.py
+    description: >
+      Thin integration layer that wires iteration 9 modules into the
+      video production workflow. Provides 3 high-level functions that
+      compose existing module APIs without modifying YouTube.py.
+    functions:
+      - name: prepend_intro_outro(clip, intro_template_id=None, outro_template_id=None)
+        description: >
+          Loads templates from VideoTemplateManager, renders intro/outro
+          clips, concatenates [intro, clip, outro] via concatenate_videoclips.
+          Returns new clip. Skips if template_id is None.
+        returns: VideoClip
+
+      - name: generate_hooked_script(topic, platform="youtube_shorts", category=None)
+        description: >
+          Calls HookGenerator.generate_hook() to get opening hook text,
+          then calls generate_text() for the main script body.
+          Returns "{hook}\n\n{script}" combined string.
+        returns: str
+
+      - name: export_for_platforms(video_path, platforms, output_dir)
+        description: >
+          Calls ExportOptimizer.batch_export() for multi-platform output.
+          Returns dict mapping platform → output file path.
+        returns: dict[str, str]
+
+      - name: apply_captions(video_path, style=None, output_path=None)
+        description: >
+          Calls AnimatedCaptions.apply() to add word-by-word captions.
+          Returns path to captioned video.
+        returns: str
+
+    data_flow: >
+      topic → generate_hooked_script() → hooked script text
+      hooked script → YouTube.py generate pipeline (unchanged)
+      rendered clip → prepend_intro_outro() → clip with intro/outro
+      clip with intro/outro → apply_captions() → captioned clip
+      captioned clip → export_for_platforms() → platform-specific files
+
+    dependencies:
+      - src/video_templates.py (iteration 9)
+      - src/hook_generator.py (iteration 9)
+      - src/export_optimizer.py (iteration 9)
+      - src/animated_captions.py (H32, this iteration)
+
+  - name: trend_detector.py
+    hypothesis: H34
+    location: src/trend_detector.py
+    description: >
+      Trending topic detection using Google Trends (pytrends) and Reddit
+      public JSON API. LLM scoring for video-worthiness. JSON cache
+      for offline fallback.
+    classes:
+      - name: TopicCandidate
+        type: dataclass
+        fields:
+          - topic: str           # topic title
+          - source: str          # "google_trends" or "reddit"
+          - score: float         # 0.0-10.0 LLM video-worthiness score
+          - trend_velocity: float  # rate of growth (relative)
+          - subreddit: str       # reddit source subreddit (if applicable)
+          - reason: str          # LLM explanation
+          - fetched_at: str      # ISO timestamp
+
+      - name: TrendDetector
+        type: class
+        persistence: .mp/trending_topics.json (atomic writes)
+        methods:
+          - __init__(niches: list[str] = None)
+          - fetch_google_trends(niche: str) -> list[TopicCandidate]
+            # Uses pytrends trending_searches() and interest_over_time()
+            # Gracefully handles pytrends failures
+          - fetch_reddit_trending(subreddit: str, limit: int = 25) -> list[TopicCandidate]
+            # GET https://www.reddit.com/r/{sub}/hot.json?limit=25
+            # No auth needed, User-Agent header required
+          - score_topics(candidates: list[TopicCandidate]) -> list[TopicCandidate]
+            # LLM scores each on 1-10 for video potential
+          - detect(niches: list[str] = None, subreddits: list[str] = None) -> list[TopicCandidate]
+            # Full pipeline: fetch from all sources → deduplicate → score → rank
+          - _load_cache() -> list[TopicCandidate]
+          - _save_cache(topics: list[TopicCandidate])
+
+    data_flow: >
+      niches → Google Trends (pytrends) → raw topics
+      subreddits → Reddit JSON API → raw topics
+      raw topics → deduplicate → LLM score → ranked TopicCandidates
+      ranked list → .mp/trending_topics.json (atomic write)
+
+    dependencies:
+      - pytrends (new pip dep)
+      - requests (already installed)
+      - existing llm_provider.py
+
+test_strategy:
+  animated_captions:
+    unit_tests:
+      - CaptionSegment/WordTiming/CaptionStyle dataclass operations
+      - Transcription with mocked faster-whisper
+      - Segment clip building (mock TextClip, CompositeVideoClip)
+      - Word clip rendering for each style type
+      - SRT parsing
+      - Full pipeline with mocked dependencies
+      - Edge cases: empty audio, no words, very long segments
+    target: 60+ tests, >90% coverage
+
+  pipeline_integrator:
+    unit_tests:
+      - prepend_intro_outro with mock VideoTemplateManager
+      - generate_hooked_script with mock HookGenerator + generate_text
+      - export_for_platforms with mock ExportOptimizer
+      - apply_captions with mock AnimatedCaptions
+      - Error handling (missing templates, LLM failure, invalid paths)
+    target: 40+ tests, >90% coverage
+
+  trend_detector:
+    unit_tests:
+      - TopicCandidate dataclass operations
+      - Google Trends fetch with mocked pytrends
+      - Reddit fetch with mocked requests
+      - LLM scoring with mocked generate_text
+      - Full detect pipeline
+      - Cache load/save with atomic writes
+      - Error handling (API failures, rate limits, malformed responses)
+    target: 50+ tests, >90% coverage
+
+implementation_order:
+  - step: 1
+    task: "Create src/animated_captions.py [H32]"
+    parallel: true
+    agent: 1
+    blocks: nothing
+
+  - step: 1
+    task: "Create src/trend_detector.py [H34]"
+    parallel: true
+    agent: 2
+    blocks: nothing
+
+  - step: 2
+    task: "Create src/pipeline_integrator.py [H33]"
+    parallel: false
+    blocks: step 1 (needs animated_captions.py)
+
+  - step: 3
+    task: "Write tests for all 3 modules"
+    parallel: true (3 test files)
+
+  - step: 4
+    task: "Run full test suite"
+    parallel: false
+
+out_of_scope:
+  - Modifying YouTube.py directly (integration is via pipeline_integrator.py)
+  - pycaps or Playwright-based rendering
+  - Multi-language dubbing (GPU required)
+  - Shoppable content / affiliate link automation
+  - Production deployment of trend detector (API rate limits need monitoring)
+  - Real video rendering tests (all MoviePy calls mocked in tests)
