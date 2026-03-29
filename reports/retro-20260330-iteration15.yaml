@@ -1,0 +1,57 @@
+title: "Retrospective — Iteration 15"
+date: 2026-03-30
+iteration: 15
+hypotheses: [H47, H48, H49]
+
+results:
+  H47:
+    name: "Predictive Trend Detection (TrendSpyG + Forecasting)"
+    verdict: CONFIRMED
+    new_tests: 37
+    coverage: "91%"
+    key_changes:
+      - "Replaced archived pytrends with TrendSpyG in fetch_google_trends()"
+      - "Added predicted_peak field to TopicCandidate"
+      - "Added predict_trends() method with linear regression forecasting"
+      - "Added _forecast_peak() static helper with numpy/pure Python fallback"
+
+  H48:
+    name: "Cache Encryption at Rest (Fernet)"
+    verdict: CONFIRMED
+    new_tests: 21
+    coverage: "94%"
+    key_changes:
+      - "Added _get_fernet(), _encrypt_bytes(), _decrypt_bytes() helpers"
+      - "Modified _safe_write_json() and _safe_read_json() for encryption"
+      - "Key from MONEYPRINTER_CACHE_KEY env var, plaintext fallback"
+      - "Added cryptography>=42.0.0 dependency"
+
+  H49:
+    name: "Affiliate Link Injection in Publisher"
+    verdict: CONFIRMED
+    new_tests: 26
+    coverage: "67% overall, new code fully covered"
+    key_changes:
+      - "Added affiliate_links field to PublishJob"
+      - "Added _format_affiliate_links() with 4 platform formats"
+      - "Modified publish() to inject links per-platform"
+      - "Validation: max 10 links, URL format, label length"
+
+suite:
+  before:
+    tests: 1934
+    failures: 0
+  after:
+    tests: 2000
+    skipped: 20
+    failures: 0
+  delta: "+66 passing, +20 skipped"
+
+dependencies_added:
+  - "trendspyg>=0.4.2"
+  - "cryptography>=42.0.0"
+
+roadmap_items_completed:
+  - "Encrypt cache files containing account data at rest"
+  - "Predictive micro-trend detection for topic selection"
+  - "Shoppable content integration (affiliate links MVP)"

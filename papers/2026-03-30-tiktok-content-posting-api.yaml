@@ -1,0 +1,23 @@
+title: "TikTok Content Posting API v2 — Programmatic Publishing"
+date: 2026-03-30
+source: https://developers.tiktok.com/products/content-posting-api/
+type: api-reference
+relevance: medium
+summary: |
+  TikTok's Content Posting API v2 supports two flows:
+  1. Direct Post — content goes live immediately
+  2. Upload to Inbox — draft for creator review
+
+  Single API call chain for video + caption + hashtags + privacy + targeting.
+  2026 additions: Duet/Stitch permissions, branded content, geo-targeting.
+
+  For shoppable videos: product links can be injected into descriptions.
+  Full product tagging (overlay widgets) requires TikTok Shop partner status.
+
+  Endpoints:
+  - POST /v2/post/publish/video/init/ (Direct Post)
+  - POST /v2/post/publish/content/init/ (Photo/content)
+
+  Implications for MPV2:
+  - publisher.py can be extended with TikTok Shop description links
+  - Full product tagging requires partner approval (business dependency)

@@ -1,0 +1,20 @@
+title: "TrendSpyG — Modern Pytrends Replacement"
+date: 2026-03-30
+source: https://github.com/flack0x/trendspyg
+type: tool
+relevance: high
+summary: |
+  Free, open-source Python library for Google Trends data. Drop-in replacement
+  for the archived pytrends (April 2025). 188K+ configuration options. CLI and
+  API support. Active development. MIT license.
+
+  Key features:
+  - Real-time Google Trends data
+  - Interest over time, related queries, trending searches
+  - CLI tool for quick lookups
+  - Programmatic API for integration
+
+  Implications for MPV2:
+  - TrendDetector currently uses Google Trends via requests. TrendSpyG provides
+    a more reliable, maintained interface.
+  - Enables predictive trend detection when combined with time-series forecasting.

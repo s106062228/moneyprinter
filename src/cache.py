@@ -5,6 +5,70 @@ import tempfile
 from typing import List
 from config import ROOT_DIR
 
+# ---------------------------------------------------------------------------
+# Encryption at rest (optional, keyed from MONEYPRINTER_CACHE_KEY env var)
+# ---------------------------------------------------------------------------
+
+_fernet_instance = None  # module-level cache
+_fernet_checked = False  # avoid repeated lookups
+
+def _get_fernet():
+    """Return a Fernet instance if MONEYPRINTER_CACHE_KEY is set, else None.
+
+    The Fernet instance is cached at module level for performance.
+    Returns None if the env var is unset or cryptography is not installed.
+    """
+    global _fernet_instance, _fernet_checked
+    if _fernet_checked:
+        return _fernet_instance
+    _fernet_checked = True
+    key = os.environ.get("MONEYPRINTER_CACHE_KEY")
+    if not key:
+        return None
+    try:
+        from cryptography.fernet import Fernet
+        _fernet_instance = Fernet(key.encode() if isinstance(key, str) else key)
+        return _fernet_instance
+    except ImportError:
+        return None
+
+
+def _encrypt_bytes(data: bytes) -> bytes:
+    """Encrypt data if a Fernet key is configured, otherwise return as-is."""
+    f = _get_fernet()
+    if f is None:
+        return data
+    return f.encrypt(data)
+
+
+def _decrypt_bytes(data: bytes) -> bytes:
+    """Decrypt data if a Fernet key is configured.
+
+    If the data looks encrypted (starts with 'gAAAAA') but no key is set,
+    raises ValueError with a clear message.
+    """
+    f = _get_fernet()
+    # Check if data looks like a Fernet token
+    is_encrypted = data.startswith(b"gAAAAA")
+    if is_encrypted and f is None:
+        raise ValueError(
+            "Cache file appears encrypted but MONEYPRINTER_CACHE_KEY is not set. "
+            "Set the environment variable to decrypt."
+        )
+    if f is None:
+        return data
+    if not is_encrypted:
+        return data  # plaintext data, no decryption needed
+    return f.decrypt(data)
+
+
+def _reset_fernet():
+    """Reset the cached Fernet instance. Used for testing."""
+    global _fernet_instance, _fernet_checked
+    _fernet_instance = None
+    _fernet_checked = False
+
+
 def get_cache_path() -> str:
     """
     Gets the path to the cache file.
@@ -77,6 +141,7 @@ def _safe_write_json(path: str, data: dict) -> None:
     """
     Atomically writes JSON data to a file using a temporary file + rename.
     This prevents TOCTOU race conditions and partial writes.
+    If MONEYPRINTER_CACHE_KEY is set, the file is Fernet-encrypted at rest.
 
     Args:
         path: The target file path.
@@ -86,8 +151,10 @@ def _safe_write_json(path: str, data: dict) -> None:
     os.makedirs(dir_name, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
     try:
-        with os.fdopen(fd, 'w') as f:
-            json.dump(data, f, indent=4)
+        json_bytes = json.dumps(data, indent=4).encode("utf-8")
+        encrypted = _encrypt_bytes(json_bytes)
+        with os.fdopen(fd, 'wb') as f:
+            f.write(encrypted)
         os.replace(tmp_path, path)
     except Exception:
         # Clean up the temp file if something goes wrong
@@ -103,6 +170,7 @@ def _safe_read_json(path: str, default: dict = None) -> dict:
     Reads JSON from a file, returning a default if the file doesn't exist
     or contains invalid JSON. Avoids TOCTOU by using try/except rather
     than os.path.exists() checks.
+    If MONEYPRINTER_CACHE_KEY is set and the file is encrypted, decrypts it.
 
     Args:
         path: The file path to read.
@@ -110,13 +178,18 @@ def _safe_read_json(path: str, default: dict = None) -> dict:
 
     Returns:
         The parsed JSON dict.
+
+    Raises:
+        ValueError: If the file appears encrypted but no key is configured.
     """
     if default is None:
         default = {}
     try:
-        with open(path, 'r') as f:
-            parsed = json.load(f)
-            return parsed if parsed is not None else default
+        with open(path, 'rb') as f:
+            raw = f.read()
+        decrypted = _decrypt_bytes(raw)
+        parsed = json.loads(decrypted.decode("utf-8"))
+        return parsed if parsed is not None else default
     except (FileNotFoundError, json.JSONDecodeError, IOError):
         return default
 

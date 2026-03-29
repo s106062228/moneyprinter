@@ -168,7 +168,7 @@ class TestTopicCandidateSerialization:
     def test_to_dict_has_all_keys(self):
         d = self._sample().to_dict()
         expected_keys = {"topic", "source", "score", "trend_velocity",
-                         "subreddit", "reason", "fetched_at"}
+                         "subreddit", "reason", "fetched_at", "predicted_peak"}
         assert set(d.keys()) == expected_keys
 
     def test_to_dict_values_correct(self):
@@ -256,45 +256,23 @@ class TestTrendDetectorInit:
 
 class TestFetchGoogleTrends:
     def test_success_returns_topic_candidates(self, detector):
-        mock_df = MagicMock()
-        # Simulate a DataFrame with one column and two rows
-        mock_df.itertuples.return_value = iter([("AI Tools",), ("Bitcoin",)])
+        pd = pytest.importorskip("pandas")
 
-        mock_trend_req = MagicMock()
-        mock_trend_req.return_value.trending_searches.return_value = mock_df
+        mock_df = pd.DataFrame(["AI Tools", "Bitcoin"])
+        mock_instance = MagicMock()
+        mock_instance.trending_searches.return_value = mock_df
 
-        with patch.dict("sys.modules", {"pytrends": MagicMock(), "pytrends.request": MagicMock()}):
-            with patch("trend_detector.TrendReq", mock_trend_req, create=True):
-                import importlib
-                import trend_detector as td
-                original_trendreq = None
-                # Patch at module import time
-                with patch("builtins.__import__", side_effect=lambda name, *a, **kw:
-                           mock_trend_req if name == "pytrends.request" else __import__(name, *a, **kw)):
-                    pass
+        mock_cls = MagicMock(return_value=mock_instance)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
 
-        # Direct approach: mock the import inside the function
-        mock_trendreq_cls = MagicMock()
-        instance = MagicMock()
-        instance.trending_searches.return_value = mock_df
-        mock_trendreq_cls.return_value = instance
-
-        with patch("builtins.__import__") as mock_import:
-            pytrends_mock = MagicMock()
-            pytrends_mock.request.TrendReq = mock_trendreq_cls
-
-            def side_effect(name, *args, **kwargs):
-                if name == "pytrends.request":
-                    return pytrends_mock.request
-                return __import__(name, *args, **kwargs)
-
-            mock_import.side_effect = side_effect
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
             results = detector.fetch_google_trends("technology")
 
-        # Since the import mechanism is complex, use a cleaner approach
         assert isinstance(results, list)
+        assert len(results) == 2
 
-    def test_success_with_patched_pytrends(self, detector):
+    def test_success_with_patched_trendspyg(self, detector):
         """Test using patch on the lazy import path."""
         pd = pytest.importorskip("pandas")
 
@@ -304,9 +282,9 @@ class TestFetchGoogleTrends:
 
         mock_cls = MagicMock(return_value=mock_instance)
         mock_module = MagicMock()
-        mock_module.TrendReq = mock_cls
+        mock_module.TrendSpyG = mock_cls
 
-        with patch.dict("sys.modules", {"pytrends": MagicMock(), "pytrends.request": mock_module}):
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
             results = detector.fetch_google_trends("technology")
 
         assert isinstance(results, list)
@@ -314,15 +292,15 @@ class TestFetchGoogleTrends:
         assert all(c.source == "google_trends" for c in results)
 
     def test_pytrends_not_installed_returns_empty(self, detector):
-        with patch.dict("sys.modules", {"pytrends": None, "pytrends.request": None}):
+        with patch.dict("sys.modules", {"trendspyg": None}):
             results = detector.fetch_google_trends("technology")
         assert results == []
 
     def test_pytrends_exception_returns_empty(self, detector):
         mock_module = MagicMock()
-        mock_module.TrendReq.side_effect = Exception("Network error")
+        mock_module.TrendSpyG.side_effect = Exception("Network error")
 
-        with patch.dict("sys.modules", {"pytrends": MagicMock(), "pytrends.request": mock_module}):
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
             results = detector.fetch_google_trends("technology")
 
         assert results == []
@@ -336,9 +314,9 @@ class TestFetchGoogleTrends:
 
         mock_cls = MagicMock(return_value=mock_instance)
         mock_module = MagicMock()
-        mock_module.TrendReq = mock_cls
+        mock_module.TrendSpyG = mock_cls
 
-        with patch.dict("sys.modules", {"pytrends": MagicMock(), "pytrends.request": mock_module}):
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
             results = detector.fetch_google_trends("finance")
 
         assert results == []
@@ -352,9 +330,9 @@ class TestFetchGoogleTrends:
         mock_instance.trending_searches.return_value = df
         mock_cls = MagicMock(return_value=mock_instance)
         mock_module = MagicMock()
-        mock_module.TrendReq = mock_cls
+        mock_module.TrendSpyG = mock_cls
 
-        with patch.dict("sys.modules", {"pytrends": MagicMock(), "pytrends.request": mock_module}):
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
             results = detector.fetch_google_trends("misc")
 
         assert len(results[0].topic) == TrendDetector._MAX_TOPIC_LEN
@@ -367,9 +345,9 @@ class TestFetchGoogleTrends:
         mock_instance.trending_searches.return_value = df
         mock_cls = MagicMock(return_value=mock_instance)
         mock_module = MagicMock()
-        mock_module.TrendReq = mock_cls
+        mock_module.TrendSpyG = mock_cls
 
-        with patch.dict("sys.modules", {"pytrends": MagicMock(), "pytrends.request": mock_module}):
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
             results = detector.fetch_google_trends("tech")
 
         assert results[0].score == 5.0
@@ -1006,7 +984,7 @@ class TestEdgeCases:
             os.chmod(bad_dir, 0o755)
 
     def test_google_trends_skip_empty_topic_rows(self, detector):
-        """Rows with empty/whitespace topics are skipped (covers line 145)."""
+        """Rows with empty/whitespace topics are skipped."""
         pd = pytest.importorskip("pandas")
 
         # Row with empty string then valid topic
@@ -1015,11 +993,476 @@ class TestEdgeCases:
         mock_instance.trending_searches.return_value = df
         mock_cls = MagicMock(return_value=mock_instance)
         mock_module = MagicMock()
-        mock_module.TrendReq = mock_cls
+        mock_module.TrendSpyG = mock_cls
 
-        with patch.dict("sys.modules", {"pytrends": MagicMock(), "pytrends.request": mock_module}):
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
             results = detector.fetch_google_trends("technology")
 
         # Only the valid topic makes it through
         assert len(results) == 1
         assert results[0].topic == "Valid AI Topic"
+
+
+# ---------------------------------------------------------------------------
+# New tests for H47: TrendSpyG migration + time-series forecasting
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# 11. TopicCandidate — predicted_peak field
+# ---------------------------------------------------------------------------
+
+class TestTopicCandidatePredictedPeak:
+    """Tests for the predicted_peak field on TopicCandidate."""
+
+    def test_default_value_is_empty_string(self):
+        c = TopicCandidate(
+            topic="AI Tools", source="google_trends", score=5.0, trend_velocity=0.0
+        )
+        assert c.predicted_peak == ""
+
+    def test_to_dict_includes_predicted_peak(self):
+        c = TopicCandidate(
+            topic="AI Tools", source="google_trends", score=5.0, trend_velocity=0.0,
+            predicted_peak="2026-04-05",
+        )
+        d = c.to_dict()
+        assert "predicted_peak" in d
+        assert d["predicted_peak"] == "2026-04-05"
+
+    def test_to_dict_predicted_peak_empty_by_default(self):
+        c = TopicCandidate(
+            topic="AI Tools", source="google_trends", score=5.0, trend_velocity=0.0
+        )
+        d = c.to_dict()
+        assert d["predicted_peak"] == ""
+
+    def test_from_dict_with_predicted_peak(self):
+        d = {
+            "topic": "Bitcoin", "source": "google_trends", "score": 7.0,
+            "trend_velocity": 1.0, "predicted_peak": "2026-04-10",
+        }
+        c = TopicCandidate.from_dict(d)
+        assert c.predicted_peak == "2026-04-10"
+
+    def test_from_dict_without_predicted_peak_defaults_to_empty(self):
+        """Backward compatibility: old serialized data without predicted_peak."""
+        d = {
+            "topic": "Old Topic", "source": "reddit", "score": 5.0,
+            "trend_velocity": 0.0,
+        }
+        c = TopicCandidate.from_dict(d)
+        assert c.predicted_peak == ""
+
+    def test_setting_predicted_peak_manually(self):
+        c = TopicCandidate(
+            topic="Manual Peak", source="google_trends", score=5.0, trend_velocity=0.0
+        )
+        c.predicted_peak = "2026-05-01"
+        assert c.predicted_peak == "2026-05-01"
+
+    def test_roundtrip_preserves_predicted_peak(self):
+        c = TopicCandidate(
+            topic="Round Trip", source="reddit", score=8.0, trend_velocity=2.0,
+            predicted_peak="2026-04-15",
+        )
+        restored = TopicCandidate.from_dict(c.to_dict())
+        assert restored.predicted_peak == "2026-04-15"
+
+    def test_predicted_peak_not_validated_on_format(self):
+        """predicted_peak is a plain string field; any value is accepted."""
+        c = TopicCandidate(
+            topic="Free Form", source="google_trends", score=5.0, trend_velocity=0.0,
+            predicted_peak="next week",
+        )
+        assert c.predicted_peak == "next week"
+
+
+# ---------------------------------------------------------------------------
+# 12. fetch_google_trends — TrendSpyG backend
+# ---------------------------------------------------------------------------
+
+class TestFetchGoogleTrendsTrendSpyG:
+    """Tests for fetch_google_trends with TrendSpyG backend."""
+
+    def test_success_returns_topic_candidates(self, detector):
+        pd = pytest.importorskip("pandas")
+
+        df = pd.DataFrame(["AI is amazing", "Python tips"])
+        mock_instance = MagicMock()
+        mock_instance.trending_searches.return_value = df
+
+        mock_cls = MagicMock(return_value=mock_instance)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
+
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.fetch_google_trends("technology")
+
+        assert isinstance(results, list)
+        assert all(isinstance(c, TopicCandidate) for c in results)
+        assert all(c.source == "google_trends" for c in results)
+
+    def test_success_uses_geo_us_parameter(self, detector):
+        pd = pytest.importorskip("pandas")
+
+        df = pd.DataFrame(["Viral Video"])
+        mock_instance = MagicMock()
+        mock_instance.trending_searches.return_value = df
+
+        mock_cls = MagicMock(return_value=mock_instance)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
+
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            detector.fetch_google_trends("health")
+
+        mock_instance.trending_searches.assert_called_once_with(geo="US")
+
+    def test_trendspyg_not_installed_returns_empty(self, detector):
+        with patch.dict("sys.modules", {"trendspyg": None}):
+            results = detector.fetch_google_trends("technology")
+        assert results == []
+
+    def test_exception_during_fetch_returns_empty(self, detector):
+        mock_module = MagicMock()
+        mock_module.TrendSpyG.side_effect = Exception("API rate limit")
+
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.fetch_google_trends("finance")
+
+        assert results == []
+
+    def test_empty_dataframe_returns_empty_list(self, detector):
+        pd = pytest.importorskip("pandas")
+
+        df = pd.DataFrame([])
+        mock_instance = MagicMock()
+        mock_instance.trending_searches.return_value = df
+
+        mock_cls = MagicMock(return_value=mock_instance)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
+
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.fetch_google_trends("misc")
+
+        assert results == []
+
+    def test_topic_truncated_to_max_len(self, detector):
+        pd = pytest.importorskip("pandas")
+
+        long_topic = "Z" * 600
+        df = pd.DataFrame([long_topic])
+        mock_instance = MagicMock()
+        mock_instance.trending_searches.return_value = df
+
+        mock_cls = MagicMock(return_value=mock_instance)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
+
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.fetch_google_trends("misc")
+
+        assert len(results[0].topic) == TrendDetector._MAX_TOPIC_LEN
+
+    def test_score_defaults_to_5_for_each_topic(self, detector):
+        pd = pytest.importorskip("pandas")
+
+        df = pd.DataFrame(["Some Topic"])
+        mock_instance = MagicMock()
+        mock_instance.trending_searches.return_value = df
+
+        mock_cls = MagicMock(return_value=mock_instance)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
+
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.fetch_google_trends("tech")
+
+        assert results[0].score == 5.0
+
+    def test_empty_topic_row_is_skipped(self, detector):
+        pd = pytest.importorskip("pandas")
+
+        df = pd.DataFrame(["", "Valid TrendSpyG Topic"])
+        mock_instance = MagicMock()
+        mock_instance.trending_searches.return_value = df
+
+        mock_cls = MagicMock(return_value=mock_instance)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
+
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.fetch_google_trends("tech")
+
+        assert len(results) == 1
+        assert results[0].topic == "Valid TrendSpyG Topic"
+
+    def test_trendspyg_exception_on_trending_searches_returns_empty(self, detector):
+        mock_instance = MagicMock()
+        mock_instance.trending_searches.side_effect = RuntimeError("Network failure")
+
+        mock_cls = MagicMock(return_value=mock_instance)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
+
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.fetch_google_trends("sports")
+
+        assert results == []
+
+
+# ---------------------------------------------------------------------------
+# 13. _forecast_peak static helper
+# ---------------------------------------------------------------------------
+
+class TestForecastPeak:
+    """Tests for the _forecast_peak static method."""
+
+    def test_rising_data_returns_positive_slope_and_peak_date(self):
+        values = [10.0, 20.0, 30.0, 40.0, 50.0]
+        slope, peak = TrendDetector._forecast_peak(values, days_ahead=7)
+        assert slope > 0
+        assert peak != ""
+        # Peak date should be a valid ISO date
+        datetime.strptime(peak, "%Y-%m-%d")
+
+    def test_declining_data_returns_negative_slope_and_empty_peak(self):
+        values = [50.0, 40.0, 30.0, 20.0, 10.0]
+        slope, peak = TrendDetector._forecast_peak(values, days_ahead=7)
+        assert slope < 0
+        assert peak == ""
+
+    def test_flat_data_returns_zero_slope_and_empty_peak(self):
+        values = [30.0, 30.0, 30.0, 30.0, 30.0]
+        slope, peak = TrendDetector._forecast_peak(values, days_ahead=7)
+        assert slope == pytest.approx(0.0, abs=1e-6)
+        assert peak == ""
+
+    def test_single_value_returns_zero_and_empty(self):
+        slope, peak = TrendDetector._forecast_peak([42.0], days_ahead=7)
+        assert slope == 0.0
+        assert peak == ""
+
+    def test_empty_values_returns_zero_and_empty(self):
+        slope, peak = TrendDetector._forecast_peak([], days_ahead=7)
+        assert slope == 0.0
+        assert peak == ""
+
+    def test_days_ahead_caps_peak_date(self):
+        """Peak date should not exceed today + days_ahead."""
+        values = [1.0, 100.0, 200.0, 300.0, 400.0]  # very steep rise
+        days_ahead = 3
+        slope, peak = TrendDetector._forecast_peak(values, days_ahead=days_ahead)
+        if peak:
+            peak_dt = datetime.strptime(peak, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            today = datetime.now(timezone.utc)
+            delta = (peak_dt - today).days
+            assert delta <= days_ahead
+
+    def test_numpy_unavailable_uses_pure_python_fallback(self):
+        """When numpy is absent, the pure Python slope formula is used."""
+        values = [5.0, 10.0, 15.0, 20.0, 25.0]  # slope = 5.0
+        import sys
+        with patch.dict(sys.modules, {"numpy": None}):
+            slope, peak = TrendDetector._forecast_peak(values, days_ahead=7)
+        assert slope > 0
+        assert peak != ""
+
+    def test_two_values_minimum(self):
+        """Exactly 2 values satisfies len >= 2, should not error."""
+        slope, peak = TrendDetector._forecast_peak([10.0, 20.0], days_ahead=5)
+        assert isinstance(slope, float)
+
+    def test_large_slope_peak_date_is_within_days_ahead(self):
+        """Extreme rise: estimated peak should still be capped at days_ahead."""
+        values = [1.0, 1000.0]  # massive slope
+        slope, peak = TrendDetector._forecast_peak(values, days_ahead=7)
+        if peak:
+            peak_dt = datetime.strptime(peak, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            today = datetime.now(timezone.utc)
+            delta = (peak_dt - today).days
+            assert delta <= 7
+
+    def test_slope_sign_matches_direction(self):
+        rising = [10.0, 20.0, 30.0]
+        declining = [30.0, 20.0, 10.0]
+        s_rising, _ = TrendDetector._forecast_peak(rising)
+        s_declining, _ = TrendDetector._forecast_peak(declining)
+        assert s_rising > 0
+        assert s_declining < 0
+
+    def test_returns_tuple_of_float_and_str(self):
+        values = [1.0, 2.0, 3.0]
+        result = TrendDetector._forecast_peak(values)
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        assert isinstance(result[0], float)
+        assert isinstance(result[1], str)
+
+
+# ---------------------------------------------------------------------------
+# 14. predict_trends method
+# ---------------------------------------------------------------------------
+
+class TestPredictTrends:
+    """Tests for the predict_trends method."""
+
+    def _make_interest_df(self, topic: str, values: list[float]):
+        """Build a minimal interest-over-time DataFrame."""
+        pd = pytest.importorskip("pandas")
+        return pd.DataFrame({topic: values})
+
+    def _mock_trendspyg_module(self, topic: str, values: list[float]):
+        """Return a mock trendspyg module whose instance yields given values."""
+        mock_instance = MagicMock()
+        mock_instance.interest_over_time.return_value = self._make_interest_df(
+            topic, values
+        )
+        mock_cls = MagicMock(return_value=mock_instance)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
+        return mock_module
+
+    def test_returns_list_of_topic_candidates(self, detector):
+        mock_module = self._mock_trendspyg_module("AI Tools", [10.0, 20.0, 30.0])
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.predict_trends(topics=["AI Tools"], days=7)
+        assert isinstance(results, list)
+        assert all(isinstance(c, TopicCandidate) for c in results)
+
+    def test_rising_topic_sets_predicted_peak(self, detector):
+        mock_module = self._mock_trendspyg_module("Crypto", [10.0, 20.0, 30.0, 40.0])
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.predict_trends(topics=["Crypto"], days=7)
+        assert len(results) == 1
+        assert results[0].predicted_peak != ""
+
+    def test_declining_topic_has_empty_predicted_peak(self, detector):
+        mock_module = self._mock_trendspyg_module("Dying Topic", [40.0, 30.0, 20.0, 10.0])
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.predict_trends(topics=["Dying Topic"], days=7)
+        assert len(results) == 1
+        assert results[0].predicted_peak == ""
+
+    def test_trendspyg_import_error_returns_empty_list(self, detector):
+        with patch.dict("sys.modules", {"trendspyg": None}):
+            results = detector.predict_trends(topics=["AI Tools"], days=7)
+        assert results == []
+
+    def test_empty_topics_returns_empty_list(self, detector):
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = MagicMock()
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.predict_trends(topics=[], days=7)
+        assert results == []
+
+    def test_none_topics_uses_cached_topics(self, detector):
+        """When topics=None the method loads from cache."""
+        candidates = [
+            _make_candidate(topic="Cached Topic A", source="google_trends"),
+            _make_candidate(topic="Cached Topic B", source="reddit"),
+        ]
+        detector._save_cache(candidates)
+
+        mock_instance = MagicMock()
+        # Return a minimal rising DataFrame for any topic
+        def side_effect_iot():
+            pd = pytest.importorskip("pandas")
+            # We can't know topic name here so just return rising data for
+            # whichever topic was passed to build_payload
+            topic = mock_instance.build_payload.call_args[0][0][0]
+            return pd.DataFrame({topic: [10.0, 20.0, 30.0]})
+        mock_instance.interest_over_time.side_effect = side_effect_iot
+        mock_cls = MagicMock(return_value=mock_instance)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
+
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.predict_trends(topics=None, days=7)
+
+        assert len(results) == 2
+        topic_names = {r.topic for r in results}
+        assert "Cached Topic A" in topic_names
+        assert "Cached Topic B" in topic_names
+
+    def test_results_sorted_by_score_descending(self, detector):
+        """Topics with steeper rising trends should come first."""
+        pd_lib = pytest.importorskip("pandas")
+
+        call_counter = {"n": 0}
+        # Topic A: steep rise; Topic B: gentle rise
+        datasets = [
+            [10.0, 50.0, 90.0],   # high slope -> Topic A
+            [10.0, 12.0, 14.0],   # low slope  -> Topic B
+        ]
+
+        topic_order = ["Topic A", "Topic B"]
+
+        def make_instance_for(topic, values):
+            inst = MagicMock()
+            inst.interest_over_time.return_value = pd_lib.DataFrame({topic: values})
+            return inst
+
+        instances = [make_instance_for(t, v) for t, v in zip(topic_order, datasets)]
+        call_counter["idx"] = 0
+
+        def cls_factory(*args, **kwargs):
+            idx = call_counter["idx"] % len(instances)
+            call_counter["idx"] += 1
+            return instances[idx]
+
+        mock_cls = MagicMock(side_effect=cls_factory)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
+
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.predict_trends(topics=topic_order, days=7)
+
+        scores = [r.score for r in results]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_exception_per_topic_skips_that_topic(self, detector):
+        """If interest_over_time raises for one topic, it's skipped gracefully."""
+        mock_instance = MagicMock()
+        mock_instance.interest_over_time.side_effect = Exception("Rate limited")
+
+        mock_cls = MagicMock(return_value=mock_instance)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
+
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.predict_trends(topics=["Failing Topic"], days=7)
+
+        assert results == []
+
+    def test_source_is_google_trends(self, detector):
+        mock_module = self._mock_trendspyg_module("Test Topic", [5.0, 10.0, 15.0])
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.predict_trends(topics=["Test Topic"], days=7)
+        assert results[0].source == "google_trends"
+
+    def test_score_clamped_between_0_and_10(self, detector):
+        """Extremely large slope should not push score above 10."""
+        pd_lib = pytest.importorskip("pandas")
+        huge_values = [0.0, 1000.0, 2000.0, 3000.0]
+        mock_instance = MagicMock()
+        mock_instance.interest_over_time.return_value = pd_lib.DataFrame(
+            {"BigTrend": huge_values}
+        )
+        mock_cls = MagicMock(return_value=mock_instance)
+        mock_module = MagicMock()
+        mock_module.TrendSpyG = mock_cls
+
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            results = detector.predict_trends(topics=["BigTrend"], days=7)
+
+        assert results[0].score <= _SCORE_MAX
+
+    def test_build_payload_called_with_correct_timeframe(self, detector):
+        mock_module = self._mock_trendspyg_module("Tech", [10.0, 20.0, 30.0])
+        mock_instance = mock_module.TrendSpyG.return_value
+        with patch.dict("sys.modules", {"trendspyg": mock_module}):
+            detector.predict_trends(topics=["Tech"], days=14)
+        mock_instance.build_payload.assert_called_once_with(["Tech"], timeframe="now 14-d")

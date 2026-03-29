@@ -16,7 +16,7 @@ import os
 import re
 import tempfile
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from config import ROOT_DIR
@@ -50,6 +50,7 @@ class TopicCandidate:
     subreddit: str = ""
     reason: str = ""
     fetched_at: str = ""  # ISO 8601 UTC timestamp
+    predicted_peak: str = ""  # ISO date of predicted peak, e.g. "2026-04-05"
 
     def __post_init__(self):
         """Validate fields after construction."""
@@ -73,6 +74,7 @@ class TopicCandidate:
             "subreddit": self.subreddit,
             "reason": self.reason,
             "fetched_at": self.fetched_at,
+            "predicted_peak": self.predicted_peak,
         }
 
     @classmethod
@@ -85,6 +87,7 @@ class TopicCandidate:
         subreddit = str(data.get("subreddit", ""))
         reason = str(data.get("reason", ""))
         fetched_at = str(data.get("fetched_at", ""))
+        predicted_peak = str(data.get("predicted_peak", ""))
         return cls(
             topic=topic,
             source=source,
@@ -93,6 +96,7 @@ class TopicCandidate:
             subreddit=subreddit,
             reason=reason,
             fetched_at=fetched_at,
+            predicted_peak=predicted_peak,
         )
 
 
@@ -119,7 +123,7 @@ class TrendDetector:
     # ------------------------------------------------------------------
 
     def fetch_google_trends(self, niche: str) -> list[TopicCandidate]:
-        """Fetch trending topics from Google Trends via pytrends.
+        """Fetch trending topics from Google Trends via trendspyg.
 
         Args:
             niche: A keyword niche to query (e.g. "technology").
@@ -129,14 +133,14 @@ class TrendDetector:
         """
         logger.info(f"fetch_google_trends: niche={niche!r}")
         try:
-            from pytrends.request import TrendReq  # lazy import
+            from trendspyg import TrendSpyG  # lazy import
         except ImportError:
-            logger.warning("pytrends not installed; skipping Google Trends fetch")
+            logger.warning("trendspyg not installed; skipping Google Trends fetch")
             return []
 
         try:
-            pytrends = TrendReq()
-            df = pytrends.trending_searches(pn="united_states")
+            ts = TrendSpyG()
+            df = ts.trending_searches(geo="US")
             candidates: list[TopicCandidate] = []
             now = datetime.now(timezone.utc).isoformat()
             for row in df.itertuples(index=False):
@@ -335,6 +339,68 @@ class TrendDetector:
         logger.info(f"detect: returning {len(scored)} ranked topics")
         return scored
 
+    def predict_trends(
+        self, topics: list[str] = None, days: int = 7
+    ) -> list[TopicCandidate]:
+        """Predict which topics will trend based on historical velocity.
+
+        Uses Google Trends interest-over-time data with linear regression
+        to identify topics with rising trajectories.
+
+        Args:
+            topics: List of topic strings to analyze. If None, uses cached topics.
+            days: Number of historical days to analyze (default 7).
+
+        Returns:
+            List of TopicCandidate with predicted_peak set, sorted by score descending.
+        """
+        logger.info(f"predict_trends: topics={topics!r} days={days}")
+
+        try:
+            from trendspyg import TrendSpyG  # lazy import
+        except ImportError:
+            logger.warning("trendspyg not installed; predict_trends returning empty list")
+            return []
+
+        if topics is None:
+            cached = self._load_cache()
+            topics = [c.topic for c in cached]
+
+        if not topics:
+            return []
+
+        candidates: list[TopicCandidate] = []
+        now = datetime.now(timezone.utc).isoformat()
+        for topic in topics:
+            try:
+                ts = TrendSpyG()
+                ts.build_payload([topic], timeframe=f"now {days}-d")
+                df = ts.interest_over_time()
+                values: list[float] = []
+                if df is not None and not df.empty and topic in df.columns:
+                    values = [float(v) for v in df[topic].tolist()]
+                slope, predicted_peak = self._forecast_peak(values, days_ahead=days)
+                # Normalize slope to 0-10 score
+                raw_score = slope * 2.0
+                score = float(max(_SCORE_MIN, min(_SCORE_MAX, raw_score)))
+                candidates.append(
+                    TopicCandidate(
+                        topic=topic,
+                        source="google_trends",
+                        score=score,
+                        trend_velocity=slope,
+                        fetched_at=now,
+                        predicted_peak=predicted_peak,
+                    )
+                )
+            except Exception as exc:
+                logger.debug(f"predict_trends: failed for topic={topic!r}: {exc}")
+                continue
+
+        candidates.sort(key=lambda c: c.score, reverse=True)
+        logger.info(f"predict_trends: returning {len(candidates)} candidates")
+        return candidates
+
     # ------------------------------------------------------------------
     # Cache helpers
     # ------------------------------------------------------------------
@@ -391,6 +457,46 @@ class TrendDetector:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _forecast_peak(values: list[float], days_ahead: int = 7) -> tuple[float, str]:
+        """Compute linear trend slope and predict peak date.
+
+        Args:
+            values: Interest-over-time values (one per day).
+            days_ahead: Max days to extrapolate forward.
+
+        Returns:
+            (slope, predicted_peak_iso): slope is the daily change rate.
+            predicted_peak_iso is ISO date of predicted peak, or "" if declining/flat.
+        """
+        if len(values) < 2:
+            return (0.0, "")
+
+        try:
+            import numpy as np
+            coeffs = np.polyfit(range(len(values)), values, 1)
+            slope = float(coeffs[0])
+        except ImportError:
+            # Pure Python fallback
+            slope = (values[-1] - values[0]) / (len(values) - 1)
+
+        if slope <= 0:
+            return (slope, "")
+
+        # Extrapolate: find day where value reaches max(values) * 1.5, capped at days_ahead
+        current_max = max(values)
+        target = current_max * 1.5
+        last_value = values[-1]
+        if slope > 0:
+            days_to_target = (target - last_value) / slope
+        else:
+            days_to_target = float(days_ahead)
+        estimated_days = int(min(days_ahead, max(1, round(days_to_target))))
+        peak_date = (
+            datetime.now(timezone.utc) + timedelta(days=estimated_days)
+        ).strftime("%Y-%m-%d")
+        return (slope, peak_date)
 
     @staticmethod
     def _parse_score_response(text: str) -> dict:

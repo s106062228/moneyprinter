@@ -1,0 +1,178 @@
+title: Architecture — Iteration 15
+date: 2026-03-30
+hypotheses: [H47, H48, H49]
+status: planned
+
+overview: |
+  Three independent changes: (1) migrate TrendDetector from dead pytrends to
+  TrendSpyG + add predict_trends(), (2) add Fernet encryption to cache.py,
+  (3) add affiliate link injection to publisher.py. All are additive and
+  backward compatible.
+
+# =========================================================================
+# H47: Predictive Trend Detection — TrendSpyG + Forecasting
+# =========================================================================
+h47_trend_detection:
+  files_modified:
+    - src/trend_detector.py
+    - tests/test_trend_detector.py
+    - requirements.txt
+
+  changes:
+    trend_detector.py:
+      - description: "Replace pytrends import with trendspyg in fetch_google_trends()"
+        detail: |
+          - Change: `from pytrends.request import TrendReq` → `from trendspyg import TrendSpyG`
+          - TrendSpyG API: `ts = TrendSpyG(); df = ts.trending_searches(geo="US")`
+          - Keep same lazy import pattern (try/except ImportError)
+          - Same output: list of TopicCandidate with source="google_trends"
+          - Fallback behavior unchanged: return [] on ImportError or exception
+
+      - description: "Add optional predicted_peak field to TopicCandidate"
+        detail: |
+          - New field: `predicted_peak: str = ""` (ISO 8601 date or empty)
+          - Add to to_dict() and from_dict() serialization
+          - Backward compatible: defaults to empty string
+
+      - description: "Add predict_trends() method to TrendDetector"
+        detail: |
+          - Signature: `predict_trends(topics: list[str] = None, days: int = 7) -> list[TopicCandidate]`
+          - Uses trendspyg interest_over_time for each topic
+          - Simple linear regression (numpy polyfit deg=1) on last N days
+          - Positive slope = rising trend; extrapolate to find predicted peak
+          - Returns TopicCandidate list with predicted_peak set
+          - Graceful fallback: if numpy unavailable, skip forecasting, return topics
+            with score based on raw velocity only
+
+      - description: "Add _forecast_peak() static helper"
+        detail: |
+          - Signature: `_forecast_peak(values: list[float], days: int = 7) -> tuple[float, str]`
+          - Returns (slope, predicted_peak_date_iso)
+          - Uses numpy.polyfit if available, else pure Python fallback
+          - Positive slope extrapolates forward; negative slope returns ""
+
+    tests:
+      - "Test fetch_google_trends with mocked trendspyg (success, ImportError, exception)"
+      - "Test predict_trends with mocked interest_over_time data"
+      - "Test _forecast_peak with rising, falling, flat, and empty data"
+      - "Test TopicCandidate predicted_peak field serialization"
+      - "Test backward compatibility: detect() still works unchanged"
+      - "Target: 30+ new tests, >90% coverage"
+
+  dependencies:
+    add: ["trendspyg"]  # replaces archived pytrends
+    note: "numpy is optional — used for polyfit if available, else pure Python fallback"
+
+# =========================================================================
+# H48: Cache Encryption at Rest — Fernet
+# =========================================================================
+h48_cache_encryption:
+  files_modified:
+    - src/cache.py
+    - tests/test_cache.py
+    - requirements.txt
+
+  changes:
+    cache.py:
+      - description: "Add _get_fernet() helper to initialize Fernet from env var"
+        detail: |
+          - Reads MONEYPRINTER_CACHE_KEY from os.environ
+          - If set: returns Fernet(key) instance
+          - If unset: returns None (plaintext mode)
+          - Lazy import: `from cryptography.fernet import Fernet`
+          - Caches Fernet instance at module level (_fernet_instance)
+
+      - description: "Add _encrypt_bytes() and _decrypt_bytes() helpers"
+        detail: |
+          - _encrypt_bytes(data: bytes) -> bytes: Fernet.encrypt(data)
+          - _decrypt_bytes(data: bytes) -> bytes: Fernet.decrypt(data)
+          - Both are no-ops if _get_fernet() returns None
+
+      - description: "Modify _safe_write_json() to encrypt if key is set"
+        detail: |
+          - After json.dump to string, encrypt the bytes before writing
+          - Write mode changes from 'w' to 'wb' when encrypted
+          - Plaintext mode unchanged (backward compatible)
+
+      - description: "Modify _safe_read_json() to decrypt if content is encrypted"
+        detail: |
+          - Try read as bytes first; if starts with Fernet token prefix 'gAAAAA',
+            decrypt before JSON parse
+          - If no key but file is encrypted: raise clear ValueError
+          - If key is wrong: cryptography.fernet.InvalidToken propagates
+          - If file is plaintext (no Fernet prefix): read normally
+
+    tests:
+      - "Test encrypted write + read round-trip"
+      - "Test plaintext mode (no env var set) — existing behavior preserved"
+      - "Test wrong key raises InvalidToken"
+      - "Test mixed mode: encrypt then read without key raises ValueError"
+      - "Test _get_fernet() caching behavior"
+      - "Test all CRUD operations (accounts, products) work with encryption"
+      - "Target: 25+ new tests, >90% coverage"
+
+  dependencies:
+    add: ["cryptography"]
+
+# =========================================================================
+# H49: Affiliate Link Injection in Publisher
+# =========================================================================
+h49_affiliate_links:
+  files_modified:
+    - src/publisher.py
+    - tests/test_publisher.py
+
+  changes:
+    publisher.py:
+      - description: "Add affiliate_links field to PublishJob"
+        detail: |
+          - New field: `affiliate_links: list = field(default_factory=list)`
+          - Each link is a dict: {"url": str, "label": str}
+          - Validated in validate(): URL format check, max 10 links
+
+      - description: "Add _format_affiliate_links() helper"
+        detail: |
+          - Signature: `_format_affiliate_links(links: list[dict], platform: str) -> str`
+          - YouTube: "\n\n🛒 Shop:\n• {label}: {url}" format
+          - TikTok: "\n\n🔗 Links:\n{label} → {url}" format
+          - Twitter: " | {label}: {url}" (compact, appended inline)
+          - Instagram: "\n\n🛍️ {label} (link in bio)" (no clickable links)
+          - Returns empty string if no links
+
+      - description: "Modify publish() to append affiliate links to description"
+        detail: |
+          - Before platform dispatch, if job.affiliate_links is non-empty:
+            job.description += _format_affiliate_links(job.affiliate_links, platform)
+          - For twitter_text: append compact format
+          - No-op if affiliate_links is empty (backward compatible)
+
+    tests:
+      - "Test _format_affiliate_links for each platform"
+      - "Test publish() includes links in description"
+      - "Test empty links list = no change to description"
+      - "Test validation: invalid URL, too many links"
+      - "Target: 15+ new tests, >85% coverage"
+
+  dependencies:
+    add: []  # no new dependencies
+
+# =========================================================================
+# Implementation Order
+# =========================================================================
+implementation_order:
+  - step: 1
+    hypothesis: H47
+    description: "TrendSpyG migration + predict_trends()"
+    reason: "Fixes broken dependency (pytrends archived). Independent of H48/H49."
+
+  - step: 2
+    hypothesis: H48
+    description: "Cache encryption with Fernet"
+    reason: "Independent of H47/H49. Addresses TODO security item."
+
+  - step: 3
+    hypothesis: H49
+    description: "Affiliate link injection in publisher"
+    reason: "Independent. Lowest risk — pure string manipulation."
+
+  note: "All 3 are independent and can be implemented in parallel."

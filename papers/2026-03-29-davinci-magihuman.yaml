@@ -1,0 +1,10 @@
+title: "daVinci-MagiHuman: Open-Source Digital Human Lip-Sync"
+source: https://wavespeed.ai/blog/posts/davinci-magihuman-open-source-digital-human-lip-sync-2026/
+date: "2026"
+key_points:
+  - 15B parameter unified transformer (text + video + audio tokens)
+  - Apache 2.0 license, 7 languages
+  - 2-second generation for 5-second video on H100
+  - Wins 80% preference vs Ovi 1.1
+  - WaveSpeedAI offers managed API endpoints
+relevance: Too heavy for local use but API option for premium dubbing

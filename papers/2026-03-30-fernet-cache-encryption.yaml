@@ -1,0 +1,27 @@
+title: "Fernet Symmetric Encryption for Cache Files at Rest"
+date: 2026-03-30
+source: https://cryptography.io/en/latest/fernet/
+type: best-practice
+relevance: high
+summary: |
+  Fernet (cryptography library): AES-128-CBC + HMAC-SHA256 + timestamp.
+  Standard Python symmetric authenticated encryption.
+
+  Properties:
+  - Confidentiality: encrypted with AES-128-CBC
+  - Integrity: HMAC-SHA256 authentication
+  - Tamper detection: modification invalidates token
+  - Time-based validation via embedded timestamp
+
+  Key management best practices:
+  - Store key in env var (MONEYPRINTER_CACHE_KEY) or secrets manager
+  - Never hardcode keys in source
+  - MultiFernet.rotate() for key rotation
+  - Key derivation from password via PBKDF2 if user-facing
+
+  Pattern for MPV2 cache.py:
+  - Wrap save_json/load_json with encrypt/decrypt
+  - Graceful fallback: no key → plaintext (backward compatible)
+  - Fine for JSON cache files (<1MB); not suitable for large media
+
+  Dependency: pip install cryptography (well-maintained, widely used)

@@ -43,6 +43,9 @@ _MAX_PLATFORMS = 10
 _MAX_TITLE_LENGTH = 500
 _MAX_DESCRIPTION_LENGTH = 5000
 _MAX_VIDEO_PATH_LENGTH = 1024
+_MAX_AFFILIATE_LINKS = 10
+_MAX_AFFILIATE_LABEL_LENGTH = 200
+_MAX_AFFILIATE_URL_LENGTH = 2048
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +79,7 @@ class PublishJob:
     twitter_text: Optional[str] = None
     tags: list = field(default_factory=list)
     script: str = ""  # for uniqueness scoring
+    affiliate_links: list = field(default_factory=list)  # list of {"url": str, "label": str}
 
     def validate(self) -> None:
         """
@@ -122,6 +126,23 @@ class PublishJob:
                     f"Allowed: {', '.join(sorted(allowed_platforms))}"
                 )
 
+        # Validate affiliate links
+        if len(self.affiliate_links) > _MAX_AFFILIATE_LINKS:
+            raise ValueError(f"Too many affiliate links: {len(self.affiliate_links)} (max {_MAX_AFFILIATE_LINKS})")
+        for i, link in enumerate(self.affiliate_links):
+            if not isinstance(link, dict):
+                raise ValueError(f"Affiliate link {i} must be a dict")
+            url = link.get("url", "")
+            label = link.get("label", "")
+            if not url:
+                raise ValueError(f"Affiliate link {i} missing 'url'")
+            if not isinstance(url, str) or len(url) > _MAX_AFFILIATE_URL_LENGTH:
+                raise ValueError(f"Affiliate link {i} URL too long or invalid")
+            if not url.startswith(("http://", "https://")):
+                raise ValueError(f"Affiliate link {i} URL must start with http:// or https://")
+            if label and len(str(label)) > _MAX_AFFILIATE_LABEL_LENGTH:
+                raise ValueError(f"Affiliate link {i} label too long (max {_MAX_AFFILIATE_LABEL_LENGTH})")
+
 
 # ---------------------------------------------------------------------------
 # Configuration helpers
@@ -156,6 +177,57 @@ def get_uniqueness_mode() -> str:
         logger.warning(f"Invalid uniqueness_mode '{mode}', defaulting to 'warn'")
         return "warn"
     return mode
+
+
+def _format_affiliate_links(links: list, platform: str) -> str:
+    """Format affiliate links for a specific platform.
+
+    Args:
+        links: List of dicts with 'url' and 'label' keys.
+        platform: Target platform (youtube, tiktok, twitter, instagram).
+
+    Returns:
+        Formatted string to append to description. Empty string if no links.
+    """
+    if not links:
+        return ""
+
+    valid_links = [
+        lnk for lnk in links
+        if isinstance(lnk, dict) and lnk.get("url")
+    ]
+    if not valid_links:
+        return ""
+
+    if platform == "twitter":
+        # Compact format for Twitter's character limit
+        parts = []
+        for lnk in valid_links:
+            label = lnk.get("label", "Link")
+            parts.append(f"{label}: {lnk['url']}")
+        return " | " + " | ".join(parts)
+
+    if platform == "instagram":
+        # Instagram doesn't support clickable links in descriptions
+        parts = []
+        for lnk in valid_links:
+            label = lnk.get("label", "Product")
+            parts.append(f"  {label} (link in bio)")
+        return "\n\n" + "\n".join(parts)
+
+    if platform == "tiktok":
+        parts = []
+        for lnk in valid_links:
+            label = lnk.get("label", "Link")
+            parts.append(f"  {label} -> {lnk['url']}")
+        return "\n\nLinks:\n" + "\n".join(parts)
+
+    # YouTube and others: full format
+    parts = []
+    for lnk in valid_links:
+        label = lnk.get("label", "Link")
+        parts.append(f"  {label}: {lnk['url']}")
+    return "\n\nShop:\n" + "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -344,15 +416,22 @@ class ContentPublisher:
         """
         start_time = time.monotonic()
 
+        # Inject affiliate links into description for this platform
+        enriched_description = job.description
+        if job.affiliate_links:
+            enriched_description += _format_affiliate_links(
+                job.affiliate_links, platform
+            )
+
         try:
             if platform == "youtube":
-                return self._publish_youtube(job, start_time)
+                return self._publish_youtube(job, start_time, enriched_description)
             elif platform == "tiktok":
-                return self._publish_tiktok(job, start_time)
+                return self._publish_tiktok(job, start_time, enriched_description)
             elif platform == "twitter":
-                return self._publish_twitter(job, start_time)
+                return self._publish_twitter(job, start_time, enriched_description)
             elif platform == "instagram":
-                return self._publish_instagram(job, start_time)
+                return self._publish_instagram(job, start_time, enriched_description)
             else:
                 return PublishResult(
                     platform=platform,
@@ -373,11 +452,14 @@ class ContentPublisher:
             )
 
     def _publish_youtube(
-        self, job: PublishJob, start_time: float
+        self, job: PublishJob, start_time: float, description: str = None
     ) -> PublishResult:
         """Publishes video to YouTube."""
         from classes.YouTube import YouTube
         from cache import get_accounts
+
+        if description is None:
+            description = job.description
 
         accounts = get_accounts("youtube")
         if not accounts:
@@ -402,7 +484,7 @@ class ContentPublisher:
             yt.video_path = os.path.abspath(job.video_path)
             yt.metadata = {
                 "title": job.title,
-                "description": job.description,
+                "description": description,
             }
 
             upload_success = yt.upload_video()
@@ -426,11 +508,14 @@ class ContentPublisher:
                 pass
 
     def _publish_tiktok(
-        self, job: PublishJob, start_time: float
+        self, job: PublishJob, start_time: float, description: str = None
     ) -> PublishResult:
         """Publishes video to TikTok."""
         from classes.TikTok import TikTok
         from cache import get_accounts
+
+        if description is None:
+            description = job.description
 
         # TikTok uses YouTube accounts' Firefox profiles for now
         accounts = get_accounts("youtube")
@@ -454,7 +539,7 @@ class ContentPublisher:
             upload_success = tiktok.upload_video(
                 video_path=job.video_path,
                 title=job.title,
-                description=job.description,
+                description=description,
             )
             duration = time.monotonic() - start_time
 
@@ -473,11 +558,14 @@ class ContentPublisher:
                 pass
 
     def _publish_twitter(
-        self, job: PublishJob, start_time: float
+        self, job: PublishJob, start_time: float, description: str = None
     ) -> PublishResult:
         """Posts content to Twitter/X."""
         from classes.Twitter import Twitter
         from cache import get_accounts
+
+        if description is None:
+            description = job.description
 
         accounts = get_accounts("twitter")
         if not accounts:
@@ -498,7 +586,7 @@ class ContentPublisher:
 
         try:
             # Use custom twitter text or generate from title
-            text = job.twitter_text or f"{job.title}\n\n{job.description}"
+            text = job.twitter_text or f"{job.title}\n\n{description}"
             # Truncate to Twitter limit
             if len(text) > 280:
                 text = text[:277].rsplit(" ", 1)[0] + "..."
@@ -528,11 +616,14 @@ class ContentPublisher:
                 pass
 
     def _publish_instagram(
-        self, job: PublishJob, start_time: float
+        self, job: PublishJob, start_time: float, description: str = None
     ) -> PublishResult:
         """Publishes video to Instagram Reels."""
         from classes.Instagram import Instagram
         from cache import get_accounts
+
+        if description is None:
+            description = job.description
 
         accounts = get_accounts("instagram")
         if not accounts:
@@ -554,8 +645,8 @@ class ContentPublisher:
             )
 
             caption = job.title
-            if job.description:
-                caption += "\n\n" + job.description
+            if description:
+                caption += "\n\n" + description
             if job.tags:
                 caption += "\n\n" + " ".join(
                     f"#{t}" if not t.startswith("#") else t

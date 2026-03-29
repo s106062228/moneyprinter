@@ -1,0 +1,10 @@
+title: "FFmpeg at Meta: Media Processing at Scale"
+source: https://engineering.fb.com/2026/03/02/video-engineering/ffmpeg-at-meta-media-processing-at-scale/
+date: "2026-03-02"
+key_points:
+  - Meta processes 1B+ video uploads daily, runs FFmpeg tens of billions of times/day
+  - Multi-lane transcoding consolidates multiple outputs into single FFmpeg instances
+  - FFmpeg 6.0 parallelized encoding (most complex FFmpeg refactoring in decades)
+  - Custom MSVP ASIC integrated through standard FFmpeg hardware APIs
+  - Fully deprecated internal fork, all innovations upstreamed to FFmpeg 6.0-8.0
+relevance: ffmpeg_utils.py could adopt multi-lane transcoding and GPU acceleration patterns

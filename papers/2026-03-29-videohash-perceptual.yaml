@@ -1,0 +1,10 @@
+title: "videohash: Perceptual Video Hashing for Duplicate Detection"
+source: https://github.com/akamhy/videohash
+pypi: https://pypi.org/project/videohash/
+key_points:
+  - Python library, pip install videohash
+  - 64-bit comparable hash for any video
+  - Wavelet hash on 144x144 frame collages at 1fps
+  - Robust against resize, transcode, watermark, color/framerate/aspect changes
+  - NOT robust against reversal or >10 degree rotation
+relevance: Could add visual duplicate detection as 5th dimension in UniquenessScorer

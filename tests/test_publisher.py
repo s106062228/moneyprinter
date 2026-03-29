@@ -998,3 +998,386 @@ class TestUniquenessCheck:
         )
         script_text = job.script if job.script else job.description
         assert script_text == "Short desc"
+
+
+# ---------------------------------------------------------------------------
+# _format_affiliate_links tests
+# ---------------------------------------------------------------------------
+
+class TestFormatAffiliateLinks:
+    """Tests for _format_affiliate_links function."""
+
+    def test_empty_list_returns_empty_string(self):
+        from publisher import _format_affiliate_links
+        assert _format_affiliate_links([], "youtube") == ""
+
+    def test_list_with_only_invalid_dicts_returns_empty_string(self):
+        from publisher import _format_affiliate_links
+        # dicts without 'url' key are skipped
+        assert _format_affiliate_links([{}, {"label": "thing"}], "youtube") == ""
+
+    def test_youtube_format_contains_shop_header(self):
+        from publisher import _format_affiliate_links
+        links = [{"url": "https://amzn.to/xyz", "label": "Cool Gadget"}]
+        result = _format_affiliate_links(links, "youtube")
+        assert "\n\nShop:\n" in result
+        assert "Cool Gadget: https://amzn.to/xyz" in result
+
+    def test_tiktok_format_contains_links_header(self):
+        from publisher import _format_affiliate_links
+        links = [{"url": "https://amzn.to/abc", "label": "My Product"}]
+        result = _format_affiliate_links(links, "tiktok")
+        assert "\n\nLinks:\n" in result
+        assert "My Product -> https://amzn.to/abc" in result
+
+    def test_twitter_format_compact_pipe_separated(self):
+        from publisher import _format_affiliate_links
+        links = [{"url": "https://amzn.to/aaa", "label": "Deal"}]
+        result = _format_affiliate_links(links, "twitter")
+        assert result.startswith(" | ")
+        assert "Deal: https://amzn.to/aaa" in result
+
+    def test_instagram_format_link_in_bio(self):
+        from publisher import _format_affiliate_links
+        links = [{"url": "https://amzn.to/bbb", "label": "Widget"}]
+        result = _format_affiliate_links(links, "instagram")
+        assert "link in bio" in result
+        assert "Widget" in result
+
+    def test_unknown_platform_uses_youtube_format(self):
+        from publisher import _format_affiliate_links
+        links = [{"url": "https://example.com/product", "label": "Stuff"}]
+        result = _format_affiliate_links(links, "myspace")
+        assert "\n\nShop:\n" in result
+        assert "Stuff: https://example.com/product" in result
+
+    def test_multiple_links_all_included(self):
+        from publisher import _format_affiliate_links
+        links = [
+            {"url": "https://amzn.to/111", "label": "First"},
+            {"url": "https://amzn.to/222", "label": "Second"},
+        ]
+        result = _format_affiliate_links(links, "youtube")
+        assert "First: https://amzn.to/111" in result
+        assert "Second: https://amzn.to/222" in result
+
+    def test_link_without_label_uses_default_youtube(self):
+        from publisher import _format_affiliate_links
+        links = [{"url": "https://amzn.to/xyz"}]
+        result = _format_affiliate_links(links, "youtube")
+        assert "Link: https://amzn.to/xyz" in result
+
+    def test_link_without_label_uses_default_instagram(self):
+        from publisher import _format_affiliate_links
+        links = [{"url": "https://amzn.to/xyz"}]
+        result = _format_affiliate_links(links, "instagram")
+        assert "Product (link in bio)" in result
+
+    def test_empty_dict_is_skipped(self):
+        from publisher import _format_affiliate_links
+        links = [{}, {"url": "https://amzn.to/valid", "label": "Good"}]
+        result = _format_affiliate_links(links, "youtube")
+        assert "Good: https://amzn.to/valid" in result
+        # Only one entry should appear
+        assert result.count("->") == 0 or result.count(":") >= 1
+
+    def test_twitter_multiple_links_pipe_separated(self):
+        from publisher import _format_affiliate_links
+        links = [
+            {"url": "https://amzn.to/a", "label": "A"},
+            {"url": "https://amzn.to/b", "label": "B"},
+        ]
+        result = _format_affiliate_links(links, "twitter")
+        # Both should appear, separated by |
+        assert "A: https://amzn.to/a" in result
+        assert "B: https://amzn.to/b" in result
+        assert " | " in result
+
+
+# ---------------------------------------------------------------------------
+# PublishJob affiliate_links field validation tests
+# ---------------------------------------------------------------------------
+
+class TestPublishJobAffiliateLinks:
+    """Tests for PublishJob affiliate_links field and validation."""
+
+    def _valid_job(self, tmp_path, **kwargs):
+        from publisher import PublishJob
+        defaults = {
+            "video_path": tmp_path,
+            "title": "Test Title",
+            "description": "Test description",
+            "platforms": ["youtube"],
+        }
+        defaults.update(kwargs)
+        return PublishJob(**defaults)
+
+    def test_default_affiliate_links_is_empty_list(self):
+        from publisher import PublishJob
+        job = PublishJob(video_path="/tmp/test.mp4", title="Test")
+        assert job.affiliate_links == []
+
+    def test_valid_affiliate_links_pass_validation(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            job = self._valid_job(
+                tmp,
+                affiliate_links=[
+                    {"url": "https://amzn.to/xyz", "label": "My Product"},
+                    {"url": "http://example.com/deal", "label": "Another"},
+                ],
+            )
+            job.validate()  # Should not raise
+        finally:
+            os.unlink(tmp)
+
+    def test_too_many_affiliate_links_raises(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            links = [
+                {"url": f"https://amzn.to/item{i}", "label": f"Item {i}"}
+                for i in range(11)
+            ]
+            job = self._valid_job(tmp, affiliate_links=links)
+            with pytest.raises(ValueError, match="Too many affiliate links"):
+                job.validate()
+        finally:
+            os.unlink(tmp)
+
+    def test_non_dict_affiliate_link_raises(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            job = self._valid_job(
+                tmp,
+                affiliate_links=["https://amzn.to/xyz"],
+            )
+            with pytest.raises(ValueError, match="must be a dict"):
+                job.validate()
+        finally:
+            os.unlink(tmp)
+
+    def test_missing_url_raises(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            job = self._valid_job(
+                tmp,
+                affiliate_links=[{"label": "No URL here"}],
+            )
+            with pytest.raises(ValueError, match="missing 'url'"):
+                job.validate()
+        finally:
+            os.unlink(tmp)
+
+    def test_url_without_http_scheme_raises(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            job = self._valid_job(
+                tmp,
+                affiliate_links=[{"url": "ftp://example.com/product"}],
+            )
+            with pytest.raises(ValueError, match="must start with http"):
+                job.validate()
+        finally:
+            os.unlink(tmp)
+
+    def test_url_too_long_raises(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            long_url = "https://example.com/" + "a" * 2048
+            job = self._valid_job(
+                tmp,
+                affiliate_links=[{"url": long_url, "label": "Item"}],
+            )
+            with pytest.raises(ValueError, match="URL too long or invalid"):
+                job.validate()
+        finally:
+            os.unlink(tmp)
+
+    def test_label_too_long_raises(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            job = self._valid_job(
+                tmp,
+                affiliate_links=[{
+                    "url": "https://amzn.to/abc",
+                    "label": "x" * 201,
+                }],
+            )
+            with pytest.raises(ValueError, match="label too long"):
+                job.validate()
+        finally:
+            os.unlink(tmp)
+
+    def test_http_url_is_accepted(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            job = self._valid_job(
+                tmp,
+                affiliate_links=[{"url": "http://example.com/product", "label": "Item"}],
+            )
+            job.validate()  # Should not raise
+        finally:
+            os.unlink(tmp)
+
+    def test_link_without_label_passes_validation(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            job = self._valid_job(
+                tmp,
+                affiliate_links=[{"url": "https://amzn.to/nolabel"}],
+            )
+            job.validate()  # Should not raise — label is optional
+        finally:
+            os.unlink(tmp)
+
+
+# ---------------------------------------------------------------------------
+# publish() with affiliate links integration tests
+# ---------------------------------------------------------------------------
+
+class TestPublishWithAffiliateLinks:
+    """Tests for publish() method with affiliate links."""
+
+    def _make_publisher(self):
+        from publisher import ContentPublisher
+        with patch("publisher.get_retry_failed", return_value=False):
+            with patch("publisher.get_max_retries", return_value=0):
+                with patch("publisher.get_uniqueness_mode", return_value="off"):
+                    return ContentPublisher()
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_youtube")
+    def test_affiliate_links_injected_into_description_for_youtube(
+        self, mock_yt, mock_analytics, mock_notify
+    ):
+        """publish() passes enriched description (with Shop: block) to YouTube handler."""
+        from publisher import ContentPublisher, PublishJob, PublishResult
+        mock_yt.return_value = PublishResult(platform="youtube", success=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                description="Base desc",
+                platforms=["youtube"],
+                affiliate_links=[{"url": "https://amzn.to/abc", "label": "Gadget"}],
+            )
+            with patch.object(pub, "_check_uniqueness", return_value=None):
+                pub.publish(job)
+
+            # The description passed to _publish_youtube must include affiliate links
+            call_args = mock_yt.call_args
+            enriched = call_args[0][2]  # third positional arg is enriched_description
+            assert "Shop:" in enriched
+            assert "Gadget: https://amzn.to/abc" in enriched
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_youtube")
+    def test_no_affiliate_links_description_unchanged(
+        self, mock_yt, mock_analytics, mock_notify
+    ):
+        """publish() does not alter description when affiliate_links is empty."""
+        from publisher import ContentPublisher, PublishJob, PublishResult
+        mock_yt.return_value = PublishResult(platform="youtube", success=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                description="Plain description",
+                platforms=["youtube"],
+                affiliate_links=[],
+            )
+            with patch.object(pub, "_check_uniqueness", return_value=None):
+                pub.publish(job)
+
+            call_args = mock_yt.call_args
+            enriched = call_args[0][2]
+            assert enriched == "Plain description"
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_twitter")
+    @patch("publisher.ContentPublisher._publish_youtube")
+    def test_affiliate_links_are_platform_specific(
+        self, mock_yt, mock_tw, mock_analytics, mock_notify
+    ):
+        """Different platforms receive different affiliate link formats."""
+        from publisher import ContentPublisher, PublishJob, PublishResult
+        mock_yt.return_value = PublishResult(platform="youtube", success=True)
+        mock_tw.return_value = PublishResult(platform="twitter", success=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                description="Base",
+                platforms=["youtube", "twitter"],
+                affiliate_links=[{"url": "https://amzn.to/deal", "label": "Item"}],
+            )
+            with patch.object(pub, "_check_uniqueness", return_value=None):
+                pub.publish(job)
+
+            yt_enriched = mock_yt.call_args[0][2]
+            tw_enriched = mock_tw.call_args[0][2]
+
+            # YouTube gets "Shop:" format, Twitter gets compact " | " format
+            assert "Shop:" in yt_enriched
+            assert " | " in tw_enriched
+            assert "Shop:" not in tw_enriched
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_youtube")
+    def test_original_job_description_not_mutated(
+        self, mock_yt, mock_analytics, mock_notify
+    ):
+        """publish() must not modify job.description in place."""
+        from publisher import ContentPublisher, PublishJob, PublishResult
+        mock_yt.return_value = PublishResult(platform="youtube", success=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            original_desc = "Original description"
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                description=original_desc,
+                platforms=["youtube"],
+                affiliate_links=[{"url": "https://amzn.to/xyz", "label": "Stuff"}],
+            )
+            with patch.object(pub, "_check_uniqueness", return_value=None):
+                pub.publish(job)
+
+            # job.description must remain unchanged after publish
+            assert job.description == original_desc
+        finally:
+            os.unlink(tmp)

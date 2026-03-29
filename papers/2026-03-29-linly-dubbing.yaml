@@ -1,0 +1,10 @@
+title: "Linly-Dubbing: Multi-Language AI Dubbing Pipeline"
+source: https://github.com/Kedreamix/Linly-Dubbing
+date: "2025-2026"
+architecture:
+  - "Speech Recognition: FunASR or Whisper"
+  - "Translation: GPT-4/Qwen/Google Translate"
+  - "Voice Synthesis: CosyVoice + GPTSoVITS"
+  - "Audio Processing: UVR5 separation"
+  - "Lip-Sync: Linly-Talker"
+relevance: Reference architecture for MPV2 dubbing module. We have Whisper STT + LLM, missing voice cloning and lip-sync.

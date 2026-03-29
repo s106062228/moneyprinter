@@ -1,0 +1,26 @@
+title: "MuseTalk 1.5 — Real-Time High Quality Lip Synchronization"
+date: 2026-03-30
+source: https://github.com/TMElyralab/MuseTalk
+type: tool
+relevance: medium
+summary: |
+  MuseTalk 1.5 (TMElyralab/Tencent Music, March 2025): Latent diffusion-based
+  lip sync model. MIT license. Training code open-sourced April 2025.
+
+  Technical specs:
+  - 30fps+ real-time on NVIDIA V100
+  - 256x256 face region resolution
+  - Perceptual loss + GAN loss + sync loss training
+  - Two-stage training with spatio-temporal data sampling
+  - Multi-language: Chinese, English, Japanese
+
+  Comparison with Wav2Lip:
+  - MuseTalk: Higher quality (diffusion-based), requires GPU
+  - Wav2Lip: Lighter (GAN-based), CPU-friendly, lower quality
+
+  Proven dubbing pipeline: Whisper → translation → TTS → MuseTalk/Wav2Lip
+
+  Implications for MPV2:
+  - Best open-source option for multi-language dubbing
+  - GPU requirement aligns with existing GPU FFmpeg infrastructure
+  - Complex feature — recommend dedicated iteration
