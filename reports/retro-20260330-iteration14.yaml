@@ -1,0 +1,36 @@
+title: "Retrospective — Iteration 14"
+date: 2026-03-30
+iteration: 14
+hypotheses:
+  - id: H44
+    name: "GPU-Accelerated FFmpeg"
+    status: CONFIRMED
+    new_tests: 43
+    coverage: "97.64%"
+  - id: H45
+    name: "Video Perceptual Hashing in UniquenessScorer"
+    status: CONFIRMED
+    new_tests: 29
+    coverage: "94.36%"
+  - id: H46
+    name: "Defensive pytest.importorskip"
+    status: CONFIRMED
+    new_tests: 0
+    tests_modified: 5
+    coverage: "96.88%"
+suite:
+  total_tests: 1934
+  passed: 1934
+  failed: 0
+  coverage: "84.40%"
+  new_tests: 74
+files_modified:
+  - src/ffmpeg_utils.py
+  - src/uniqueness_scorer.py
+  - tests/test_ffmpeg_utils.py
+  - tests/test_uniqueness_scorer.py
+  - tests/test_trend_detector.py
+  - specs/HYPOTHESES.md
+  - specs/ARCHITECTURE-20260330-iteration14.yaml
+  - JOURNAL.md
+  - TODO.md

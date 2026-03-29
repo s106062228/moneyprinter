@@ -876,3 +876,323 @@ class TestThresholdConfiguration:
 
         result = scorer.score_content(title, script, tags, desc)
         assert result.flagged
+
+
+# ---------------------------------------------------------------------------
+# 14. Weight constants
+# ---------------------------------------------------------------------------
+
+
+class TestWeightConstants:
+    def test_original_weights_sum_to_one(self):
+        import uniqueness_scorer as us
+        total = us._TITLE_WEIGHT + us._SCRIPT_WEIGHT + us._METADATA_WEIGHT + us._REGULARITY_WEIGHT
+        assert total == pytest.approx(1.0, abs=1e-9)
+
+    def test_video_weights_sum_to_one(self):
+        import uniqueness_scorer as us
+        total = (
+            us._TITLE_WEIGHT_WITH_VIDEO
+            + us._SCRIPT_WEIGHT_WITH_VIDEO
+            + us._METADATA_WEIGHT_WITH_VIDEO
+            + us._REGULARITY_WEIGHT_WITH_VIDEO
+            + us._VIDEO_WEIGHT
+        )
+        assert total == pytest.approx(1.0, abs=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# 15. _compute_video_hash
+# ---------------------------------------------------------------------------
+
+
+class TestComputeVideoHash:
+    def test_returns_hash_hex_on_success(self):
+        import sys
+        import types
+        import uniqueness_scorer as us
+
+        mock_vh = types.SimpleNamespace(hash_hex="deadbeef1234")
+        mock_module = types.ModuleType("videohash2")
+        mock_module.VideoHash = lambda url, do_not_copy: mock_vh
+
+        with patch.dict("sys.modules", {"videohash2": mock_module}):
+            result = us._compute_video_hash("/fake/video.mp4")
+        assert result == "deadbeef1234"
+
+    def test_returns_none_when_import_error(self):
+        import sys
+        import uniqueness_scorer as us
+
+        with patch.dict("sys.modules", {"videohash2": None}):
+            result = us._compute_video_hash("/fake/video.mp4")
+        assert result is None
+
+    def test_returns_none_on_exception(self):
+        import types
+        import uniqueness_scorer as us
+
+        def raising_vh(url, do_not_copy):
+            raise RuntimeError("corrupt video")
+
+        mock_module = types.ModuleType("videohash2")
+        mock_module.VideoHash = raising_vh
+
+        with patch.dict("sys.modules", {"videohash2": mock_module}):
+            result = us._compute_video_hash("/fake/video.mp4")
+        assert result is None
+
+    def test_returns_none_when_hash_hex_empty(self):
+        import types
+        import uniqueness_scorer as us
+
+        mock_vh = types.SimpleNamespace(hash_hex="")
+        mock_module = types.ModuleType("videohash2")
+        mock_module.VideoHash = lambda url, do_not_copy: mock_vh
+
+        with patch.dict("sys.modules", {"videohash2": mock_module}):
+            result = us._compute_video_hash("/fake/video.mp4")
+        assert result is None
+
+    def test_passes_do_not_copy_true(self):
+        import types
+        import uniqueness_scorer as us
+
+        received_kwargs = {}
+
+        def capturing_vh(url, do_not_copy):
+            received_kwargs["url"] = url
+            received_kwargs["do_not_copy"] = do_not_copy
+            return types.SimpleNamespace(hash_hex="abc123")
+
+        mock_module = types.ModuleType("videohash2")
+        mock_module.VideoHash = capturing_vh
+
+        with patch.dict("sys.modules", {"videohash2": mock_module}):
+            us._compute_video_hash("/fake/video.mp4")
+
+        assert received_kwargs["do_not_copy"] is True
+        assert received_kwargs["url"] == "/fake/video.mp4"
+
+
+# ---------------------------------------------------------------------------
+# 16. _hamming_distance
+# ---------------------------------------------------------------------------
+
+
+class TestHammingDistance:
+    def test_identical_hashes_distance_zero(self):
+        import uniqueness_scorer as us
+        assert us._hamming_distance("ff00ff00", "ff00ff00") == 0
+
+    def test_all_bits_different(self):
+        import uniqueness_scorer as us
+        # 0x00...00 vs 0xff...ff (64 bits = 16 hex chars)
+        zeroes = "0" * 16
+        ones = "f" * 16
+        assert us._hamming_distance(zeroes, ones) == 64
+
+    def test_known_distance(self):
+        import uniqueness_scorer as us
+        # 0b0000 vs 0b1111 = distance 4 (one hex nibble)
+        assert us._hamming_distance("0", "f") == 4
+
+    def test_invalid_hex_returns_64(self):
+        import uniqueness_scorer as us
+        assert us._hamming_distance("notahex!", "deadbeef") == 64
+
+    def test_none_input_returns_64(self):
+        import uniqueness_scorer as us
+        assert us._hamming_distance(None, "deadbeef") == 64
+
+
+# ---------------------------------------------------------------------------
+# 17. _score_video_similarity
+# ---------------------------------------------------------------------------
+
+
+class TestScoreVideoSimilarity:
+    def test_identical_hash_in_history_score_zero(self):
+        import uniqueness_scorer as us
+        history = [{"video_hash": "abcd1234" * 2}]
+        result = us._score_video_similarity("abcd1234" * 2, history)
+        assert result == pytest.approx(0.0, abs=1e-6)
+
+    def test_very_different_hash_score_near_one(self):
+        import uniqueness_scorer as us
+        # Store all-zero hash in history; compare against all-f hash → distance 64
+        history = [{"video_hash": "0" * 16}]
+        result = us._score_video_similarity("f" * 16, history)
+        assert result == pytest.approx(1.0, abs=1e-6)
+
+    def test_no_history_with_video_hashes_returns_one(self):
+        import uniqueness_scorer as us
+        history = [{"title": "no hash here"}, {"script_hash": "abc"}]
+        result = us._score_video_similarity("deadbeef00000000", history)
+        assert result == 1.0
+
+    def test_empty_video_hash_returns_one(self):
+        import uniqueness_scorer as us
+        history = [{"video_hash": "abcd1234abcd1234"}]
+        result = us._score_video_similarity("", history)
+        assert result == 1.0
+
+    def test_partial_distance_normalised(self):
+        import uniqueness_scorer as us
+        # Two hashes that differ in exactly 32 bits (half of 64) → score 0.5
+        # h1 = 0x0000000000000000, h2 = 0x00000000FFFFFFFF (lower 32 bits differ)
+        h1 = "0000000000000000"
+        h2 = "00000000ffffffff"
+        history = [{"video_hash": h1}]
+        result = us._score_video_similarity(h2, history)
+        assert result == pytest.approx(0.5, abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# 18. score_content with video_path
+# ---------------------------------------------------------------------------
+
+
+class TestScoreContentWithVideoPath:
+    def test_no_video_path_uses_original_weights(self, scorer):
+        """video_path=None → video_similarity=0.0 and original 4-weight formula."""
+        result = scorer.score_content("Title", "Script.", [], "Desc.", video_path=None)
+        assert result.video_similarity == 0.0
+
+    def test_video_path_hash_success_uses_rebalanced_weights(self, scorer):
+        """When hash succeeds, video_similarity is set and rebalanced weights applied."""
+        import uniqueness_scorer as us
+        with patch.object(us, "_compute_video_hash", return_value="abcd1234abcd1234"):
+            result = scorer.score_content(
+                "Title", "Script.", [], "Desc.", video_path="/fake/video.mp4"
+            )
+        # video_sim will be 1.0 (no history with video hashes)
+        assert result.video_similarity == pytest.approx(1.0, abs=1e-6)
+        assert 0.0 <= result.overall <= 1.0
+
+    def test_video_path_hash_fails_uses_original_weights(self, scorer):
+        """If hash computation fails, fall back to original 4-weight formula."""
+        import uniqueness_scorer as us
+        with patch.object(us, "_compute_video_hash", return_value=None):
+            result = scorer.score_content(
+                "Title", "Script.", [], "Desc.", video_path="/fake/video.mp4"
+            )
+        assert result.video_similarity == 0.0
+
+    def test_video_hash_appears_in_details(self, scorer):
+        """video_hash is stored in details dict when computed successfully."""
+        import uniqueness_scorer as us
+        with patch.object(us, "_compute_video_hash", return_value="cafebabe12345678"):
+            result = scorer.score_content(
+                "Title", "Script.", [], "Desc.", video_path="/fake/video.mp4"
+            )
+        assert result.details["video_hash"] == "cafebabe12345678"
+
+    def test_details_video_hash_none_when_no_video_path(self, scorer):
+        """Without video_path, details['video_hash'] is None."""
+        result = scorer.score_content("Title", "Script.", [], "Desc.")
+        assert result.details["video_hash"] is None
+
+    def test_backward_compat_no_video_path_arg(self, scorer):
+        """Calling score_content without video_path still works as before."""
+        result = scorer.score_content("Title", "Script.", [], "Desc.")
+        assert result is not None
+        assert result.video_similarity == 0.0
+
+    def test_video_weight_rebalancing_sums_to_one(self):
+        """Verify that the with-video weight constants sum to exactly 1.0."""
+        import uniqueness_scorer as us
+        total = (
+            us._TITLE_WEIGHT_WITH_VIDEO
+            + us._SCRIPT_WEIGHT_WITH_VIDEO
+            + us._METADATA_WEIGHT_WITH_VIDEO
+            + us._REGULARITY_WEIGHT_WITH_VIDEO
+            + us._VIDEO_WEIGHT
+        )
+        assert total == pytest.approx(1.0, abs=1e-9)
+
+    def test_identical_video_in_history_lowers_overall(self, scorer):
+        """An identical video in history should produce video_similarity near 0.0."""
+        import uniqueness_scorer as us
+        existing_hash = "abcd1234abcd1234"
+        # Manually insert an entry with a video_hash into the history file
+        entry = {
+            "title": "Some prior video",
+            "script_hash": "aaa",
+            "tags": [],
+            "description_hash": "bbb",
+            "description_words": [],
+            "platform": "youtube",
+            "timestamp": datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat(),
+            "script_fingerprint": {},
+            "video_hash": existing_hash,
+        }
+        us._atomic_write_json(scorer._history_path, [entry])
+
+        with patch.object(us, "_compute_video_hash", return_value=existing_hash):
+            result = scorer.score_content(
+                "Title", "Script.", [], "Desc.", video_path="/fake/video.mp4"
+            )
+        # identical hash → video_similarity = 0.0
+        assert result.video_similarity == pytest.approx(0.0, abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# 19. add_to_history with video_path
+# ---------------------------------------------------------------------------
+
+
+class TestAddToHistoryWithVideoPath:
+    def test_video_path_provided_entry_contains_video_hash(self, scorer, history_path):
+        """When video_path is given and hash succeeds, entry has 'video_hash'."""
+        import uniqueness_scorer as us
+        from pathlib import Path
+        with patch.object(us, "_compute_video_hash", return_value="1122334455667788"):
+            scorer.add_to_history(
+                "Title", "Script.", [], "Desc.", video_path="/fake/video.mp4"
+            )
+        entry = json.loads(Path(history_path).read_text())[0]
+        assert entry["video_hash"] == "1122334455667788"
+
+    def test_video_path_none_entry_has_no_video_hash(self, scorer, history_path):
+        """Without video_path, the history entry must not contain 'video_hash'."""
+        from pathlib import Path
+        scorer.add_to_history("Title", "Script.", [], "Desc.", video_path=None)
+        entry = json.loads(Path(history_path).read_text())[0]
+        assert "video_hash" not in entry
+
+    def test_video_path_hash_fails_no_video_hash_in_entry(self, scorer, history_path):
+        """If _compute_video_hash returns None, entry should not get 'video_hash'."""
+        import uniqueness_scorer as us
+        from pathlib import Path
+        with patch.object(us, "_compute_video_hash", return_value=None):
+            scorer.add_to_history(
+                "Title", "Script.", [], "Desc.", video_path="/fake/video.mp4"
+            )
+        entry = json.loads(Path(history_path).read_text())[0]
+        assert "video_hash" not in entry
+
+    def test_existing_entries_without_video_hash_dont_break_scoring(self, scorer, history_path):
+        """Entries added before video support should not cause errors during scoring."""
+        import uniqueness_scorer as us
+        from pathlib import Path
+        # Add a legacy-style entry directly (no video_hash field)
+        entry = {
+            "title": "Legacy entry",
+            "script_hash": "abc",
+            "tags": [],
+            "description_hash": "def",
+            "description_words": [],
+            "platform": "youtube",
+            "timestamp": datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat(),
+            "script_fingerprint": {"sentence_count": 1},
+        }
+        us._atomic_write_json(scorer._history_path, [entry])
+
+        # Should not raise even when video_path is supplied
+        with patch.object(us, "_compute_video_hash", return_value="cafecafe11223344"):
+            result = scorer.score_content(
+                "New title", "Script.", [], "Desc.", video_path="/fake/video.mp4"
+            )
+        # No prior video hashes in history → video_similarity = 1.0
+        assert result.video_similarity == pytest.approx(1.0, abs=1e-6)

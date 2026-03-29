@@ -1,0 +1,171 @@
+title: "Architecture — Iteration 14"
+date: 2026-03-30
+hypotheses: [H44, H45, H46]
+
+overview: |
+  Three independent, additive changes. No breaking API modifications.
+  All existing 1860 tests must continue to pass.
+
+h44_gpu_ffmpeg:
+  files_modified:
+    - src/ffmpeg_utils.py
+    - tests/test_ffmpeg_utils.py
+  changes:
+    - name: GpuInfo namedtuple
+      location: "ffmpeg_utils.py, after _SUPPORTED_AUDIO_FORMATS"
+      detail: |
+        from collections import namedtuple
+        GpuInfo = namedtuple("GpuInfo", ["available", "encoder", "decoder"])
+    - name: _GPU_CODECS constant
+      location: "ffmpeg_utils.py, after GpuInfo"
+      detail: |
+        _GPU_CODECS = {
+            "libx264": "h264_nvenc",
+            "libx265": "hevc_nvenc",
+        }
+    - name: detect_gpu() function
+      location: "ffmpeg_utils.py, new public function after check_ffmpeg()"
+      detail: |
+        def detect_gpu() -> GpuInfo:
+            1. Run `ffmpeg -encoders` via subprocess, capture stdout
+            2. Check if "h264_nvenc" appears in output
+            3. Check if "hevc_nvenc" appears
+            4. If h264_nvenc found: return GpuInfo(True, "h264_nvenc", "h264_cuvid")
+            5. Else: return GpuInfo(False, "", "")
+            6. On any subprocess error: return GpuInfo(False, "", "")
+    - name: _build_hwaccel_flags() helper
+      location: "ffmpeg_utils.py, internal helper"
+      detail: |
+        def _build_hwaccel_flags(gpu: GpuInfo, codec: str) -> tuple[list[str], str]:
+            """Return (input_flags, output_codec) for GPU or CPU path."""
+            if gpu.available and codec in _GPU_CODECS:
+                return (["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"],
+                        _GPU_CODECS[codec])
+            return ([], codec)
+    - name: use_gpu kwarg on trim_clip, transcode, concat_clips
+      detail: |
+        Add `use_gpu: bool = False` keyword argument to each function.
+        When True:
+          1. Call detect_gpu()
+          2. If GPU available and codec is in _GPU_CODECS:
+             - Inject hwaccel input flags before -i
+             - Replace codec with GPU equivalent
+          3. Run ffmpeg command
+          4. If fails (non-zero exit) and use_gpu was True:
+             - Log warning about GPU fallback
+             - Re-run command with CPU codec (original)
+        When False: behavior unchanged (backward compatible)
+    - name: Update _SUPPORTED_CODECS
+      detail: |
+        Add "h264_nvenc" and "hevc_nvenc" to _SUPPORTED_CODECS frozenset
+        so GPU codecs pass validation.
+  tests:
+    count: "30+"
+    coverage_target: ">90%"
+    key_tests:
+      - test_detect_gpu_available (mock ffmpeg -encoders output with h264_nvenc)
+      - test_detect_gpu_unavailable (mock output without nvenc)
+      - test_detect_gpu_ffmpeg_error (mock subprocess failure)
+      - test_build_hwaccel_flags_gpu_available
+      - test_build_hwaccel_flags_gpu_unavailable
+      - test_build_hwaccel_flags_unsupported_codec
+      - test_trim_clip_use_gpu_success (mock GPU path)
+      - test_trim_clip_use_gpu_fallback (mock GPU failure, CPU retry)
+      - test_transcode_use_gpu_success
+      - test_transcode_use_gpu_fallback
+      - test_concat_clips_use_gpu_success
+      - test_concat_clips_use_gpu_fallback
+      - test_gpu_flag_false_unchanged_behavior
+      - test_GpuInfo_namedtuple_fields
+
+h45_video_hashing:
+  files_modified:
+    - src/uniqueness_scorer.py
+    - tests/test_uniqueness_scorer.py
+  changes:
+    - name: New weight constants
+      location: "uniqueness_scorer.py, constants section"
+      detail: |
+        _VIDEO_WEIGHT = 0.15
+        Rebalance existing weights when video dimension is active:
+          _TITLE_WEIGHT_WITH_VIDEO = 0.25   (was 0.30)
+          _SCRIPT_WEIGHT_WITH_VIDEO = 0.25  (was 0.30)
+          _METADATA_WEIGHT_WITH_VIDEO = 0.18 (was 0.20)
+          _REGULARITY_WEIGHT_WITH_VIDEO = 0.17 (was 0.20)
+        Total: 0.25+0.25+0.18+0.17+0.15 = 1.00
+    - name: video_similarity field on UniquenessScore
+      detail: |
+        Add `video_similarity: float = 0.0` field to UniquenessScore dataclass.
+        Default 0.0 means "no video comparison done" (backward compatible).
+    - name: _compute_video_hash() helper
+      detail: |
+        def _compute_video_hash(video_path: str) -> Optional[str]:
+            Try lazy import of videohash2:
+              from videohash2 import VideoHash
+            Compute VideoHash(video_path, do_not_copy=True).hash_hex
+            On ImportError or any Exception: log warning, return None
+    - name: _score_video_similarity() helper
+      detail: |
+        def _score_video_similarity(video_hash: str, history: list[dict]) -> float:
+            Compare video_hash against history entries that have "video_hash" key.
+            Use Hamming distance: count differing bits between two 64-bit hex hashes.
+            Return 1.0 - (min_hamming_distance / 64).
+            If no history has video hashes: return 1.0 (fully unique).
+    - name: Update score_content()
+      detail: |
+        Add optional `video_path: Optional[str] = None` parameter.
+        If video_path provided:
+          1. Compute video hash via _compute_video_hash()
+          2. If hash obtained: score with _score_video_similarity() against history
+          3. Use rebalanced weights (with_video variants)
+          4. Set result.video_similarity
+        If video_path is None or hash fails:
+          Use original 4-dimension weights (backward compatible)
+    - name: Update add_to_history()
+      detail: |
+        Add optional `video_path: Optional[str] = None` parameter.
+        If video_path provided:
+          Compute hash and store in entry dict as "video_hash".
+  tests:
+    count: "25+"
+    coverage_target: ">85%"
+    key_tests:
+      - test_compute_video_hash_success (mock videohash2)
+      - test_compute_video_hash_import_error (videohash2 not installed)
+      - test_compute_video_hash_runtime_error (hash computation fails)
+      - test_score_video_similarity_identical (hamming 0)
+      - test_score_video_similarity_different (hamming 32+)
+      - test_score_video_similarity_no_history
+      - test_score_content_with_video_path (rebalanced weights)
+      - test_score_content_without_video_path (original weights)
+      - test_add_to_history_with_video_path (stores hash)
+      - test_add_to_history_without_video_path (no hash stored)
+      - test_video_similarity_field_default
+      - test_weight_rebalancing_sums_to_one
+
+h46_importorskip:
+  files_modified:
+    - tests/test_trend_detector.py
+  changes:
+    - name: Add importorskip guards
+      detail: |
+        At 5 locations (lines 299, 331, 347, 363, 1010 approx):
+        Replace `import pandas as pd` with:
+          pd = pytest.importorskip("pandas")
+        This makes the test skip gracefully if pandas is not installed.
+  tests:
+    count: "0 new tests (existing tests modified)"
+    coverage_target: "no change"
+
+todo_tasks:
+  - "Add pytest.importorskip('pandas') to 5 trend_detector tests [H46]"
+  - "Add GpuInfo namedtuple + _GPU_CODECS constant to ffmpeg_utils.py [H44]"
+  - "Add detect_gpu() function to ffmpeg_utils.py [H44]"
+  - "Add _build_hwaccel_flags() helper to ffmpeg_utils.py [H44]"
+  - "Add use_gpu kwarg to trim_clip/transcode/concat_clips with CPU fallback [H44]"
+  - "Write tests for GPU-accelerated FFmpeg (30+ tests) [H44]"
+  - "Add video_similarity field to UniquenessScore + weight constants [H45]"
+  - "Add _compute_video_hash() and _score_video_similarity() helpers [H45]"
+  - "Update score_content() and add_to_history() with video_path param [H45]"
+  - "Write tests for video perceptual hashing (25+ tests) [H45]"
+  - "Run full test suite (target: 0 failures, 1920+ total) [H44, H45, H46]"

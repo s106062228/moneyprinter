@@ -1,0 +1,28 @@
+=== Research Pipeline — Iteration 14 Experiment ===
+Date: 2026-03-30
+Step: 5/7 (experiment)
+
+Test Suite Results:
+- Total tests: 1934 (was 1860, +74 new)
+- Passed: 1934
+- Failed: 0
+- Coverage: 84.40% (was 84.08%)
+
+Per-Module Results:
+- ffmpeg_utils.py: 97.64% coverage (212 stmts, 5 missed)
+- uniqueness_scorer.py: 94.36% coverage (266 stmts, 15 missed)
+- trend_detector.py: 96.88% coverage (unchanged)
+
+New Tests Added:
+- test_ffmpeg_utils.py: +43 tests (GPU detection, hwaccel flags, GPU trim/transcode/concat, fallback)
+- test_uniqueness_scorer.py: +29 tests (video hashing, hamming distance, video similarity, weight rebalancing)  
+- test_trend_detector.py: 5 tests modified (importorskip guards)
+
+Hypothesis Metrics:
+- H44 (GPU FFmpeg): detect_gpu() works, _build_hwaccel_flags() works, use_gpu kwarg works, CPU fallback works. 43 new tests, 97.64% coverage. ✓
+- H45 (Video hashing): _compute_video_hash() works, _hamming_distance() works, _score_video_similarity() works, weight rebalancing correct. 29 new tests, 94.36% coverage. ✓
+- H46 (importorskip): 5 guards added, all tests pass. ✓
+
+Bug Fixes During Experiment:
+- Fixed missing `import subprocess` in test_ffmpeg_utils.py (2 tests)
+- Fixed test_partial_distance_normalised incorrect bit calculation (1 test)

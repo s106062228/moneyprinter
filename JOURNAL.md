@@ -1838,3 +1838,228 @@ All 5 are in `tests/test_trend_detector.py::TestFetchGoogleTrends` — caused by
 - Modified files: src/export_optimizer.py, src/smart_clipper.py, src/publisher.py, tests/test_export_optimizer.py, tests/test_smart_clipper.py, tests/test_publisher.py
 
 ---
+
+## Survey — 2026-03-29 (Iteration 13)
+
+**Topic**: Next-phase capabilities for MoneyPrinter — dubbing, shoppable content, video hashing, FFmpeg optimization, trend prediction, and automation tool landscape.
+
+### Key Findings
+
+#### 1. Short-Form Video Automation Pipeline Tools (2026)
+- **short-video-maker** (1k+ GitHub stars): Open-source Node.js/TypeScript tool using Kokoro TTS + Whisper.cpp + Remotion + Pexels API. Exposes both REST API and MCP server for AI agent integration. Currently English-only. (source: https://github.com/gyoridavid/short-video-maker)
+- **VidAU.ai**: No-code + API-driven pipeline that can generate 50 short videos in one click. Full automation from script to upload.
+- **n8n workflow templates**: Pre-built automation that uses Whisper + Gemini to transform long videos into viral shorts and auto-schedules to TikTok/Reels/Shorts.
+- **Industry trend**: Volume is king — automation pipelines posting 50x/week outcompete manual 1x/week creators. TikTok's 2026 algorithm explicitly rewards scheduled content.
+
+#### 2. FFmpeg GPU Acceleration & Processing Optimization
+- **Meta's FFmpeg at scale** (Mar 2026): Meta processes 1B+ video uploads daily, runs FFmpeg tens of billions of times/day. Key innovations: multi-lane transcoding (single FFmpeg instance, multiple outputs), parallelized encoding (FFmpeg 6.0+), MSVP custom ASIC. All innovations upstreamed to FFmpeg 6.0–8.0. (source: https://engineering.fb.com/2026/03/02/video-engineering/ffmpeg-at-meta-media-processing-at-scale/)
+- **Vulkan Compute in FFmpeg**: Enables GPU-accelerated encoding/decoding on consumer GPUs without specialized hardware.
+- **NVIDIA NVENC**: 5x faster encoding vs CPU, 73-82% better price/performance on GPU instances.
+- **For MPV2**: Adding `-hwaccel cuda -c:v h264_nvenc` flags to ffmpeg_utils.py with CPU fallback is low-hanging fruit for 5x speedup.
+
+#### 3. Video Content Uniqueness & Duplicate Detection
+- **videohash** (Python, PyPI): Perceptual video hashing — generates 64-bit hash from any video. Robust against resize, transcode, watermark, color/frame-rate/aspect-ratio changes, cropping. Uses wavelet hash on 144x144 frame collages at 1fps. (source: https://github.com/akamhy/videohash)
+- **videohash2**: Actively maintained fork with additional features.
+- **For MPV2**: Could add visual duplicate detection to UniquenessScorer as 5th dimension alongside existing 4 text dimensions.
+
+#### 4. Multi-Language AI Dubbing & Lip-Sync
+- **daVinci-MagiHuman** (Apache 2.0, 15B params): Unified transformer, 2s generation for 5s video on H100, 7 languages. Too heavy for local use but API available. (source: https://wavespeed.ai/blog/posts/davinci-magihuman-open-source-digital-human-lip-sync-2026/)
+- **Wav2Lip**: Best open-source for dubbing existing footage. Moderate GPU, batch-friendly, robust on noisy inputs.
+- **Linly-Dubbing** (GitHub, Python): Full pipeline — FunASR → GPT-4/Qwen translation → CosyVoice voice cloning → UVR5 audio separation → lip-sync. (source: https://github.com/Kedreamix/Linly-Dubbing)
+- **For MPV2**: Dubbing module could use Whisper (have it) → translation API → CosyVoice/XTTS → Wav2Lip. Incremental implementation possible.
+
+#### 5. Shoppable Content Integration APIs
+- **TikTok Shop API**: Full product catalog CRUD, AI Product Optimizer Widget, zero listing fees, refreshed developer docs. (source: https://developers.tiktok.com/)
+- **YouTube Shopping**: Product tagging in videos/live streams, requires YouTube Partner Program.
+- **Instagram Shopping**: 1/3 of US users expected to purchase on-platform by 2026, checkout redirects to website.
+- **For MPV2**: TikTok Shop API is most developer-friendly. Could add product tagging to existing upload flow.
+
+#### 6. Predictive Micro-Trend Detection
+- AI scans billions of posts/minute detecting engagement velocity, save/share ratios, comment sentiment, dwell time. Spots trends weeks before peak.
+- **Talkwalker**: 90-day forecasts with 90% confidence levels.
+- **Academic**: PeerJ paper on ML-based topic popularity prediction. (source: https://peerj.com/articles/cs-3245/)
+- **Business impact**: 37% higher engagement, 22% more conversions with AI trend detection.
+- **For MPV2**: Upgrade TrendDetector from reactive (Google Trends) to predictive (engagement velocity + NLP sentiment).
+
+### Gaps & Opportunities
+1. **GPU-accelerated FFmpeg** — ffmpeg_utils.py uses CPU-only calls. NVENC/CUDA flags with fallback = 5x speedup.
+2. **Video perceptual hashing** — videohash library adds visual duplicate detection to UniquenessScorer.
+3. **Multi-language dubbing** — all components exist as open-source. MPV2 could be first to offer automated dubbing in short-form video space.
+4. **TikTok Shop integration** — most developer-friendly commerce API for product tagging.
+5. **Predictive trend detection** — upgrading from reactive to predictive would differentiate from competitors.
+6. **Fix pre-existing test failures** — 5 trend_detector failures from missing pandas dependency.
+
+### Sources
+- short-video-maker: https://github.com/gyoridavid/short-video-maker
+- FFmpeg at Meta: https://engineering.fb.com/2026/03/02/video-engineering/ffmpeg-at-meta-media-processing-at-scale/
+- Vulkan Compute FFmpeg: https://www.khronos.org/blog/video-encoding-and-decoding-with-vulkan-compute-shaders-in-ffmpeg
+- videohash: https://github.com/akamhy/videohash
+- daVinci-MagiHuman: https://wavespeed.ai/blog/posts/davinci-magihuman-open-source-digital-human-lip-sync-2026/
+- Linly-Dubbing: https://github.com/Kedreamix/Linly-Dubbing
+- TikTok Shop: https://developers.tiktok.com/
+- AI Trend Prediction: https://www.viralgraphs.com/blog/social-media/ai-to-predict-viral-social-content
+- ML Trend Paper: https://peerj.com/articles/cs-3245/
+
+---
+
+## Hypotheses — 2026-03-29 (Iteration 13)
+
+Formulated 3 hypotheses. Top priority: H43 — fix 5 pre-existing trend_detector test failures (quick win). Then H41 — GPU-accelerated FFmpeg with NVENC/CUDA + CPU fallback (5x speedup). Then H42 — video perceptual hashing in UniquenessScorer (visual duplicate detection). All 3 are independent and parallelizable.
+
+---
+
+## Architecture — 2026-03-29 (Iteration 13)
+
+Designed implementation for H41, H42, H43. 10 tasks added to TODO.md.
+Key decisions: (1) GPU acceleration via detect_gpu() probe + use_gpu kwarg with silent CPU fallback — purely additive, default off. (2) Video hashing via lazy-import videohash with weight rebalancing (text weights decrease from 1.0 to 0.85 total when video dimension active). (3) Trend detector fix via pytest.importorskip — no production code changes. All 3 hypotheses are independent and can be implemented in parallel agents. See specs/ARCHITECTURE-20260329-232500.yaml.
+
+---
+
+## Survey — 2026-03-30 (Iteration 14)
+
+### Research Focus
+Iteration 13 hypotheses (H41-H43) were designed but never implemented. This survey re-validates those hypotheses against latest findings and identifies new opportunities for iteration 14.
+
+### Pre-Survey Status
+- **Test suite**: 1860/1860 passing (0 failures)
+- **Coverage**: 84.08%
+- **H43 (pandas importorskip)**: pandas 3.0.1 is now installed — the 5 trend_detector failures no longer reproduce. H43 is still good practice but no longer blocking.
+- **H41 (GPU FFmpeg)**: Not yet implemented
+- **H42 (Video perceptual hashing)**: Not yet implemented
+
+### Key Findings
+
+#### 1. GPU-Accelerated FFmpeg — Still High Value
+- **NVIDIA Video Codec SDK 13.0**: FFmpeg natively supports NVENC/NVDEC for H.264, HEVC, and AV1 codecs. CLI flags: `-hwaccel cuda -hwaccel_output_format cuda`. (source: https://docs.nvidia.com/video-technologies/video-codec-sdk/13.0/ffmpeg-with-nvidia-gpu/index.html)
+- **NVIDIA Video Processing Framework (VPF)**: Full HW-accelerated transcoding on GPU with zero CPU load. Python bindings via `PyNvCodec`. (source: https://github.com/NVIDIA/VideoProcessingFramework)
+- **PyNvVideoCodec**: Python bindings over C++ APIs for HW-accelerated encode/decode using NVIDIA Video Codec SDK. (source: https://docs.nvidia.com/video-technologies/pynvvideocodec/pynvc-api-prog-guide/index.html)
+- **Detection**: `ffmpeg -hwaccels` lists available methods; `ffmpeg -encoders | grep nvenc` checks for NVENC. subprocess-based probing is standard practice.
+- **For MPV2**: H41 design (detect_gpu + use_gpu kwarg + CPU fallback) remains the right approach. No changes needed to the architecture.
+
+#### 2. Video Perceptual Hashing — videohash2 3.2.2
+- **videohash2 3.2.2** (maintained fork of videohash): 64-bit perceptual hash. Robust to resize, transcode, watermark, crop, frame rate change. (source: https://pypi.org/project/videohash2/)
+- **Performance improvement**: `do_not_copy=True` avoids copying video to temp storage. Duration-based frame crop detection halves average hashing time.
+- **Algorithm**: 1fps frame extraction → 144x144 resize → collage wavelet hash → horizontal stitch → 64 dominant color bits → XOR → 64-bit hash.
+- **For MPV2**: Use videohash2 (not videohash) for active maintenance. H42 design is still valid. Add `do_not_copy=True` optimization.
+
+#### 3. Open-Source Voice Cloning — Major Breakthroughs
+- **Qwen3-TTS** (Jan 2026): 3-second voice cloning, 97ms latency, open-source. Breakthrough for real-time TTS. (source: https://dev.to/czmilo/qwen3-tts-the-complete-2026-guide-to-open-source-voice-cloning-and-ai-speech-generation-1in6)
+- **Chatterbox** (Resemble AI): Fully open-source, real-time generative audio, low GPU requirements. (source: https://www.resemble.ai/chatterbox/)
+- **XTTS-v2**: 6-second clip cloning, 17 languages, emotional tone replication. (source: https://www.bentoml.com/blog/exploring-the-world-of-open-source-text-to-speech-models)
+- **IndexTTS-2**: Precise duration control + zero-shot voice cloning for video dubbing.
+- **For MPV2**: Current TTS uses KittenTTS. Qwen3-TTS or Chatterbox could be future upgrades, but not this iteration.
+
+#### 4. Short-Form Video Automation Landscape
+- **Market size**: $788.5M (2025) → projected $3.44B (2033). (source: https://www.gudsho.com/blog/video-editing-statistics/)
+- **Key competitors**: Clippie (viral clip extraction), OpusClip (virality scoring), VeeSpark (prompt-to-video), Async (audio-first editing).
+- **Trend**: Platform-specific optimization is now table stakes. AI auto-selects best takes, applies color grading, inserts branded captions.
+- **For MPV2**: Our pipeline_integrator + export_optimizer already cover platform-specific export. Competitive edge is in the open-source, self-hosted nature.
+
+#### 5. TikTok API Updates
+- **Smart+ Campaign API**: Legacy API deprecated after 2026-03-31, replaced by Upgraded Smart+ API for campaign automation. (source: https://business-api.tiktok.com/portal)
+- **TikTok Shop**: Full product catalog CRUD, storefront management, product tagging in videos. (source: https://developers.tiktok.com/)
+- **For MPV2**: Product tagging integration is still medium priority. No urgent API changes affecting current upload flow.
+
+#### 6. pytest.importorskip Best Practices
+- **pytest 8.2+**: New `exc_type=ModuleNotFoundError` parameter for precise skip control. (source: https://docs.pytest.org/en/stable/how-to/skipping.html)
+- **Pattern**: `pandas = pytest.importorskip("pandas")` at test function level, not module level.
+- **For MPV2**: H43 is now a defensive fix (pandas is installed, but CI or other envs may not have it). Still worth doing as a 5-minute task.
+
+### Gaps & Opportunities
+1. **GPU-accelerated FFmpeg** (H41) — Still unimplemented. High value for batch video processing workflows.
+2. **Video perceptual hashing** (H42) — Still unimplemented. Use videohash2 3.2.2 with `do_not_copy=True` optimization.
+3. **Defensive pandas skip** (H43) — Tests pass now but should be defensive for CI environments without pandas.
+4. **Qwen3-TTS integration** — Future opportunity: 3-second voice cloning with 97ms latency could replace KittenTTS.
+5. **Content uniqueness at scale** — Copyleaks/Originality.ai offer API-based detection. Our UniquenessScorer is local-only, which is a feature (privacy), not a gap.
+
+### Sources
+- NVIDIA Video Codec SDK 13.0: https://docs.nvidia.com/video-technologies/video-codec-sdk/13.0/ffmpeg-with-nvidia-gpu/index.html
+- NVIDIA VPF: https://github.com/NVIDIA/VideoProcessingFramework
+- PyNvVideoCodec: https://docs.nvidia.com/video-technologies/pynvvideocodec/pynvc-api-prog-guide/index.html
+- videohash2: https://pypi.org/project/videohash2/
+- Qwen3-TTS: https://dev.to/czmilo/qwen3-tts-the-complete-2026-guide-to-open-source-voice-cloning-and-ai-speech-generation-1in6
+- Chatterbox: https://www.resemble.ai/chatterbox/
+- AI Video Market: https://www.gudsho.com/blog/video-editing-statistics/
+- TikTok Business API: https://business-api.tiktok.com/portal
+- pytest importorskip: https://docs.pytest.org/en/stable/how-to/skipping.html
+- Short-form trends: https://vicomma.com/blog/how-ai-automation-and-platform-intelligence-will-redefine-short-form-video-in-2026
+
+---
+
+## Hypotheses — 2026-03-30 (Iteration 14)
+
+Formulated 3 hypotheses carrying forward unimplemented iteration 13 work with updates:
+- **H44** — GPU-accelerated FFmpeg with NVENC/CUDA + CPU fallback (carried from H41, unchanged)
+- **H45** — Video perceptual hashing via videohash2 3.2.2 with do_not_copy optimization (carried from H42, updated library)
+- **H46** — Defensive pytest.importorskip for pandas in trend_detector tests (carried from H43, priority lowered since pandas is now installed)
+
+All 3 are independent and parallelizable. See specs/HYPOTHESES.md for full details.
+
+---
+
+## Architecture — 2026-03-30 (Iteration 14)
+
+Designed implementation for H44, H45, H46. 11 tasks added to TODO.md.
+Key decisions:
+1. **H44 (GPU FFmpeg)**: GpuInfo namedtuple + detect_gpu() probes `ffmpeg -encoders` for h264_nvenc. _build_hwaccel_flags() helper. use_gpu=False kwarg on trim_clip/transcode/concat_clips with silent CPU fallback on GPU failure. Add h264_nvenc/hevc_nvenc to _SUPPORTED_CODECS.
+2. **H45 (Video hashing)**: Use videohash2 (not videohash) with do_not_copy=True. _VIDEO_WEIGHT=0.15 rebalances existing 4 weights. _compute_video_hash() lazy-imports videohash2. _score_video_similarity() uses Hamming distance on 64-bit hex hashes. Backward compatible: video_path=None uses original weights.
+3. **H46 (importorskip)**: Replace `import pandas as pd` with `pd = pytest.importorskip("pandas")` at 5 locations. Zero production code changes.
+See specs/ARCHITECTURE-20260330-iteration14.yaml.
+
+---
+
+## Evaluation — 2026-03-30 (Iteration 14)
+
+### Results
+
+| Hypothesis | Status | New Tests | Coverage | Notes |
+|---|---|---|---|---|
+| H44 (GPU FFmpeg) | **CONFIRMED** | 43 | 97.64% | detect_gpu, hwaccel flags, use_gpu kwarg, CPU fallback all working |
+| H45 (Video hashing) | **CONFIRMED** | 29 | 94.36% | videohash2 lazy import, Hamming distance, weight rebalancing, backward compatible |
+| H46 (importorskip) | **CONFIRMED** | 0 (5 modified) | 96.88% | All 5 guards added, tests pass with pandas, would skip without |
+
+### Suite Summary
+- **Before**: 1860 tests, 84.08% coverage
+- **After**: 1934 tests (+74), 84.40% coverage (+0.32%)
+- **Failures**: 0
+
+### Key Observations
+1. All 3 hypotheses independently confirmed. Zero regressions.
+2. GPU fallback path thoroughly tested — safe for non-GPU environments.
+3. Video hashing is fully optional: videohash2 not in requirements.txt, graceful degradation tested.
+4. Total codebase: ~5,500 statements, 84.40% coverage, 1,934 tests.
+
+---
+
+## Retrospective — 2026-03-30 (Iteration 14)
+
+### What Worked
+1. **Carrying forward hypotheses**: H41-H43 from iteration 13 were re-validated and implemented as H44-H46. The survey confirmed original designs were still correct, minimizing rework.
+2. **Parallel implementation**: All 3 hypotheses were independent, enabling parallel agent execution. Total implementation time was bounded by the longest agent (~3.5 min).
+3. **Additive changes only**: No breaking API changes. All new features are opt-in (use_gpu=False, video_path=None). Backward compatibility preserved across the board.
+4. **Test-first validation**: 74 new tests caught 3 bugs during initial run (missing import, incorrect bit calculation). All fixed in one pass.
+
+### What Could Improve
+1. **Iteration 13 gap**: H41-H43 were architected in iter 13 but never implemented. The pipeline should have a mechanism to detect and resume incomplete iterations rather than starting fresh.
+2. **Video hashing untested with real files**: All videohash2 tests use mocks. A future iteration should add an integration test with a small sample video.
+
+### Metrics
+| Metric | Before (iter 12) | After (iter 14) | Delta |
+|---|---|---|---|
+| Tests | 1860 | 1934 | +74 |
+| Coverage | 84.08% | 84.40% | +0.32% |
+| Failures | 0* | 0 | — |
+| Modules | 25 | 25 | +0 |
+| ffmpeg_utils.py | 96.73% | 97.64% | +0.91% |
+| uniqueness_scorer.py | 92.96% | 94.36% | +1.40% |
+
+*5 pre-existing pandas failures were documented in iter 12 but had self-resolved by iter 14 (pandas installed).
+
+### Next Iteration Candidates
+1. **Shoppable content integration** — TikTok Shop API for product tagging in video descriptions (medium priority)
+2. **Predictive micro-trend detection** — upgrade TrendDetector from reactive to predictive (low priority, high impact)
+3. **Multi-language dubbing** — Qwen3-TTS + Wav2Lip pipeline for automated dubbing (low priority, complex)
+4. **GPU FFmpeg integration test** — verify detect_gpu on actual NVIDIA hardware
+5. **videohash2 integration test** — verify with real sample video file
+
+---

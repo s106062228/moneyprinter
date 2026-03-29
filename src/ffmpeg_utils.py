@@ -25,6 +25,7 @@ import json
 import shutil
 import subprocess
 import tempfile
+from collections import namedtuple
 from dataclasses import dataclass
 from typing import Optional
 
@@ -45,7 +46,16 @@ _SUPPORTED_CODECS = frozenset({
     "libx265",
     "aac",
     "libmp3lame",
+    "h264_nvenc",
+    "hevc_nvenc",
 })
+
+GpuInfo = namedtuple("GpuInfo", ["available", "encoder", "decoder"])
+
+_GPU_CODECS = {
+    "libx264": "h264_nvenc",
+    "libx265": "hevc_nvenc",
+}
 _SUPPORTED_PRESETS = frozenset({
     "ultrafast",
     "superfast",
@@ -95,6 +105,29 @@ def check_ffmpeg() -> bool:
     if not ffprobe_ok:
         logger.warning("ffprobe binary not found on PATH.")
     return ffmpeg_ok and ffprobe_ok
+
+
+def detect_gpu() -> GpuInfo:
+    """Detect NVIDIA GPU encoding support via ffmpeg -encoders.
+
+    Returns:
+        GpuInfo with available=True and encoder/decoder names if NVENC found,
+        or GpuInfo(False, "", "") otherwise.
+    """
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-encoders"],
+            capture_output=True, text=True, timeout=10,
+        )
+        output = result.stdout
+        if "h264_nvenc" in output:
+            logger.info("GPU encoder detected: h264_nvenc")
+            return GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        logger.debug("No NVIDIA GPU encoder found in ffmpeg -encoders output.")
+        return GpuInfo(available=False, encoder="", decoder="")
+    except (subprocess.SubprocessError, OSError) as exc:
+        logger.debug("GPU detection failed: %s", exc)
+        return GpuInfo(available=False, encoder="", decoder="")
 
 
 def get_video_info(video_path: str) -> VideoInfo:
@@ -187,6 +220,22 @@ def get_video_info(video_path: str) -> VideoInfo:
     )
 
 
+def _build_hwaccel_flags(gpu: GpuInfo, codec: str) -> tuple:
+    """Return (input_flags, output_codec) for GPU or CPU path.
+
+    Args:
+        gpu:   GpuInfo from detect_gpu().
+        codec: The requested CPU codec (e.g. 'libx264').
+
+    Returns:
+        Tuple of (list of input flags, codec string to use).
+    """
+    if gpu.available and codec in _GPU_CODECS:
+        input_flags = ["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]
+        return (input_flags, _GPU_CODECS[codec])
+    return ([], codec)
+
+
 def trim_clip(
     input_path: str,
     output_path: str,
@@ -194,6 +243,7 @@ def trim_clip(
     end: float,
     *,
     codec: str = "copy",
+    use_gpu: bool = False,
 ) -> str:
     """
     Trim a video clip from *start* to *end* seconds.
@@ -207,6 +257,8 @@ def trim_clip(
         start:       Start time in seconds (>= 0).
         end:         End time in seconds (> start, <= _MAX_DURATION).
         codec:       FFmpeg video codec. Must be in _SUPPORTED_CODECS.
+        use_gpu:     If True, attempt GPU-accelerated encoding via NVENC.
+                     Falls back to CPU codec on failure.
 
     Returns:
         The *output_path* on success.
@@ -231,17 +283,34 @@ def trim_clip(
     validated_in = validate_path(input_path, must_exist=True)
     validate_path(output_path, must_exist=False)
 
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-i", validated_in,
-        "-ss", str(start),
-        "-to", str(end),
-        "-c", codec,
-        output_path,
-    ]
-    logger.info("Trimming clip (codec=%s, start=%s, end=%s).", codec, start, end)
+    effective_codec = codec
+    hwaccel_flags = []
+    gpu_codec_used = False
+
+    if use_gpu:
+        gpu = detect_gpu()
+        hwaccel_flags, effective_codec = _build_hwaccel_flags(gpu, codec)
+        gpu_codec_used = effective_codec != codec
+
+    def _build_cmd(hw_flags, out_codec):
+        return (
+            ["ffmpeg", "-y"]
+            + hw_flags
+            + ["-i", validated_in, "-ss", str(start), "-to", str(end),
+               "-c", out_codec, output_path]
+        )
+
+    cmd = _build_cmd(hwaccel_flags, effective_codec)
+    logger.info("Trimming clip (codec=%s, start=%s, end=%s).", effective_codec, start, end)
     result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0 and gpu_codec_used:
+        logger.warning(
+            "GPU trim failed (exit %d); retrying with CPU codec '%s'.",
+            result.returncode, codec,
+        )
+        cmd = _build_cmd([], codec)
+        result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode != 0:
         logger.error("ffmpeg trim failed.")
@@ -258,6 +327,7 @@ def concat_clips(
     output_path: str,
     *,
     codec: str = "copy",
+    use_gpu: bool = False,
 ) -> str:
     """
     Concatenate a list of video clips into a single output file.
@@ -268,6 +338,8 @@ def concat_clips(
         input_paths:  Non-empty list of existing video paths (max 100).
         output_path:  Destination path for the concatenated video.
         codec:        FFmpeg video codec. Must be in _SUPPORTED_CODECS.
+        use_gpu:      If True, attempt GPU-accelerated encoding via NVENC.
+                      Falls back to CPU codec on failure.
 
     Returns:
         The *output_path* on success.
@@ -302,19 +374,36 @@ def concat_clips(
             filelist.write(f"file '{escaped}'\n")
         filelist_path = filelist.name
 
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-f", "concat",
-        "-safe", "0",
-        "-i", filelist_path,
-        "-c", codec,
-        output_path,
-    ]
+    effective_codec = codec
+    hwaccel_flags = []
+    gpu_codec_used = False
+
+    if use_gpu:
+        gpu = detect_gpu()
+        hwaccel_flags, effective_codec = _build_hwaccel_flags(gpu, codec)
+        gpu_codec_used = effective_codec != codec
+
+    def _build_cmd(hw_flags, out_codec):
+        return (
+            ["ffmpeg", "-y"]
+            + hw_flags
+            + ["-f", "concat", "-safe", "0", "-i", filelist_path,
+               "-c", out_codec, output_path]
+        )
+
+    cmd = _build_cmd(hwaccel_flags, effective_codec)
     logger.info(
-        "Concatenating %d clips (codec=%s).", len(input_paths), codec
+        "Concatenating %d clips (codec=%s).", len(input_paths), effective_codec
     )
     result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0 and gpu_codec_used:
+        logger.warning(
+            "GPU concat failed (exit %d); retrying with CPU codec '%s'.",
+            result.returncode, codec,
+        )
+        cmd = _build_cmd([], codec)
+        result = subprocess.run(cmd, capture_output=True, text=True)
 
     # Clean up temp filelist regardless of outcome
     import os
@@ -342,6 +431,7 @@ def transcode(
     fps: Optional[float] = None,
     bitrate: Optional[int] = None,
     preset: str = "medium",
+    use_gpu: bool = False,
 ) -> str:
     """
     Re-encode a video with configurable parameters.
@@ -355,6 +445,8 @@ def transcode(
         bitrate:     Optional target video bitrate in bits/s.
         preset:      Encoding speed preset (libx264/libx265 only).
                      Must be in _SUPPORTED_PRESETS.
+        use_gpu:     If True, attempt GPU-accelerated encoding via NVENC.
+                     Falls back to CPU codec on failure.
 
     Returns:
         The *output_path* on success.
@@ -389,30 +481,43 @@ def transcode(
     validated_in = validate_path(input_path, must_exist=True)
     validate_path(output_path, must_exist=False)
 
-    cmd = ["ffmpeg", "-y", "-i", validated_in]
+    effective_codec = codec
+    hwaccel_flags = []
+    gpu_codec_used = False
 
-    cmd += ["-c:v", codec]
+    if use_gpu:
+        gpu = detect_gpu()
+        hwaccel_flags, effective_codec = _build_hwaccel_flags(gpu, codec)
+        gpu_codec_used = effective_codec != codec
 
-    if resolution is not None:
-        cmd += ["-vf", f"scale={resolution[0]}:{resolution[1]}"]
+    def _build_cmd(hw_flags, out_codec):
+        c = ["ffmpeg", "-y"] + hw_flags + ["-i", validated_in, "-c:v", out_codec]
+        if resolution is not None:
+            c += ["-vf", f"scale={resolution[0]}:{resolution[1]}"]
+        if fps is not None:
+            c += ["-r", str(fps)]
+        if bitrate is not None:
+            c += ["-b:v", str(bitrate)]
+        # Only pass -preset for CPU codecs that support it
+        if out_codec in {"libx264", "libx265"}:
+            c += ["-preset", preset]
+        c.append(output_path)
+        return c
 
-    if fps is not None:
-        cmd += ["-r", str(fps)]
-
-    if bitrate is not None:
-        cmd += ["-b:v", str(bitrate)]
-
-    # Only pass -preset for codecs that support it
-    if codec in {"libx264", "libx265"}:
-        cmd += ["-preset", preset]
-
-    cmd.append(output_path)
-
+    cmd = _build_cmd(hwaccel_flags, effective_codec)
     logger.info(
         "Transcoding (codec=%s, resolution=%s, fps=%s, bitrate=%s, preset=%s).",
-        codec, resolution, fps, bitrate, preset,
+        effective_codec, resolution, fps, bitrate, preset,
     )
     result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0 and gpu_codec_used:
+        logger.warning(
+            "GPU transcode failed (exit %d); retrying with CPU codec '%s'.",
+            result.returncode, codec,
+        )
+        cmd = _build_cmd([], codec)
+        result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode != 0:
         logger.error("ffmpeg transcode failed.")

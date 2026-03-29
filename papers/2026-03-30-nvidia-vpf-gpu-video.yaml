@@ -1,0 +1,10 @@
+title: "NVIDIA Video Processing Framework (VPF) — HW-Accelerated Video Processing in Python"
+url: https://github.com/NVIDIA/VideoProcessingFramework
+date_found: 2026-03-30
+relevance: GPU-accelerated video processing with Python bindings. Zero CPU load transcoding.
+key_points:
+  - Full HW acceleration for video decoding, encoding, and color space conversions
+  - Python bindings via PyNvCodec module
+  - No raw frame copying between Host and Device during transcoding
+  - Relies on FFmpeg for (de)muxing
+tags: [gpu, ffmpeg, nvidia, python, video-processing]

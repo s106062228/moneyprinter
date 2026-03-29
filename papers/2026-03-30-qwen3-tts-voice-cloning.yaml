@@ -1,0 +1,11 @@
+title: "Qwen3-TTS — Open-Source Voice Cloning with 97ms Latency"
+url: https://dev.to/czmilo/qwen3-tts-the-complete-2026-guide-to-open-source-voice-cloning-and-ai-speech-generation-1in6
+date_found: 2026-03-30
+relevance: Breakthrough open-source TTS model. 3-second voice cloning, 97ms latency. Potential future KittenTTS replacement.
+key_points:
+  - Released January 2026
+  - 3-second reference audio for voice cloning
+  - 97ms ultra-low latency for real-time applications
+  - Open-source, commercially available
+  - Competes with closed commercial TTS systems
+tags: [tts, voice-cloning, open-source, qwen, real-time]

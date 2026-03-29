@@ -15,6 +15,7 @@ Coverage categories:
 
 import json
 import os
+import subprocess
 import sys
 import pytest
 from unittest.mock import patch, MagicMock, call
@@ -31,7 +32,9 @@ _real_validate_path = None  # populated after import
 
 from ffmpeg_utils import (
     VideoInfo,
+    GpuInfo,
     check_ffmpeg,
+    detect_gpu,
     get_video_info,
     trim_clip,
     concat_clips,
@@ -42,6 +45,8 @@ from ffmpeg_utils import (
     _SUPPORTED_CODECS,
     _SUPPORTED_PRESETS,
     _SUPPORTED_AUDIO_FORMATS,
+    _GPU_CODECS,
+    _build_hwaccel_flags,
 )
 
 
@@ -823,3 +828,436 @@ class TestConstants:
         assert "wav" in _SUPPORTED_AUDIO_FORMATS
         assert "mp3" in _SUPPORTED_AUDIO_FORMATS
         assert "aac" in _SUPPORTED_AUDIO_FORMATS
+
+    def test_gpu_codecs_in_supported_codecs(self):
+        assert "h264_nvenc" in _SUPPORTED_CODECS
+        assert "hevc_nvenc" in _SUPPORTED_CODECS
+
+
+# ===========================================================================
+# 10. detect_gpu
+# ===========================================================================
+
+class TestDetectGpu:
+    """detect_gpu: probe ffmpeg -encoders and return GpuInfo."""
+
+    def test_nvenc_present_returns_available_true(self):
+        ok = _make_subprocess_ok(stdout="h264_nvenc  NVIDIA NVENC H.264 encoder")
+        with patch("ffmpeg_utils.subprocess.run", return_value=ok):
+            info = detect_gpu()
+        assert info.available is True
+
+    def test_nvenc_present_encoder_name(self):
+        ok = _make_subprocess_ok(stdout="h264_nvenc  NVIDIA NVENC H.264 encoder")
+        with patch("ffmpeg_utils.subprocess.run", return_value=ok):
+            info = detect_gpu()
+        assert info.encoder == "h264_nvenc"
+
+    def test_nvenc_present_decoder_name(self):
+        ok = _make_subprocess_ok(stdout="h264_nvenc  NVIDIA NVENC H.264 encoder")
+        with patch("ffmpeg_utils.subprocess.run", return_value=ok):
+            info = detect_gpu()
+        assert info.decoder == "h264_cuvid"
+
+    def test_no_nvenc_returns_available_false(self):
+        ok = _make_subprocess_ok(stdout="libx264  H.264 / AVC / MPEG-4 AVC")
+        with patch("ffmpeg_utils.subprocess.run", return_value=ok):
+            info = detect_gpu()
+        assert info.available is False
+
+    def test_no_nvenc_empty_encoder_decoder(self):
+        ok = _make_subprocess_ok(stdout="libx264  H.264 / AVC / MPEG-4 AVC")
+        with patch("ffmpeg_utils.subprocess.run", return_value=ok):
+            info = detect_gpu()
+        assert info.encoder == ""
+        assert info.decoder == ""
+
+    def test_subprocess_error_returns_unavailable(self):
+        with patch(
+            "ffmpeg_utils.subprocess.run",
+            side_effect=subprocess.SubprocessError("proc error"),
+        ):
+            info = detect_gpu()
+        assert info.available is False
+
+    def test_oserror_returns_unavailable(self):
+        with patch("ffmpeg_utils.subprocess.run", side_effect=OSError("not found")):
+            info = detect_gpu()
+        assert info.available is False
+
+    def test_timeout_returns_unavailable(self):
+        with patch(
+            "ffmpeg_utils.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd=["ffmpeg"], timeout=10),
+        ):
+            info = detect_gpu()
+        assert info.available is False
+
+    def test_returns_gpuinfo_namedtuple(self):
+        ok = _make_subprocess_ok(stdout="h264_nvenc encoder")
+        with patch("ffmpeg_utils.subprocess.run", return_value=ok):
+            info = detect_gpu()
+        assert isinstance(info, GpuInfo)
+
+
+# ===========================================================================
+# 11. _build_hwaccel_flags
+# ===========================================================================
+
+class TestBuildHwaccelFlags:
+    """_build_hwaccel_flags: map GPU/codec to flags."""
+
+    def test_gpu_available_libx264_returns_cuda_flags_and_nvenc(self):
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        flags, codec = _build_hwaccel_flags(gpu, "libx264")
+        assert "-hwaccel" in flags
+        assert "cuda" in flags
+        assert codec == "h264_nvenc"
+
+    def test_gpu_available_libx265_returns_hevc_nvenc(self):
+        gpu = GpuInfo(available=True, encoder="hevc_nvenc", decoder="hevc_cuvid")
+        flags, codec = _build_hwaccel_flags(gpu, "libx265")
+        assert codec == "hevc_nvenc"
+        assert "-hwaccel" in flags
+
+    def test_gpu_available_unsupported_codec_returns_original(self):
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        flags, codec = _build_hwaccel_flags(gpu, "aac")
+        assert flags == []
+        assert codec == "aac"
+
+    def test_gpu_unavailable_returns_empty_flags_and_original_codec(self):
+        gpu = GpuInfo(available=False, encoder="", decoder="")
+        flags, codec = _build_hwaccel_flags(gpu, "libx264")
+        assert flags == []
+        assert codec == "libx264"
+
+    def test_gpu_unavailable_copy_codec_unchanged(self):
+        gpu = GpuInfo(available=False, encoder="", decoder="")
+        flags, codec = _build_hwaccel_flags(gpu, "copy")
+        assert flags == []
+        assert codec == "copy"
+
+    def test_hwaccel_output_format_cuda_present(self):
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        flags, _ = _build_hwaccel_flags(gpu, "libx264")
+        assert "-hwaccel_output_format" in flags
+        assert "cuda" in flags
+
+
+# ===========================================================================
+# 12. trim_clip GPU tests
+# ===========================================================================
+
+class TestTrimClipGpu:
+    """trim_clip: GPU acceleration path."""
+
+    def test_use_gpu_true_with_gpu_available_uses_nvenc(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()) as mock_run:
+                trim_clip("/fake/input.mp4", out, 0, 10, codec="libx264", use_gpu=True)
+        cmd = mock_run.call_args[0][0]
+        assert "h264_nvenc" in cmd
+
+    def test_use_gpu_true_with_gpu_unavailable_uses_cpu_codec(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=False, encoder="", decoder="")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()) as mock_run:
+                trim_clip("/fake/input.mp4", out, 0, 10, codec="libx264", use_gpu=True)
+        cmd = mock_run.call_args[0][0]
+        assert "libx264" in cmd
+        assert "h264_nvenc" not in cmd
+
+    def test_use_gpu_true_gpu_fails_fallback_to_cpu(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch(
+                "ffmpeg_utils.subprocess.run",
+                side_effect=[_make_subprocess_fail(), _make_subprocess_ok()],
+            ) as mock_run:
+                result = trim_clip("/fake/input.mp4", out, 0, 10, codec="libx264", use_gpu=True)
+        assert result == out
+        assert mock_run.call_count == 2
+        # Second call should use CPU codec
+        cpu_cmd = mock_run.call_args_list[1][0][0]
+        assert "libx264" in cpu_cmd
+
+    def test_use_gpu_false_no_detect_gpu_call(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        with patch("ffmpeg_utils.detect_gpu") as mock_detect:
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()):
+                trim_clip("/fake/input.mp4", out, 0, 10, use_gpu=False)
+        mock_detect.assert_not_called()
+
+    def test_use_gpu_true_copy_codec_no_substitution(self, tmp_path):
+        """codec='copy' is not in _GPU_CODECS so no GPU substitution happens."""
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()) as mock_run:
+                trim_clip("/fake/input.mp4", out, 0, 10, codec="copy", use_gpu=True)
+        cmd = mock_run.call_args[0][0]
+        assert "copy" in cmd
+        assert "h264_nvenc" not in cmd
+
+    def test_use_gpu_true_hwaccel_flags_before_input(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()) as mock_run:
+                trim_clip("/fake/input.mp4", out, 0, 10, codec="libx264", use_gpu=True)
+        cmd = mock_run.call_args[0][0]
+        hwaccel_idx = cmd.index("-hwaccel")
+        i_idx = cmd.index("-i")
+        assert hwaccel_idx < i_idx
+
+    def test_both_gpu_and_cpu_fail_raises_runtime_error(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch(
+                "ffmpeg_utils.subprocess.run",
+                side_effect=[_make_subprocess_fail(), _make_subprocess_fail()],
+            ):
+                with pytest.raises(RuntimeError, match="ffmpeg trim failed"):
+                    trim_clip("/fake/input.mp4", out, 0, 10, codec="libx264", use_gpu=True)
+
+    def test_use_gpu_fallback_logs_warning(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch(
+                "ffmpeg_utils.subprocess.run",
+                side_effect=[_make_subprocess_fail(), _make_subprocess_ok()],
+            ):
+                with patch("ffmpeg_utils.logger") as mock_logger:
+                    trim_clip("/fake/input.mp4", out, 0, 10, codec="libx264", use_gpu=True)
+        mock_logger.warning.assert_called_once()
+
+
+# ===========================================================================
+# 13. transcode GPU tests
+# ===========================================================================
+
+class TestTranscodeGpu:
+    """transcode: GPU acceleration path."""
+
+    def test_use_gpu_true_with_gpu_available_uses_nvenc(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()) as mock_run:
+                transcode("/fake/input.mp4", out, codec="libx264", use_gpu=True)
+        cmd = mock_run.call_args[0][0]
+        assert "h264_nvenc" in cmd
+
+    def test_use_gpu_true_with_gpu_unavailable_uses_cpu_codec(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=False, encoder="", decoder="")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()) as mock_run:
+                transcode("/fake/input.mp4", out, codec="libx264", use_gpu=True)
+        cmd = mock_run.call_args[0][0]
+        assert "libx264" in cmd
+        assert "h264_nvenc" not in cmd
+
+    def test_use_gpu_true_gpu_fails_fallback_to_cpu(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch(
+                "ffmpeg_utils.subprocess.run",
+                side_effect=[_make_subprocess_fail(), _make_subprocess_ok()],
+            ) as mock_run:
+                result = transcode("/fake/input.mp4", out, codec="libx264", use_gpu=True)
+        assert result == out
+        assert mock_run.call_count == 2
+        cpu_cmd = mock_run.call_args_list[1][0][0]
+        assert "libx264" in cpu_cmd
+
+    def test_use_gpu_false_no_detect_gpu_call(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        with patch("ffmpeg_utils.detect_gpu") as mock_detect:
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()):
+                transcode("/fake/input.mp4", out, use_gpu=False)
+        mock_detect.assert_not_called()
+
+    def test_use_gpu_true_hwaccel_flags_before_input(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()) as mock_run:
+                transcode("/fake/input.mp4", out, codec="libx264", use_gpu=True)
+        cmd = mock_run.call_args[0][0]
+        hwaccel_idx = cmd.index("-hwaccel")
+        i_idx = cmd.index("-i")
+        assert hwaccel_idx < i_idx
+
+    def test_both_gpu_and_cpu_fail_raises_runtime_error(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch(
+                "ffmpeg_utils.subprocess.run",
+                side_effect=[_make_subprocess_fail(), _make_subprocess_fail()],
+            ):
+                with pytest.raises(RuntimeError, match="ffmpeg transcode failed"):
+                    transcode("/fake/input.mp4", out, codec="libx264", use_gpu=True)
+
+    def test_use_gpu_fallback_logs_warning(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch(
+                "ffmpeg_utils.subprocess.run",
+                side_effect=[_make_subprocess_fail(), _make_subprocess_ok()],
+            ):
+                with patch("ffmpeg_utils.logger") as mock_logger:
+                    transcode("/fake/input.mp4", out, codec="libx264", use_gpu=True)
+        mock_logger.warning.assert_called_once()
+
+    def test_use_gpu_libx265_uses_hevc_nvenc(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="hevc_nvenc", decoder="hevc_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()) as mock_run:
+                transcode("/fake/input.mp4", out, codec="libx265", use_gpu=True)
+        cmd = mock_run.call_args[0][0]
+        assert "hevc_nvenc" in cmd
+
+
+# ===========================================================================
+# 14. concat_clips GPU tests
+# ===========================================================================
+
+class TestConcatClipsGpu:
+    """concat_clips: GPU acceleration path."""
+
+    def test_use_gpu_true_with_gpu_available_uses_nvenc(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()) as mock_run:
+                concat_clips(["/fake/a.mp4", "/fake/b.mp4"], out, codec="libx264", use_gpu=True)
+        cmd = mock_run.call_args[0][0]
+        assert "h264_nvenc" in cmd
+
+    def test_use_gpu_true_with_gpu_unavailable_uses_cpu_codec(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=False, encoder="", decoder="")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()) as mock_run:
+                concat_clips(["/fake/a.mp4"], out, codec="libx264", use_gpu=True)
+        cmd = mock_run.call_args[0][0]
+        assert "libx264" in cmd
+        assert "h264_nvenc" not in cmd
+
+    def test_use_gpu_true_gpu_fails_fallback_to_cpu(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch(
+                "ffmpeg_utils.subprocess.run",
+                side_effect=[_make_subprocess_fail(), _make_subprocess_ok()],
+            ) as mock_run:
+                result = concat_clips(["/fake/a.mp4"], out, codec="libx264", use_gpu=True)
+        assert result == out
+        assert mock_run.call_count == 2
+        cpu_cmd = mock_run.call_args_list[1][0][0]
+        assert "libx264" in cpu_cmd
+
+    def test_use_gpu_false_no_detect_gpu_call(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        with patch("ffmpeg_utils.detect_gpu") as mock_detect:
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()):
+                concat_clips(["/fake/a.mp4"], out, use_gpu=False)
+        mock_detect.assert_not_called()
+
+    def test_use_gpu_true_hwaccel_flags_before_concat_demuxer(self, tmp_path):
+        """hwaccel flags must appear before -f concat."""
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()) as mock_run:
+                concat_clips(["/fake/a.mp4"], out, codec="libx264", use_gpu=True)
+        cmd = mock_run.call_args[0][0]
+        hwaccel_idx = cmd.index("-hwaccel")
+        f_idx = cmd.index("-f")
+        assert hwaccel_idx < f_idx
+
+    def test_both_gpu_and_cpu_fail_raises_runtime_error(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch(
+                "ffmpeg_utils.subprocess.run",
+                side_effect=[_make_subprocess_fail(), _make_subprocess_fail()],
+            ):
+                with pytest.raises(RuntimeError, match="ffmpeg concat failed"):
+                    concat_clips(["/fake/a.mp4"], out, codec="libx264", use_gpu=True)
+
+    def test_use_gpu_fallback_logs_warning(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch(
+                "ffmpeg_utils.subprocess.run",
+                side_effect=[_make_subprocess_fail(), _make_subprocess_ok()],
+            ):
+                with patch("ffmpeg_utils.logger") as mock_logger:
+                    concat_clips(["/fake/a.mp4"], out, codec="libx264", use_gpu=True)
+        mock_logger.warning.assert_called_once()
+
+
+# ===========================================================================
+# 15. Integration / edge cases
+# ===========================================================================
+
+class TestGpuIntegrationEdgeCases:
+    """Integration and edge-case tests for GPU path."""
+
+    def test_gpuinfo_is_namedtuple(self):
+        info = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        assert isinstance(info, tuple)
+        assert hasattr(info, "available")
+        assert hasattr(info, "encoder")
+        assert hasattr(info, "decoder")
+
+    def test_gpuinfo_false_fields(self):
+        info = GpuInfo(available=False, encoder="", decoder="")
+        assert info.available is False
+        assert info.encoder == ""
+        assert info.decoder == ""
+
+    def test_gpu_codecs_mapping(self):
+        assert _GPU_CODECS["libx264"] == "h264_nvenc"
+        assert _GPU_CODECS["libx265"] == "hevc_nvenc"
+
+    def test_trim_clip_single_subprocess_call_when_gpu_succeeds(self, tmp_path):
+        out = str(tmp_path / "out.mp4")
+        gpu = GpuInfo(available=True, encoder="h264_nvenc", decoder="h264_cuvid")
+        with patch("ffmpeg_utils.detect_gpu", return_value=gpu):
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()) as mock_run:
+                trim_clip("/fake/input.mp4", out, 0, 10, codec="libx264", use_gpu=True)
+        assert mock_run.call_count == 1
+
+    def test_detect_gpu_calls_ffmpeg_encoders(self):
+        ok = _make_subprocess_ok(stdout="h264_nvenc encoder")
+        with patch("ffmpeg_utils.subprocess.run", return_value=ok) as mock_run:
+            detect_gpu()
+        cmd = mock_run.call_args[0][0]
+        assert cmd == ["ffmpeg", "-encoders"]
+
+    def test_trim_concat_transcode_default_use_gpu_false(self, tmp_path):
+        """All three functions must default to use_gpu=False (no detect_gpu calls)."""
+        out = str(tmp_path / "out.mp4")
+        with patch("ffmpeg_utils.detect_gpu") as mock_detect:
+            with patch("ffmpeg_utils.subprocess.run", return_value=_make_subprocess_ok()):
+                trim_clip("/fake/input.mp4", out, 0, 5)
+                concat_clips(["/fake/a.mp4"], out)
+                transcode("/fake/input.mp4", out)
+        mock_detect.assert_not_called()

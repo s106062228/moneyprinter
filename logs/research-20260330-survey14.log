@@ -1,0 +1,33 @@
+=== Research Pipeline — Iteration 14 Survey ===
+Date: 2026-03-30
+Step: 1/7 (survey)
+
+Web Searches Performed:
+1. GPU accelerated FFmpeg NVENC CUDA Python automation 2026
+2. Video perceptual hashing duplicate detection Python library 2026
+3. Short-form video automation AI tools trends March 2026
+4. TikTok Shop API developer integration product tagging 2026
+5. AI content uniqueness plagiarism detection video 2026
+6. videohash2 Python library latest version features 2026
+7. ffmpeg hardware acceleration detect GPU capability Python subprocess 2026
+8. pytest importorskip pandas optional dependency best practice 2026
+9. AI voice cloning text to speech short video automation open source 2026
+
+Pre-Survey Test Status:
+- 1860/1860 tests passing
+- 84.08% coverage
+- pandas 3.0.1 installed (H43 failures no longer reproduce)
+
+Key Findings:
+- H41 (GPU FFmpeg): NVIDIA VPF + PyNvVideoCodec provide Python-native GPU acceleration. subprocess detect remains standard.
+- H42 (Video hashing): videohash2 3.2.2 with do_not_copy=True optimization. Maintained fork.
+- H43 (pandas skip): Tests pass now, but defensive importorskip still recommended.
+- New: Qwen3-TTS (Jan 2026) — 3s voice cloning, 97ms latency. Future TTS upgrade candidate.
+- New: AI video market $788.5M → $3.44B by 2033. Platform-specific optimization is table stakes.
+
+Papers Saved:
+- papers/2026-03-30-nvidia-vpf-gpu-video.yaml
+- papers/2026-03-30-videohash2-perceptual.yaml
+- papers/2026-03-30-qwen3-tts-voice-cloning.yaml
+
+JOURNAL.md Updated: Yes (Survey — 2026-03-30 section added)

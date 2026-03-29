@@ -102,6 +102,12 @@
 - [x] Virality scorer module (`virality_scorer.py`) with LLM-based metadata scoring, platform-specific weights
 - [x] Unit tests for A/B testing (71 tests, 96.15% coverage), virality scorer (71 tests, 95.29% coverage), PATCH endpoint (12 tests)
 
+## Completed — Iteration 14 (2026-03-30)
+- [x] GPU-accelerated FFmpeg (`ffmpeg_utils.py`) with GpuInfo, detect_gpu, _build_hwaccel_flags, use_gpu kwarg + CPU fallback (43 tests, 97.64% coverage) [H44]
+- [x] Video perceptual hashing in UniquenessScorer with videohash2 lazy import, Hamming distance, 5-dimension scoring (29 tests, 94.36% coverage) [H45]
+- [x] Defensive pytest.importorskip guards for pandas in trend_detector tests (5 tests modified) [H46]
+- [x] Unit tests: 74 new tests, 1934 total suite, 0 failures [H44, H45, H46]
+
 ## Completed — Iteration 12 (2026-03-29)
 - [x] Wire ffmpeg_utils into export_optimizer — replace MoviePy with FFmpeg subprocess (96 tests, 97.98% coverage) [H38]
 - [x] Wire ffmpeg_utils into smart_clipper — replace PySceneDetect split with ffmpeg_utils.trim_clip (68 tests, 96.77% coverage) [H39]
@@ -202,6 +208,21 @@
 - [x] Add optional script field to PublishJob dataclass [H40]
 - [x] Write tests for publisher uniqueness integration (23 new tests, 56 total, 63.37% cov) [H40]
 - [x] Run full test suite (1855/1860 passing, 5 pre-existing failures) [H38, H39, H40]
+
+## Implementation Tasks — Iteration 13 (2026-03-29) — Superseded by Iteration 14
+
+## Implementation Tasks — Iteration 14 (2026-03-30)
+- [x] Add pytest.importorskip("pandas") to 5 trend_detector tests [H46]
+- [x] Add GpuInfo namedtuple + _GPU_CODECS constant to ffmpeg_utils.py [H44]
+- [x] Add detect_gpu() function to ffmpeg_utils.py [H44]
+- [x] Add _build_hwaccel_flags() helper to ffmpeg_utils.py [H44]
+- [x] Add use_gpu kwarg to trim_clip/transcode/concat_clips with CPU fallback [H44]
+- [x] Write tests for GPU-accelerated FFmpeg (43 tests, 97.64% coverage) [H44]
+- [x] Add video_similarity field to UniquenessScore + weight constants [H45]
+- [x] Add _compute_video_hash() and _score_video_similarity() helpers [H45]
+- [x] Update score_content() and add_to_history() with video_path param [H45]
+- [x] Write tests for video perceptual hashing (29 tests, 94.36% coverage) [H45]
+- [x] Run full test suite (1934/1934 passing, 0 failures) [H44, H45, H46]
 
 ## Planned — High Priority
 - [x] Content calendar UI (frontend for content scheduler) — DONE (iteration 7)

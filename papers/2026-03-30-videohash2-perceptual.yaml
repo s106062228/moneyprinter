@@ -1,0 +1,12 @@
+title: "videohash2 3.2.2 — Near Duplicate Video Detection via Perceptual Hashing"
+url: https://pypi.org/project/videohash2/
+github: https://github.com/Demmenie/videohash2
+date_found: 2026-03-30
+relevance: Maintained fork of videohash. 64-bit perceptual hash robust to resize/transcode/crop. New do_not_copy optimization.
+key_points:
+  - 64-bit hash from wavelet hash + dominant color analysis
+  - Robust to resize, transcode, watermark, crop, frame rate change
+  - do_not_copy=True skips temp file copy for better performance
+  - Duration-based frame crop detection halves average hashing time
+  - 1fps extraction → 144x144 → collage wavelet → XOR → 64-bit hash
+tags: [video-hashing, duplicate-detection, perceptual-hash, python]

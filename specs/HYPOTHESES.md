@@ -824,3 +824,141 @@ Focus on **H26** (A/B testing), **H27** (calendar drag-drop), and **H28** (viral
 - H27 is ~20 lines of changes, trivial but completes the calendar UX
 - H28 is a natural extension of existing LLM + scoring patterns
 - H29 deferred — MoviePy rendering tests are complex and lower priority
+
+---
+
+## Hypotheses — 2026-03-29 (Iteration 13)
+
+Based on survey findings (see JOURNAL.md 2026-03-29 Iteration 13 Survey).
+
+---
+
+### H41: GPU-Accelerated FFmpeg with NVENC/CUDA + CPU Fallback
+**Priority: HIGH**
+**Hypothesis**: Adding GPU hardware acceleration support to `ffmpeg_utils.py` (NVENC for encoding, CUDA for decoding) with automatic CPU fallback will enable up to 5x faster video processing on NVIDIA-equipped machines while maintaining identical behavior on CPU-only systems.
+**Rationale**: Meta's FFmpeg at scale paper (Mar 2026) demonstrates 5x encoding speedup with GPU acceleration. NVIDIA NVENC shows 73-82% better price/performance. Our current ffmpeg_utils.py uses CPU-only subprocess calls — adding `-hwaccel cuda -c:v h264_nvenc` flags with runtime GPU detection is a low-risk enhancement.
+**Metric**:
+  - `detect_gpu()` function probes for NVIDIA GPU via `nvidia-smi` and FFmpeg `nvenc` encoder
+  - `trim_clip()`, `transcode()`, `concat_clips()` accept optional `use_gpu=True` parameter
+  - GPU path uses `-hwaccel cuda -c:v h264_nvenc` flags; CPU path unchanged
+  - Automatic fallback: if GPU fails, retry with CPU silently
+  - `_SUPPORTED_CODECS` expanded to include `h264_nvenc`, `hevc_nvenc`
+  - Unit tests >90% coverage; all existing tests still pass
+**Success threshold**: detect_gpu() works, GPU flags are passed when available, CPU fallback works, 30+ new tests, all 1860+ existing tests pass.
+**Risk**: Low — purely additive. GPU detection is a simple probe. Fallback ensures no regression.
+**Dependencies**: Existing ffmpeg_utils.py module (iter 11).
+**Status**: UNTESTED
+
+### H42: Video Perceptual Hashing in UniquenessScorer
+**Priority: HIGH**
+**Hypothesis**: Adding a video perceptual hashing dimension to `uniqueness_scorer.py` using the `videohash` library will create a hybrid text+visual uniqueness scoring system. This 5th dimension (alongside title, script, metadata, regularity) will detect visual duplicates that text analysis alone cannot catch.
+**Rationale**: Survey found videohash (PyPI) generates 64-bit perceptual hashes robust against resize, transcode, watermark, color changes. Our UniquenessScorer currently uses 4 text-based dimensions. Visual similarity is the #1 gap for video content uniqueness.
+**Metric**:
+  - New `_VIDEO_WEIGHT` constant added (rebalance existing 4 weights)
+  - `score_content()` accepts optional `video_path` parameter
+  - When `video_path` provided, computes videohash and compares Hamming distance against history
+  - `add_to_history()` stores video hash alongside text data
+  - Graceful fallback: if videohash not installed or fails, score uses text-only weights
+  - Unit tests >85% coverage for new paths
+**Success threshold**: Visual scoring works when videohash installed, graceful degradation when not, 25+ new tests, all existing tests pass.
+**Risk**: Medium — videohash depends on FFmpeg + wavelet hash. Must handle missing dependency gracefully.
+**Dependencies**: Existing uniqueness_scorer.py (iter 11), videohash PyPI package.
+**Status**: UNTESTED
+
+### H43: Fix Pre-Existing Trend Detector Test Failures
+**Priority: HIGH**
+**Hypothesis**: Adding `pytest.importorskip("pandas")` guards to the 5 trend_detector tests that import pandas will eliminate the 5 pre-existing test failures that have persisted since iteration 10, restoring a fully green test suite.
+**Rationale**: The 5 failures are caused by `import pandas as pd` in tests that exercise Google Trends pytrends responses (which return DataFrames). The production code already has `try/except ImportError` for pytrends — the tests need matching skip guards.
+**Metric**:
+  - 5 specific tests in `test_trend_detector.py` get `pytest.importorskip("pandas")` or `@pytest.mark.skipif`
+  - Full test suite: 1860/1860 passing (0 failures, up from 5)
+  - No tests deleted — only skip guards added
+**Success threshold**: 0 test failures in full suite run.
+**Risk**: Very low — trivial 5-line change. Skip guards are standard pytest practice.
+**Dependencies**: None.
+**Status**: UNTESTED
+
+---
+
+## Priority Ranking (Iteration 13)
+1. **H43** — Fix trend_detector test failures (5-minute fix, restores green suite, blocks nothing)
+2. **H41** — GPU-accelerated FFmpeg (high impact, survey-backed 5x speedup, clean additive change)
+3. **H42** — Video perceptual hashing (high impact, survey-backed, extends existing scorer)
+
+## Implementation Recommendation
+All 3 hypotheses are independent and can be implemented in parallel:
+- **H43** is trivial (~5 lines) — do first as a quick win
+- **H41** and **H42** are medium scope (~150-200 lines each) — implement in parallel agents
+- All are additive (no breaking changes to existing APIs)
+- Total expected: ~60-80 new tests across all 3 hypotheses
+
+---
+
+## Iteration 14 — 2026-03-30
+
+Based on survey findings (see JOURNAL.md 2026-03-30). Carries forward unimplemented H41-H43 with updates.
+
+### H44: GPU-Accelerated FFmpeg (Carried from H41)
+**Priority: HIGH**
+**Hypothesis**: Adding GPU detection and NVENC/CUDA hardware acceleration flags to `ffmpeg_utils.py` will provide up to 5x speedup for video encoding operations. The implementation adds a `detect_gpu()` probe function, a `_build_hwaccel_flags()` helper, and a `use_gpu=False` kwarg to `trim_clip()`, `transcode()`, and `concat_clips()` with silent CPU fallback on failure.
+**Rationale**: Survey confirms NVIDIA Video Codec SDK 13.0 supports H.264/HEVC/AV1 via NVENC. Standard detection via `ffmpeg -hwaccels` + `ffmpeg -encoders | grep nvenc`. VPF framework shows zero-CPU-load transcoding is achievable. Our `ffmpeg_utils.py` currently uses CPU-only calls.
+**Metric**:
+  - `detect_gpu()` returns `GpuInfo` namedtuple with `available: bool`, `encoder: str`, `decoder: str`
+  - `_build_hwaccel_flags()` generates correct `-hwaccel cuda` + `-c:v h264_nvenc` flags
+  - `use_gpu=True` kwarg on trim_clip/transcode/concat_clips injects GPU flags
+  - Silent CPU fallback: if GPU encoding fails, re-runs with CPU codec automatically
+  - `_GPU_CODECS` constant mapping codec families to NVENC equivalents
+  - Unit tests >90% coverage for new paths (30+ tests)
+**Success threshold**: GPU detection works, GPU flags injected correctly, CPU fallback triggers on non-GPU machines, all existing 1860 tests still pass, 30+ new tests.
+**Risk**: Medium — GPU availability varies. Must test CPU fallback path thoroughly.
+**Dependencies**: Existing `ffmpeg_utils.py` (iter 11).
+**Status**: CONFIRMED
+**Results**: All metrics met. detect_gpu() probes ffmpeg -encoders for h264_nvenc. _build_hwaccel_flags() generates correct CUDA flags. use_gpu kwarg added to trim_clip/transcode/concat_clips with silent CPU fallback. 43 new tests, 97.64% coverage. 1934/1934 suite passing.
+
+### H45: Video Perceptual Hashing in UniquenessScorer (Carried from H42, Updated)
+**Priority: HIGH**
+**Hypothesis**: Adding a video perceptual hashing dimension to `uniqueness_scorer.py` using the `videohash2` library (maintained fork, v3.2.2) will detect visual duplicates that text analysis alone cannot catch. This adds a 5th scoring dimension alongside title, script, metadata, and regularity.
+**Rationale**: Survey confirms videohash2 3.2.2 is the actively maintained fork with `do_not_copy=True` optimization (halves hashing time). 64-bit perceptual hash robust against resize, transcode, watermark, color changes. Our UniquenessScorer currently uses 4 text-based dimensions only.
+**Updated from H42**: Use `videohash2` (not `videohash`) for active maintenance. Add `do_not_copy=True` kwarg for performance.
+**Metric**:
+  - New `_VIDEO_WEIGHT` constant (rebalance existing 4 weights from 1.0 to 0.85 total)
+  - `score_content()` accepts optional `video_path` parameter
+  - When `video_path` provided, computes videohash2 hash and compares Hamming distance against history
+  - `add_to_history()` stores video hash alongside text data
+  - `video_similarity` field added to `UniquenessScore` dataclass
+  - Graceful fallback: if videohash2 not installed or fails, score uses text-only weights
+  - Unit tests >85% coverage for new paths (25+ tests)
+**Success threshold**: Visual scoring works when videohash2 installed, graceful degradation when not, 25+ new tests, all existing tests pass.
+**Risk**: Medium — videohash2 depends on FFmpeg + wavelet hash. Must handle missing dependency gracefully.
+**Dependencies**: Existing `uniqueness_scorer.py` (iter 11), videohash2 PyPI package.
+**Status**: CONFIRMED
+**Results**: All metrics met. _compute_video_hash() lazy-imports videohash2 with do_not_copy=True. _hamming_distance() for 64-bit comparison. Weight rebalancing: 0.25+0.25+0.18+0.17+0.15=1.00. Graceful fallback when videohash2 missing. 29 new tests, 94.36% coverage. Backward compatible.
+
+### H46: Defensive pytest.importorskip for Optional Dependencies (Carried from H43, Updated)
+**Priority: MEDIUM** (downgraded from HIGH — pandas is now installed, tests pass)
+**Hypothesis**: Adding `pytest.importorskip("pandas")` guards to the 5 trend_detector tests that use pandas DataFrames will make the test suite robust across environments where pandas may not be installed (CI minimal images, fresh venvs).
+**Rationale**: pandas 3.0.1 is installed in current env so 1860/1860 tests pass. However, pandas is not in requirements.txt (it's an indirect dependency via pytrends). Adding importorskip is defensive best practice per pytest 8.2+ documentation.
+**Updated from H43**: Priority lowered since tests now pass. Still a good 5-minute fix for robustness.
+**Metric**:
+  - 5 specific tests in `test_trend_detector.py` get `pytest.importorskip("pandas")` guards
+  - Full test suite: 1860/1860 still passing
+  - No tests deleted — only skip guards added
+**Success threshold**: Tests pass in current env AND would skip gracefully without pandas.
+**Risk**: Very low — trivial change.
+**Dependencies**: None.
+**Status**: CONFIRMED
+**Results**: All 5 guards added. 1934/1934 tests passing. No tests deleted.
+
+---
+
+## Priority Ranking (Iteration 14)
+1. **H46** — Defensive importorskip (5-minute fix, robustness improvement)
+2. **H44** — GPU-accelerated FFmpeg (high impact, additive, no breaking changes)
+3. **H45** — Video perceptual hashing (high impact, extends uniqueness scoring)
+
+## Implementation Recommendation
+All 3 hypotheses are independent and can be implemented in parallel:
+- **H46** is trivial (~5 lines) — quick win
+- **H44** and **H45** are medium scope (~150-200 lines each) — implement in parallel agents
+- All are additive (no breaking changes to existing APIs)
+- Total expected: ~60-80 new tests across all 3 hypotheses

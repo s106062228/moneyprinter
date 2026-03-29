@@ -296,7 +296,7 @@ class TestFetchGoogleTrends:
 
     def test_success_with_patched_pytrends(self, detector):
         """Test using patch on the lazy import path."""
-        import pandas as pd
+        pd = pytest.importorskip("pandas")
 
         df = pd.DataFrame(["AI is amazing", "Python tips"])
         mock_instance = MagicMock()
@@ -328,7 +328,7 @@ class TestFetchGoogleTrends:
         assert results == []
 
     def test_empty_dataframe_returns_empty_list(self, detector):
-        import pandas as pd
+        pd = pytest.importorskip("pandas")
 
         df = pd.DataFrame([])
         mock_instance = MagicMock()
@@ -344,7 +344,7 @@ class TestFetchGoogleTrends:
         assert results == []
 
     def test_topics_truncated_to_max_len(self, detector):
-        import pandas as pd
+        pd = pytest.importorskip("pandas")
 
         long_topic = "X" * 600
         df = pd.DataFrame([long_topic])
@@ -360,7 +360,7 @@ class TestFetchGoogleTrends:
         assert len(results[0].topic) == TrendDetector._MAX_TOPIC_LEN
 
     def test_google_trends_score_is_5_default(self, detector):
-        import pandas as pd
+        pd = pytest.importorskip("pandas")
 
         df = pd.DataFrame(["Default Score Topic"])
         mock_instance = MagicMock()
@@ -1007,7 +1007,7 @@ class TestEdgeCases:
 
     def test_google_trends_skip_empty_topic_rows(self, detector):
         """Rows with empty/whitespace topics are skipped (covers line 145)."""
-        import pandas as pd
+        pd = pytest.importorskip("pandas")
 
         # Row with empty string then valid topic
         df = pd.DataFrame(["", "  ", "Valid AI Topic"])

@@ -54,6 +54,13 @@ _SCRIPT_WEIGHT = 0.30
 _METADATA_WEIGHT = 0.20
 _REGULARITY_WEIGHT = 0.20
 
+# Weights when video dimension is active (sum = 1.0)
+_VIDEO_WEIGHT = 0.15
+_TITLE_WEIGHT_WITH_VIDEO = 0.25
+_SCRIPT_WEIGHT_WITH_VIDEO = 0.25
+_METADATA_WEIGHT_WITH_VIDEO = 0.18
+_REGULARITY_WEIGHT_WITH_VIDEO = 0.17
+
 _MAX_TITLE_LENGTH = 500
 _MAX_TAGS = 50
 
@@ -76,7 +83,8 @@ class UniquenessScore:
     script_variation: float      # 0-1; higher = more varied
     metadata_diversity: float    # 0-1; higher = more diverse
     posting_regularity: float    # 0-1; lower = more robotic (fixed intervals)
-    flagged: bool                # True if overall < threshold
+    video_similarity: float = 0.0   # 0-1; higher = more visually unique (0.0 = no video comparison)
+    flagged: bool = False            # True if overall < threshold
     details: dict = field(default_factory=dict)
 
 
@@ -331,6 +339,67 @@ def _score_posting_regularity(history: list[dict]) -> float:
     return round(min(1.0, cv), 6)
 
 
+def _compute_video_hash(video_path: str) -> Optional[str]:
+    """Compute a perceptual hash for the video at *video_path*.
+
+    Uses videohash2 library (lazy import). Returns hex hash string or None
+    on failure (missing dependency, invalid file, etc.).
+    """
+    try:
+        from videohash2 import VideoHash
+    except ImportError:
+        logger.debug("videohash2 not installed; skipping video hash.")
+        return None
+
+    try:
+        vh = VideoHash(url=video_path, do_not_copy=True)
+        hash_hex = vh.hash_hex
+        if not hash_hex:
+            return None
+        return hash_hex
+    except Exception as exc:
+        logger.warning("Video hash computation failed: %s", exc)
+        return None
+
+
+def _hamming_distance(hex1: str, hex2: str) -> int:
+    """Compute Hamming distance between two hex hash strings."""
+    try:
+        val1 = int(hex1, 16)
+        val2 = int(hex2, 16)
+        xor = val1 ^ val2
+        return bin(xor).count("1")
+    except (ValueError, TypeError):
+        return 64  # max distance on error
+
+
+def _score_video_similarity(video_hash: str, history: list[dict]) -> float:
+    """Score visual uniqueness by comparing *video_hash* against history.
+
+    Uses Hamming distance on 64-bit perceptual hashes.
+    Returns 1.0 if no history has video hashes (fully unique).
+    Higher score = more visually unique.
+    """
+    if not video_hash:
+        return 1.0
+
+    hist_hashes = [
+        e["video_hash"] for e in history
+        if isinstance(e.get("video_hash"), str) and e["video_hash"]
+    ]
+    if not hist_hashes:
+        return 1.0
+
+    min_distance = 64
+    for h in hist_hashes[-_COMPARE_WINDOW:]:
+        dist = _hamming_distance(video_hash, h)
+        if dist < min_distance:
+            min_distance = dist
+
+    # Normalize: 0 distance = 0.0 (identical), 64 distance = 1.0 (fully unique)
+    return round(min_distance / 64.0, 6)
+
+
 # ---------------------------------------------------------------------------
 # Main class
 # ---------------------------------------------------------------------------
@@ -359,6 +428,7 @@ class UniquenessScorer:
         tags: list,
         description: str,
         platform: str = "youtube",
+        video_path: Optional[str] = None,
     ) -> UniquenessScore:
         """Score *content* for uniqueness against historical outputs.
 
@@ -406,13 +476,33 @@ class UniquenessScorer:
         # --- Dimension 4: posting regularity ---
         regularity = _score_posting_regularity(history)
 
+        # --- Dimension 5: video similarity (optional) ---
+        video_sim = 0.0
+        video_hash = None
+        use_video_weights = False
+
+        if video_path is not None:
+            video_hash = _compute_video_hash(video_path)
+            if video_hash is not None:
+                video_sim = _score_video_similarity(video_hash, history)
+                use_video_weights = True
+
         # --- Weighted overall ---
-        overall = (
-            title_sim * _TITLE_WEIGHT
-            + script_var * _SCRIPT_WEIGHT
-            + meta_div * _METADATA_WEIGHT
-            + regularity * _REGULARITY_WEIGHT
-        )
+        if use_video_weights:
+            overall = (
+                title_sim * _TITLE_WEIGHT_WITH_VIDEO
+                + script_var * _SCRIPT_WEIGHT_WITH_VIDEO
+                + meta_div * _METADATA_WEIGHT_WITH_VIDEO
+                + regularity * _REGULARITY_WEIGHT_WITH_VIDEO
+                + video_sim * _VIDEO_WEIGHT
+            )
+        else:
+            overall = (
+                title_sim * _TITLE_WEIGHT
+                + script_var * _SCRIPT_WEIGHT
+                + meta_div * _METADATA_WEIGHT
+                + regularity * _REGULARITY_WEIGHT
+            )
         overall = round(min(1.0, max(0.0, overall)), 6)
         flagged = overall < self._threshold
 
@@ -420,6 +510,7 @@ class UniquenessScorer:
             "platform": platform,
             "history_size": len(history),
             "script_fingerprint": fp,
+            "video_hash": video_hash,
         }
 
         score = UniquenessScore(
@@ -428,6 +519,7 @@ class UniquenessScorer:
             script_variation=script_var,
             metadata_diversity=meta_div,
             posting_regularity=regularity,
+            video_similarity=video_sim,
             flagged=flagged,
             details=details,
         )
@@ -445,6 +537,7 @@ class UniquenessScorer:
         tags: list,
         description: str,
         platform: str = "youtube",
+        video_path: Optional[str] = None,
     ) -> None:
         """Append the content to the rolling history and persist to disk.
 
@@ -478,6 +571,11 @@ class UniquenessScorer:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "script_fingerprint": fp,
         }
+
+        if video_path is not None:
+            video_hash = _compute_video_hash(video_path)
+            if video_hash is not None:
+                entry["video_hash"] = video_hash
 
         history = _read_history(self._history_path)
         history.append(entry)
