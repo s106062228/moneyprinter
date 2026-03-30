@@ -48,6 +48,32 @@ _MAX_AFFILIATE_LABEL_LENGTH = 200
 _MAX_AFFILIATE_URL_LENGTH = 2048
 
 
+def _get_health_monitor():
+    """Lazy singleton for PipelineHealthMonitor."""
+    if _get_health_monitor._instance is None:
+        try:
+            from pipeline_health import PipelineHealthMonitor
+            _get_health_monitor._instance = PipelineHealthMonitor()
+        except Exception:
+            return None
+    return _get_health_monitor._instance
+
+_get_health_monitor._instance = None
+
+
+def _get_plugin_manager():
+    """Lazy singleton for PluginManager."""
+    if _get_plugin_manager._instance is None:
+        try:
+            from plugin_manager import PluginManager
+            _get_plugin_manager._instance = PluginManager()
+        except Exception:
+            return None
+    return _get_plugin_manager._instance
+
+_get_plugin_manager._instance = None
+
+
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
@@ -283,6 +309,19 @@ class ContentPublisher:
 
         verbose = get_verbose()
 
+        # Plugin lifecycle: pre-publish
+        try:
+            pm = _get_plugin_manager()
+            if pm:
+                pm.hook.on_pre_publish(job={
+                    "title": job.title,
+                    "description": job.description,
+                    "platforms": job.platforms,
+                    "tags": job.tags,
+                })
+        except Exception:
+            pass
+
         # Pre-publish quality gate check
         quality_blocked = self._check_quality_gate(job)
         if quality_blocked is not None:
@@ -348,6 +387,42 @@ class ContentPublisher:
         # Post-publish: update uniqueness history
         if any(r.success for r in results):
             self._update_uniqueness_history(job)
+
+        # Pipeline health reporting
+        try:
+            monitor = _get_health_monitor()
+            if monitor:
+                succeeded_count = sum(1 for r in results if r.success)
+                total_count = len(results)
+                health_status = "ok" if succeeded_count == total_count else (
+                    "degraded" if succeeded_count > 0 else "error"
+                )
+                monitor.report_health(
+                    "publisher",
+                    health_status,
+                    error_msg="" if health_status == "ok" else f"{total_count - succeeded_count} platform(s) failed",
+                    metadata={
+                        "succeeded": succeeded_count,
+                        "total": total_count,
+                        "platforms": job.platforms[:5],
+                    },
+                )
+        except Exception:
+            pass
+
+        # Plugin lifecycle: post-publish
+        try:
+            pm = _get_plugin_manager()
+            if pm:
+                pm.hook.on_post_publish(
+                    job={"title": job.title, "platforms": job.platforms},
+                    results=[
+                        {"platform": r.platform, "success": r.success, "error_type": r.error_type}
+                        for r in results
+                    ],
+                )
+        except Exception:
+            pass
 
         return results
 

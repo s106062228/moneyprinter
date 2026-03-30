@@ -1,0 +1,46 @@
+title: Open Source Lip-Sync Models for Video Dubbing 2026
+sources:
+  - url: https://www.pixazo.ai/blog/best-open-source-lip-sync-models
+    title: 8 Best Open Source Lip-Sync Models
+  - url: https://github.com/Kedreamix/Linly-Dubbing
+    title: Linly-Dubbing GitHub
+  - url: https://aifreeforever.com/blog/lip-sync-ai
+    title: 21 Best AI Tools for Lipsync 2026
+
+top_models:
+  - name: LivePortrait (Tencent ARC)
+    realism: very_high
+    speed: slower
+    hardware: heavy_gpu
+  - name: GeneFace++
+    realism: very_high
+    speed: slowest
+    hardware: heavy_gpu
+  - name: Wav2Lip
+    realism: high
+    speed: moderate
+    hardware: moderate_gpu
+    note: best for dubbing pipelines, audio-visual alignment
+  - name: SadTalker
+    realism: high
+    speed: moderate
+    hardware: moderate_gpu
+  - name: LipGAN
+    realism: decent
+    speed: realtime
+    hardware: edge_mobile
+
+linly_dubbing:
+  pipeline: download → Demucs vocal sep → WhisperX STT → GPT-4/Qwen translate → CosyVoice TTS → Linly-Talker lip-sync
+  languages: [Chinese, English, Japanese, Cantonese, Korean]
+  requirements: Python 3.10, PyTorch 2.3.1, CUDA 11.8+, FFmpeg 7.0.2
+  license: Apache-2.0
+  interface: WebUI only (no Python API/CLI)
+
+commercial:
+  - name: sync.so
+    pricing: "$5/mo starter, per-second API"
+    output: 4K
+  - name: Synthesia
+    pricing: "$22/mo"
+    languages: 120+

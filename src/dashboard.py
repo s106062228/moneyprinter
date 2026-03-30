@@ -147,6 +147,23 @@ def _get_health_info() -> dict:
     }
 
 
+def _get_pipeline_module_health() -> dict:
+    """Load per-module health from PipelineHealthMonitor. Fail-soft."""
+    try:
+        from pipeline_health import PipelineHealthMonitor
+        monitor = PipelineHealthMonitor()
+        monitor.load()
+        modules_dict = {}
+        for name, mod in monitor.check_all().items():
+            modules_dict[name] = mod.to_dict()
+        return {
+            "summary": monitor.get_summary(),
+            "modules": modules_dict,
+        }
+    except Exception:
+        return {"summary": {}, "modules": {}}
+
+
 _PLATFORM_COLORS = {
     "youtube": "#ff0000",
     "tiktok": "#00f2ea",
@@ -247,8 +264,48 @@ def create_app():
 
     @app.get("/api/health")
     async def api_health():
-        """Return system health information."""
-        return JSONResponse(content=_get_health_info())
+        """Return system health information including pipeline module health."""
+        data = _get_health_info()
+        data["pipeline"] = _get_pipeline_module_health()
+        return JSONResponse(content=data)
+
+    @app.get("/api/health/liveness")
+    async def api_health_liveness():
+        """Liveness probe — fast, no I/O. Returns 200 if process is alive."""
+        return JSONResponse(content={"status": "alive"})
+
+    @app.get("/api/health/readiness")
+    async def api_health_readiness():
+        """Readiness probe — checks pipeline health and key dependencies."""
+        issues = []
+
+        # Check pipeline module health
+        pipeline = _get_pipeline_module_health()
+        summary = pipeline.get("summary", {})
+        if summary.get("error", 0) > 0:
+            issues.append(f"{summary['error']} pipeline module(s) in error state")
+
+        # Check Ollama availability
+        try:
+            import ollama as ollama_sdk
+            ollama_sdk.list()
+        except Exception:
+            issues.append("ollama offline")
+
+        # Check .mp cache dir is accessible
+        root = _get_root_dir()
+        if not os.path.isdir(os.path.join(root, ".mp")):
+            issues.append(".mp directory missing")
+
+        ready = len(issues) == 0
+        return JSONResponse(
+            content={
+                "status": "ready" if ready else "not_ready",
+                "issues": issues,
+                "pipeline_summary": summary,
+            },
+            status_code=200 if ready else 503,
+        )
 
     @app.get("/api/jobs")
     async def api_jobs():

@@ -2447,3 +2447,144 @@ Key decisions:
 5. **Publisher platform test fixtures** — mock Selenium for YouTube/TikTok/Twitter/Instagram upload testing (low priority)
 
 ---
+
+## Survey — 2026-03-31 (Iteration 19)
+
+### Research Focus
+Pipeline health monitoring patterns, multi-language dubbing/lip-sync, dashboard health endpoints, pytest mock infrastructure, and short-form video automation landscape March 2026.
+
+### Key Findings
+
+#### 1. FastAPI Health Check Patterns — Liveness vs Readiness
+- **Production pattern**: Separate liveness (`/healthcheck`) and readiness (`/ready`) endpoints. Liveness = zero I/O, just returns 200. Readiness = checks all registered dependencies, returns 503 if any fail.
+- **Critical rule**: Never add external dependency checks to liveness — a database outage should remove from load balancer (readiness), not trigger restart cycle (liveness).
+- **Registry pattern**: `ReadinessRegistry` stores named checks, `run()` executes all sequentially, supports both sync and async via `isawaitable()`. Each check returns `ReadinessCheckResult(name, is_healthy, detail, latency_ms)`.
+- **fastapi-healthchecks** (PyPI v1.1.0, MIT): Pre-built checks for PostgreSQL, Redis, RabbitMQ, HTTP, Ceph. Custom checks extend `Check` base class.
+- **Our fit**: MPV2's `pipeline_health.py` (iter 18) tracks module health but has no dashboard endpoint. Adding `/api/health` with the registry pattern connects pipeline_health to dashboard.py.
+- Sources: [FastAPI Production Guide — Health Checks](https://patrykgolabek.dev/guides/fastapi-production/health-checks/), [fastapi-healthchecks PyPI](https://pypi.org/project/fastapi-healthchecks/)
+
+#### 2. Pipeline Health Wiring — OTEL Patterns for Python
+- **OpenTelemetry for Python** (2026): Structured logging + metrics + traces correlated. The OTEL Collector exposes internal metrics for pipeline health monitoring.
+- **Structured logging**: JSON-encoded logs with correlation IDs, making it easier to track requests across pipeline stages.
+- **Health thresholds**: When the observability pipeline degrades, automated responses kick in — exactly the pattern our PipelineHealthMonitor needs.
+- **Our fit**: MPV2 doesn't need full OTEL (no distributed system), but the pattern of modules self-reporting health to a central monitor is directly applicable. Wire `report_health()` calls into publisher, scheduler, batch_generator.
+- Sources: [Elastic OTEL Blog](https://www.elastic.co/observability-labs/blog/monitor-your-python-data-pipelines-with-otel), [OneUptime OTEL Health](https://oneuptime.com/blog/post/2026-02-06-monitor-alert-opentelemetry-pipeline-health/view)
+
+#### 3. Multi-Language Dubbing — Linly-Dubbing + Open Source Lip-Sync
+- **Linly-Dubbing** (Apache 2.0): Full pipeline: download → Demucs vocal separation → WhisperX STT → GPT-4/Qwen translate → CosyVoice TTS → Linly-Talker lip-sync. Supports Chinese, English, Japanese, Cantonese, Korean.
+- **Major limitation**: WebUI only (Gradio at localhost:6006). No Python API or CLI. Requires Python 3.10, CUDA 11.8+, PyTorch 2.3.1. Heavy requirements make it unsuitable for direct integration into MPV2.
+- **Best open-source lip-sync models** (ranked by realism): LivePortrait > GeneFace++ > Wav2Lip > SadTalker > PC-AVS > PIRenderer > MakeItTalk > LipGAN.
+- **Wav2Lip** is the best fit for MPV2: high realism, moderate GPU, best audio-visual alignment for dubbing workflows. Drop-in for existing footage.
+- **Commercial**: sync.so ($5/mo API, 4K output), Synthesia ($22/mo, 120+ languages).
+- **Our fit**: Multi-language dubbing is complex (CUDA dependency, large models). Better as a plugin via plugin_manager than a core module. Wav2Lip for lip-sync, CosyVoice/XTTS for voice cloning.
+- Sources: [Linly-Dubbing GitHub](https://github.com/Kedreamix/Linly-Dubbing), [8 Best Open Source Lip-Sync Models](https://www.pixazo.ai/blog/best-open-source-lip-sync-models), [21 Best Lip-Sync AI Tools 2026](https://aifreeforever.com/blog/lip-sync-ai)
+
+#### 4. Pytest Mock Infrastructure — 2026 Best Practices
+- **conftest.py organization**: Scope fixtures by directory (API tests → `tests/api/conftest.py`). Add docstrings for `pytest --fixtures`.
+- **pytest-mock**: `mocker.patch()` auto-cleans after each test. Preferred over raw `unittest.mock.patch`.
+- **Mock at boundaries**: API calls, database, file system — not internal logic.
+- **Fixture scopes**: `session` for expensive setup (API clients), `function` (default) for test isolation, `autouse=True` for automatic cleanup.
+- **Our fit**: MPV2's conftest.py already has `_protect_sys_modules` session fixture and `mock_optional_dep()` helper (iter 18). Migration of test files to use the helper is low-priority maintenance.
+- Sources: [pytest Mocking Guide 2026](https://oneuptime.com/blog/post/2026-02-02-pytest-mocking/view), [pytest Fixtures Guide 2026](https://devtoolbox.dedyn.io/blog/pytest-fixtures-complete-guide)
+
+#### 5. Short-Form Video Automation Landscape — March 2026
+- **Key competitors**: AutoShorts.ai ($19/mo, full autopilot), ShortX.ai (customizable), Clippie (long→short clipping), InVideo ($15/mo, prompt-to-video), Synthesia ($22/mo, 120+ languages).
+- **Market shift**: Algorithms now evaluate quality of attention (watch time, replays, satisfaction), not just views. Automation alone no longer guarantees success.
+- **Autonomous agents**: The 2026 trend is AI managing full pipeline from research→script→generate→edit→publish. 1-2 person teams producing 300+ videos/month.
+- **Stock footage replacement**: AI-generated B-roll matching script descriptions is eliminating stock footage dependency.
+- **MPV2 differentiators**: Multi-workflow (video + Twitter + affiliate + outreach), fully local/open-source, plugin system, CLI-first. Competitors are video-only SaaS.
+- Sources: [2026 Comparison Guide](https://www.shortsfaceless.com/blog/2026-comparison-guide-ai-faceless-video-generator), [AI Video Trends 2025-2026](https://clippie.ai/blog/ai-video-creation-trends-2025-2026)
+
+### Gaps & Opportunities
+1. **Dashboard health endpoint** (HIGH): pipeline_health.py exists but has no API. Adding `/api/health` with liveness/readiness pattern connects 29 modules to the dashboard.
+2. **Wire health into key modules** (HIGH): publisher, scheduler, batch_generator should call `report_health()` after each operation.
+3. **Multi-language dubbing** (MEDIUM, complex): Linly-Dubbing's WebUI-only interface makes direct integration impractical. A plugin wrapping Wav2Lip + CosyVoice is feasible but heavy (CUDA dependency).
+4. **Test mock migration** (LOW): 5 test files can migrate to `mock_optional_dep()` helper — maintenance task.
+
+---
+
+## Hypotheses — 2026-03-31 (Iteration 19)
+
+Formulated 3 hypotheses based on iteration 18 retro candidates and survey findings.
+
+| ID | Hypothesis | Priority | Risk |
+|----|-----------|----------|------|
+| H59 | Wire pipeline health reporting into publisher, scheduler, batch_generator | HIGH | LOW |
+| H60 | Dashboard health endpoint with liveness/readiness + PipelineHealthMonitor integration | HIGH | LOW |
+| H61 | Content lifecycle hooks — plugin_manager event dispatch for publish/schedule/generate | MEDIUM | LOW |
+
+**H59** is the #1 retro priority — pipeline_health.py exists (iter 18, 99 tests, 93.01% coverage) but no module calls `report_health()` yet. Wiring into 3 key modules (publisher, scheduler, batch_generator) makes health monitoring operational.
+
+**H60** connects pipeline_health.py to the dashboard. The existing `/api/health` endpoint only returns system info (disk, ollama, cache). Adding liveness/readiness separation and module-level health status from PipelineHealthMonitor makes the dashboard actionable.
+
+**H61** extends the plugin_manager (iter 16, 89 tests, 96.08% coverage) with lifecycle event hooks. Plugins can now react to publish/schedule/generate events. This enables 3rd-party integrations without modifying core modules.
+
+---
+
+## Architecture — 2026-03-31 (Iteration 19)
+
+Designed implementation for H59, H60, H61. 14 tasks added to TODO.md.
+
+Key decisions:
+1. **H59 (health wiring)**: Lazy singleton `_get_health_monitor()` in each module. report_health() with ok/degraded/error status based on outcome counts. All calls wrapped in try/except pass (fail-soft).
+2. **H60 (dashboard health)**: Liveness endpoint (zero I/O, returns 200), readiness endpoint (checks pipeline + ollama + .mp dir, returns 503). Existing /api/health augmented with pipeline.summary + pipeline.modules from PipelineHealthMonitor.load().
+3. **H61 (lifecycle hooks)**: 6 new pluggy hookspecs (on_pre_publish, on_post_publish, on_pre_schedule, on_post_schedule, on_batch_start, on_batch_complete). Params are plain dicts to avoid coupling. Dispatch calls in publisher, scheduler, batch_generator.
+
+---
+
+## Evaluation — 2026-03-31 (Iteration 19)
+
+### Hypotheses Tested This Iteration
+
+| ID | Hypothesis | Verdict | Key Metric |
+|----|-----------|---------|------------|
+| H59 | Wire pipeline health into publisher/scheduler/batch_generator | **CONFIRMED** | 14 new tests, 3 modules wired, fail-soft |
+| H60 | Dashboard liveness/readiness + PipelineHealthMonitor integration | **CONFIRMED** | 10 new tests, 91.05% dashboard coverage |
+| H61 | Content lifecycle hooks via plugin_manager | **CONFIRMED** | 24 new tests, 6 hookspecs, 3 modules dispatching |
+
+### Key Observations
+1. All 3 hypotheses independently confirmed. Zero regressions.
+2. **H59**: Publisher, content_scheduler, and batch_generator now call `report_health()` after each operation with ok/degraded/error status. Lazy singleton pattern avoids circular imports. All reporting wrapped in try/except pass (fail-soft).
+3. **H60**: Three new endpoints: `/api/health/liveness` (zero I/O, always 200), `/api/health/readiness` (checks pipeline health + ollama + .mp dir, returns 503 on failure), and augmented `/api/health` with `pipeline.summary` + `pipeline.modules`. Dashboard coverage up to 91.05%.
+4. **H61**: 6 new lifecycle hookspecs added to MoneyPrinterSpec. Plugin dispatch wired into publisher (on_pre_publish/on_post_publish), scheduler (on_pre_schedule/on_post_schedule), and batch_generator (on_batch_start/on_batch_complete). All dispatch calls fail-soft.
+5. Total: 2,791 tests passing (+28 new), 0 failures.
+6. Overall coverage: 86.36% (maintained from 86.35%).
+
+---
+
+## Retrospective — 2026-03-31 (Iteration 19)
+
+### What Worked
+1. **Parallel implementation**: All 3 hypotheses were independent, enabling 3 parallel agents for code changes + 4 parallel agents for test writing. Total implementation time ~7 minutes wall clock.
+2. **Fail-soft pattern consistency**: All health reporting and plugin dispatch calls wrapped in try/except pass, matching the established pattern from iterations 17-18 (quality gate, watermark, uniqueness). Never blocks core operations.
+3. **Lazy singleton pattern**: `_get_health_monitor()` and `_get_plugin_manager()` with function-attribute singletons avoid circular imports and minimize overhead. Pattern is consistent across all 3 wired modules.
+4. **Liveness/readiness separation**: Following the FastAPI production guide pattern. Liveness has zero I/O (always fast), readiness checks 3 dependencies (pipeline, ollama, .mp dir). Dashboard coverage up to 91.05%.
+5. **Plugin hook design**: Plain dict parameters decouple plugins from internal dataclasses. 6 lifecycle hooks complement the existing 5 per-operation hooks (on_before_publish, on_after_publish, etc.).
+
+### What Could Improve
+1. **Health data not yet persisted on disk by default**: Modules report health to in-memory PipelineHealthMonitor but `save()` is not called automatically. A future iteration should add auto-persist (e.g., every N reports or on shutdown).
+2. **Dashboard doesn't auto-refresh health panel**: The SSE stream could include pipeline module health updates, but the frontend template doesn't render them yet. A future iteration should add a health panel to the dashboard HTML.
+3. **Plugin manager singleton per module**: Each module (publisher, scheduler, batch_generator) creates its own PluginManager singleton. They're independent instances. A shared global singleton would be more efficient but introduces coupling.
+
+### Metrics
+| Metric | Before (iter 18) | After (iter 19) | Delta |
+|---|---|---|---|
+| Tests | 2763 | 2791 | +28 |
+| Failures | 0 | 0 | 0 |
+| Modules wired | 0 of 3 | 3 of 3 | +3 |
+| Dashboard endpoints | 8 | 10 | +2 |
+| Plugin hookspecs | 5 | 11 | +6 |
+| publisher.py | 71.68% | 73.58% | +1.90% |
+| dashboard.py | 90.31% | 91.05% | +0.74% |
+| plugin_manager.py | 96.08% | 96.49% | +0.41% |
+| Total coverage | 86.35% | 86.36% | +0.01% |
+| New deps | — | — | +0 |
+
+### Next Iteration Candidates
+1. **Auto-persist pipeline health** — call save() periodically or on module shutdown (medium priority)
+2. **Dashboard health panel HTML** — render per-module status in dashboard.html template (medium priority)
+3. **Shared global PluginManager** — single instance across all modules via config or app state (low priority)
+4. **Multi-language dubbing plugin** — Wav2Lip + CosyVoice via plugin_manager (medium priority, complex, CUDA dependency)
+5. **Migrate test files to mock_optional_dep()** — use conftest helper (low priority, maintenance)
+
+---

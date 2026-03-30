@@ -1063,3 +1063,144 @@ class TestEdgeCases:
         for i in range(5):
             pm.hook.on_analytics_event(event_type=f"e{i}", data={})
         assert len(collector.received) == 5
+
+
+# ---------------------------------------------------------------------------
+# 18. Lifecycle hook specs (H61)
+# ---------------------------------------------------------------------------
+
+
+class TestLifecycleHookSpecs:
+    """Tests for the 6 new lifecycle hook specifications (H61)."""
+
+    def test_on_pre_publish_spec_exists(self):
+        """MoneyPrinterSpec has on_pre_publish hookspec."""
+        assert hasattr(MoneyPrinterSpec, 'on_pre_publish')
+
+    def test_on_post_publish_spec_exists(self):
+        assert hasattr(MoneyPrinterSpec, 'on_post_publish')
+
+    def test_on_pre_schedule_spec_exists(self):
+        assert hasattr(MoneyPrinterSpec, 'on_pre_schedule')
+
+    def test_on_post_schedule_spec_exists(self):
+        assert hasattr(MoneyPrinterSpec, 'on_post_schedule')
+
+    def test_on_batch_start_spec_exists(self):
+        assert hasattr(MoneyPrinterSpec, 'on_batch_start')
+
+    def test_on_batch_complete_spec_exists(self):
+        assert hasattr(MoneyPrinterSpec, 'on_batch_complete')
+
+    def test_lifecycle_hooks_callable_with_no_plugins(self):
+        """Calling lifecycle hooks with no plugins registered raises no error."""
+        pm = PluginManager()
+        pm.hook.on_pre_publish(job={"title": "test"})
+        pm.hook.on_post_publish(job={"title": "test"}, results=[])
+        pm.hook.on_pre_schedule(job={"title": "test"})
+        pm.hook.on_post_schedule(job={"title": "test"}, job_id="job-1")
+        pm.hook.on_batch_start(job={"topics_count": 3})
+        pm.hook.on_batch_complete(job={"niche": "test"}, result={})
+
+    def test_plugin_receives_on_pre_publish(self):
+        """A plugin implementing on_pre_publish gets called."""
+        from plugin_manager import hookimpl
+
+        class PrePublishPlugin:
+            def __init__(self):
+                self.received_job = None
+
+            @hookimpl
+            def on_pre_publish(self, job):
+                self.received_job = job
+
+        plugin = PrePublishPlugin()
+        pm = PluginManager()
+        pm.register(plugin)
+        pm.hook.on_pre_publish(job={"title": "hello"})
+        assert plugin.received_job == {"title": "hello"}
+
+    def test_plugin_receives_on_post_publish(self):
+        from plugin_manager import hookimpl
+
+        class PostPublishPlugin:
+            def __init__(self):
+                self.received_results = None
+
+            @hookimpl
+            def on_post_publish(self, job, results):
+                self.received_results = results
+
+        plugin = PostPublishPlugin()
+        pm = PluginManager()
+        pm.register(plugin)
+        pm.hook.on_post_publish(job={"title": "t"}, results=[{"platform": "youtube", "success": True}])
+        assert plugin.received_results == [{"platform": "youtube", "success": True}]
+
+    def test_plugin_receives_on_batch_complete(self):
+        from plugin_manager import hookimpl
+
+        class BatchPlugin:
+            def __init__(self):
+                self.received_result = None
+
+            @hookimpl
+            def on_batch_complete(self, job, result):
+                self.received_result = result
+
+        plugin = BatchPlugin()
+        pm = PluginManager()
+        pm.register(plugin)
+        pm.hook.on_batch_complete(job={"niche": "n"}, result={"total": 3, "succeeded": 2})
+        assert plugin.received_result["total"] == 3
+
+    def test_plugin_receives_on_pre_schedule(self):
+        from plugin_manager import hookimpl
+
+        class SchedulePlugin:
+            def __init__(self):
+                self.called = False
+
+            @hookimpl
+            def on_pre_schedule(self, job):
+                self.called = True
+
+        plugin = SchedulePlugin()
+        pm = PluginManager()
+        pm.register(plugin)
+        pm.hook.on_pre_schedule(job={"title": "t"})
+        assert plugin.called
+
+    def test_plugin_receives_on_post_schedule(self):
+        from plugin_manager import hookimpl
+
+        class PostSchedulePlugin:
+            def __init__(self):
+                self.received_job_id = None
+
+            @hookimpl
+            def on_post_schedule(self, job, job_id):
+                self.received_job_id = job_id
+
+        plugin = PostSchedulePlugin()
+        pm = PluginManager()
+        pm.register(plugin)
+        pm.hook.on_post_schedule(job={"title": "t"}, job_id="abc-123")
+        assert plugin.received_job_id == "abc-123"
+
+    def test_plugin_receives_on_batch_start(self):
+        from plugin_manager import hookimpl
+
+        class BatchStartPlugin:
+            def __init__(self):
+                self.received_job = None
+
+            @hookimpl
+            def on_batch_start(self, job):
+                self.received_job = job
+
+        plugin = BatchStartPlugin()
+        pm = PluginManager()
+        pm.register(plugin)
+        pm.hook.on_batch_start(job={"topics_count": 5})
+        assert plugin.received_job["topics_count"] == 5

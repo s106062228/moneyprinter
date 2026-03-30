@@ -896,3 +896,199 @@ class TestCalendarPatchAPI:
         )
         assert resp.status_code == 422
         assert "scheduled_time" in resp.json()["error"]
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: GET /api/health/liveness (H60)
+# ---------------------------------------------------------------------------
+
+class TestLivenessEndpoint:
+    """Tests for GET /api/health/liveness (H60)."""
+
+    @pytest.fixture
+    def client(self, tmp_path):
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            yield TestClient(app)
+
+    def test_liveness_returns_200(self, client):
+        """Liveness endpoint always returns 200 with status=alive."""
+        response = client.get("/api/health/liveness")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "alive"
+
+    def test_liveness_no_disk_io(self, client):
+        """Liveness does NOT call _get_health_info or _get_pipeline_module_health."""
+        with patch("dashboard._get_health_info") as mock_health, \
+             patch("dashboard._get_pipeline_module_health") as mock_pipeline:
+            response = client.get("/api/health/liveness")
+            assert response.status_code == 200
+            mock_health.assert_not_called()
+            mock_pipeline.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: GET /api/health/readiness (H60)
+# ---------------------------------------------------------------------------
+
+class TestReadinessEndpoint:
+    """Tests for GET /api/health/readiness (H60)."""
+
+    @pytest.fixture
+    def client(self, tmp_path):
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            yield TestClient(app)
+
+    def test_readiness_ok_when_healthy(self, tmp_path):
+        """Returns 200 + ready when pipeline is healthy, ollama is running, .mp exists."""
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        mock_ollama = MagicMock()
+        mock_ollama.list.return_value = []
+        healthy_pipeline = {"summary": {"ok": 3, "error": 0}, "modules": {}}
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            with patch("dashboard._get_pipeline_module_health", return_value=healthy_pipeline):
+                with patch.dict(sys.modules, {"ollama": mock_ollama}):
+                    app = dashboard.create_app()
+                    client = TestClient(app)
+                    response = client.get("/api/health/readiness")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ready"
+        assert data["issues"] == []
+
+    def test_readiness_503_when_pipeline_errors(self, tmp_path):
+        """Returns 503 when pipeline has modules in error state."""
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        mock_ollama = MagicMock()
+        mock_ollama.list.return_value = []
+        error_pipeline = {"summary": {"ok": 1, "error": 2}, "modules": {}}
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            with patch("dashboard._get_pipeline_module_health", return_value=error_pipeline):
+                with patch.dict(sys.modules, {"ollama": mock_ollama}):
+                    app = dashboard.create_app()
+                    client = TestClient(app)
+                    response = client.get("/api/health/readiness")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "not_ready"
+        assert any("pipeline" in issue for issue in data["issues"])
+
+    def test_readiness_503_when_ollama_offline(self, tmp_path):
+        """Returns 503 when ollama is not reachable."""
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        mock_ollama = MagicMock()
+        mock_ollama.list.side_effect = Exception("Connection refused")
+        healthy_pipeline = {"summary": {"ok": 0, "error": 0}, "modules": {}}
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            with patch("dashboard._get_pipeline_module_health", return_value=healthy_pipeline):
+                with patch.dict(sys.modules, {"ollama": mock_ollama}):
+                    app = dashboard.create_app()
+                    client = TestClient(app)
+                    response = client.get("/api/health/readiness")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "not_ready"
+        assert any("ollama offline" in issue for issue in data["issues"])
+
+    def test_readiness_503_when_mp_dir_missing(self, tmp_path):
+        """Returns 503 when .mp directory doesn't exist."""
+        from starlette.testclient import TestClient
+        # Do NOT create .mp dir
+        mock_ollama = MagicMock()
+        mock_ollama.list.return_value = []
+        healthy_pipeline = {"summary": {"ok": 0, "error": 0}, "modules": {}}
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            with patch("dashboard._get_pipeline_module_health", return_value=healthy_pipeline):
+                with patch.dict(sys.modules, {"ollama": mock_ollama}):
+                    app = dashboard.create_app()
+                    client = TestClient(app)
+                    response = client.get("/api/health/readiness")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "not_ready"
+        assert any(".mp directory missing" in issue for issue in data["issues"])
+
+    def test_readiness_multiple_issues(self, tmp_path):
+        """Multiple issues are accumulated."""
+        from starlette.testclient import TestClient
+        # No .mp dir + ollama offline + pipeline errors
+        mock_ollama = MagicMock()
+        mock_ollama.list.side_effect = Exception("offline")
+        error_pipeline = {"summary": {"ok": 0, "error": 1}, "modules": {}}
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            with patch("dashboard._get_pipeline_module_health", return_value=error_pipeline):
+                with patch.dict(sys.modules, {"ollama": mock_ollama}):
+                    app = dashboard.create_app()
+                    client = TestClient(app)
+                    response = client.get("/api/health/readiness")
+        assert response.status_code == 503
+        data = response.json()
+        assert len(data["issues"]) >= 2
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: GET /api/health pipeline integration (H60)
+# ---------------------------------------------------------------------------
+
+class TestHealthApiPipelineKey:
+    """Tests for GET /api/health pipeline integration (H60)."""
+
+    @pytest.fixture
+    def client(self, tmp_path):
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            yield TestClient(app)
+
+    def test_api_health_includes_pipeline_key(self, client):
+        """The /api/health response now includes a 'pipeline' key."""
+        known_pipeline = {
+            "summary": {"ok": 2, "error": 0, "warning": 1},
+            "modules": {"video_gen": {"status": "ok"}, "tts": {"status": "warning"}},
+        }
+        with patch("dashboard._get_pipeline_module_health", return_value=known_pipeline):
+            with patch.dict(sys.modules, {"ollama": MagicMock()}):
+                response = client.get("/api/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert "pipeline" in data
+        assert "summary" in data["pipeline"]
+        assert "modules" in data["pipeline"]
+
+    def test_api_health_backward_compatible(self, client):
+        """Existing keys (status, timestamp, disk_free_gb, etc.) are still present."""
+        with patch("dashboard._get_pipeline_module_health", return_value={"summary": {}, "modules": {}}):
+            with patch.dict(sys.modules, {"ollama": MagicMock()}):
+                response = client.get("/api/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert "status" in data
+        assert "timestamp" in data
+
+    def test_pipeline_health_failure_returns_empty(self, client):
+        """If _get_pipeline_module_health() returns empty (its own guard path), /api/health still works."""
+        # _get_pipeline_module_health catches all exceptions internally and returns
+        # {"summary": {}, "modules": {}} — simulate that guard path here.
+        empty_pipeline = {"summary": {}, "modules": {}}
+        with patch("dashboard._get_pipeline_module_health", return_value=empty_pipeline):
+            with patch.dict(sys.modules, {"ollama": MagicMock()}):
+                response = client.get("/api/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pipeline"] == empty_pipeline

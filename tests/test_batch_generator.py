@@ -665,3 +665,262 @@ class TestBatchGeneratorIntegration:
                         gen.run(job)
 
         mock_warning.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Health reporting tests (H59)
+# ---------------------------------------------------------------------------
+
+class TestBatchHealthReporting:
+    """Tests that BatchGenerator integrates with PipelineHealthMonitor (H59)."""
+
+    def setup_method(self):
+        import batch_generator
+        batch_generator._get_health_monitor._instance = None
+        batch_generator._get_plugin_manager._instance = None
+
+    def teardown_method(self):
+        import batch_generator
+        batch_generator._get_health_monitor._instance = None
+        batch_generator._get_plugin_manager._instance = None
+
+    def _run_with_results(self, gen, job, video_results, mock_monitor):
+        """Helper to run batch with mocked single results and health monitor."""
+        import batch_generator
+        results_iter = iter(video_results)
+
+        with patch.object(batch_generator, "_get_health_monitor", return_value=mock_monitor):
+            with patch.object(batch_generator, "_get_plugin_manager", return_value=None):
+                with patch.object(gen, "_generate_single", side_effect=lambda **kw: next(results_iter)):
+                    with patch.object(gen, "_track_batch_analytics"):
+                        with patch("batch_generator.time.sleep"):
+                            return gen.run(job)
+
+    @patch("batch_generator.get_max_videos_per_run", return_value=10)
+    @patch("batch_generator.get_delay_between_videos", return_value=0)
+    @patch("batch_generator.get_auto_publish", return_value=False)
+    @patch("batch_generator.get_publish_platforms", return_value=[])
+    def test_run_all_succeed_reports_ok(self, *mocks):
+        """When no failures, report_health('batch_generator', 'ok')."""
+        from batch_generator import BatchGenerator, BatchJob, BatchVideoResult
+
+        gen = BatchGenerator()
+        gen._delay = 0
+        job = BatchJob(topics=["t1", "t2"])
+
+        mock_monitor = MagicMock()
+        results = [
+            BatchVideoResult(topic="t1", success=True),
+            BatchVideoResult(topic="t2", success=True),
+        ]
+        self._run_with_results(gen, job, results, mock_monitor)
+
+        mock_monitor.report_health.assert_called_once()
+        call_args = mock_monitor.report_health.call_args
+        assert call_args[0][0] == "batch_generator"
+        assert call_args[0][1] == "ok"
+
+    @patch("batch_generator.get_max_videos_per_run", return_value=10)
+    @patch("batch_generator.get_delay_between_videos", return_value=0)
+    @patch("batch_generator.get_auto_publish", return_value=False)
+    @patch("batch_generator.get_publish_platforms", return_value=[])
+    def test_run_all_fail_reports_error(self, *mocks):
+        """When all fail, report_health with 'error'."""
+        from batch_generator import BatchGenerator, BatchJob, BatchVideoResult
+
+        gen = BatchGenerator()
+        gen._delay = 0
+        job = BatchJob(topics=["t1", "t2"])
+
+        mock_monitor = MagicMock()
+        results = [
+            BatchVideoResult(topic="t1", success=False, error_type="Err"),
+            BatchVideoResult(topic="t2", success=False, error_type="Err"),
+        ]
+        self._run_with_results(gen, job, results, mock_monitor)
+
+        mock_monitor.report_health.assert_called_once()
+        call_args = mock_monitor.report_health.call_args
+        assert call_args[0][0] == "batch_generator"
+        assert call_args[0][1] == "error"
+
+    @patch("batch_generator.get_max_videos_per_run", return_value=10)
+    @patch("batch_generator.get_delay_between_videos", return_value=0)
+    @patch("batch_generator.get_auto_publish", return_value=False)
+    @patch("batch_generator.get_publish_platforms", return_value=[])
+    def test_run_partial_fail_reports_degraded(self, *mocks):
+        """Mix of success/failure → report_health with 'degraded'."""
+        from batch_generator import BatchGenerator, BatchJob, BatchVideoResult
+
+        gen = BatchGenerator()
+        gen._delay = 0
+        job = BatchJob(topics=["t1", "t2"])
+
+        mock_monitor = MagicMock()
+        results = [
+            BatchVideoResult(topic="t1", success=True),
+            BatchVideoResult(topic="t2", success=False, error_type="Err"),
+        ]
+        self._run_with_results(gen, job, results, mock_monitor)
+
+        mock_monitor.report_health.assert_called_once()
+        call_args = mock_monitor.report_health.call_args
+        assert call_args[0][0] == "batch_generator"
+        assert call_args[0][1] == "degraded"
+
+    @patch("batch_generator.get_max_videos_per_run", return_value=10)
+    @patch("batch_generator.get_delay_between_videos", return_value=0)
+    @patch("batch_generator.get_auto_publish", return_value=False)
+    @patch("batch_generator.get_publish_platforms", return_value=[])
+    def test_health_metadata_includes_counts(self, *mocks):
+        """Metadata passed to report_health includes total, succeeded, failed, duration_seconds."""
+        from batch_generator import BatchGenerator, BatchJob, BatchVideoResult
+
+        gen = BatchGenerator()
+        gen._delay = 0
+        job = BatchJob(topics=["t1", "t2", "t3"])
+
+        mock_monitor = MagicMock()
+        results = [
+            BatchVideoResult(topic="t1", success=True),
+            BatchVideoResult(topic="t2", success=True),
+            BatchVideoResult(topic="t3", success=False, error_type="Err"),
+        ]
+        self._run_with_results(gen, job, results, mock_monitor)
+
+        call_kwargs = mock_monitor.report_health.call_args[1]
+        metadata = call_kwargs.get("metadata", {})
+        assert "total" in metadata
+        assert "succeeded" in metadata
+        assert "failed" in metadata
+        assert "duration_seconds" in metadata
+        assert metadata["total"] == 3
+        assert metadata["succeeded"] == 2
+        assert metadata["failed"] == 1
+
+    @patch("batch_generator.get_max_videos_per_run", return_value=10)
+    @patch("batch_generator.get_delay_between_videos", return_value=0)
+    @patch("batch_generator.get_auto_publish", return_value=False)
+    @patch("batch_generator.get_publish_platforms", return_value=[])
+    def test_health_exception_does_not_block_run(self, *mocks):
+        """If monitor raises, run() still returns a BatchResult."""
+        from batch_generator import BatchGenerator, BatchJob, BatchVideoResult, BatchResult
+
+        gen = BatchGenerator()
+        gen._delay = 0
+        job = BatchJob(topics=["t1"])
+
+        mock_monitor = MagicMock()
+        mock_monitor.report_health.side_effect = RuntimeError("monitor down")
+
+        results = [BatchVideoResult(topic="t1", success=True)]
+        result = self._run_with_results(gen, job, results, mock_monitor)
+
+        assert isinstance(result, BatchResult)
+        assert result.total == 1
+
+
+# ---------------------------------------------------------------------------
+# Plugin dispatch tests (H61)
+# ---------------------------------------------------------------------------
+
+class TestBatchPluginDispatch:
+    """Tests that BatchGenerator dispatches plugin hooks (H61)."""
+
+    def setup_method(self):
+        import batch_generator
+        batch_generator._get_health_monitor._instance = None
+        batch_generator._get_plugin_manager._instance = None
+
+    def teardown_method(self):
+        import batch_generator
+        batch_generator._get_health_monitor._instance = None
+        batch_generator._get_plugin_manager._instance = None
+
+    @patch("batch_generator.get_max_videos_per_run", return_value=10)
+    @patch("batch_generator.get_delay_between_videos", return_value=0)
+    @patch("batch_generator.get_auto_publish", return_value=False)
+    @patch("batch_generator.get_publish_platforms", return_value=[])
+    def test_on_batch_start_called(self, *mocks):
+        """on_batch_start is called with topics_count, niche, language, auto_publish."""
+        import batch_generator
+        from batch_generator import BatchGenerator, BatchJob, BatchVideoResult
+
+        mock_pm = MagicMock()
+        gen = BatchGenerator()
+        gen._delay = 0
+
+        job = BatchJob(topics=["t1", "t2"], niche="finance", language="en", auto_publish=False)
+
+        with patch.object(batch_generator, "_get_plugin_manager", return_value=mock_pm):
+            with patch.object(batch_generator, "_get_health_monitor", return_value=None):
+                with patch.object(gen, "_generate_single") as mock_gen:
+                    mock_gen.return_value = BatchVideoResult(topic="t", success=True)
+                    with patch.object(gen, "_track_batch_analytics"):
+                        with patch("batch_generator.time.sleep"):
+                            gen.run(job)
+
+        mock_pm.hook.on_batch_start.assert_called_once()
+        call_kwargs = mock_pm.hook.on_batch_start.call_args[1]
+        job_arg = call_kwargs.get("job", {})
+        assert job_arg.get("topics_count") == 2
+        assert job_arg.get("niche") == "finance"
+        assert job_arg.get("language") == "en"
+        assert "auto_publish" in job_arg
+
+    @patch("batch_generator.get_max_videos_per_run", return_value=10)
+    @patch("batch_generator.get_delay_between_videos", return_value=0)
+    @patch("batch_generator.get_auto_publish", return_value=False)
+    @patch("batch_generator.get_publish_platforms", return_value=[])
+    def test_on_batch_complete_called(self, *mocks):
+        """on_batch_complete is called with a result dict."""
+        import batch_generator
+        from batch_generator import BatchGenerator, BatchJob, BatchVideoResult
+
+        mock_pm = MagicMock()
+        gen = BatchGenerator()
+        gen._delay = 0
+
+        job = BatchJob(topics=["t1"])
+
+        with patch.object(batch_generator, "_get_plugin_manager", return_value=mock_pm):
+            with patch.object(batch_generator, "_get_health_monitor", return_value=None):
+                with patch.object(gen, "_generate_single") as mock_gen:
+                    mock_gen.return_value = BatchVideoResult(topic="t1", success=True)
+                    with patch.object(gen, "_track_batch_analytics"):
+                        with patch("batch_generator.time.sleep"):
+                            gen.run(job)
+
+        mock_pm.hook.on_batch_complete.assert_called_once()
+        call_kwargs = mock_pm.hook.on_batch_complete.call_args[1]
+        assert "result" in call_kwargs
+        result_dict = call_kwargs["result"]
+        assert isinstance(result_dict, dict)
+        assert "total" in result_dict
+
+    @patch("batch_generator.get_max_videos_per_run", return_value=10)
+    @patch("batch_generator.get_delay_between_videos", return_value=0)
+    @patch("batch_generator.get_auto_publish", return_value=False)
+    @patch("batch_generator.get_publish_platforms", return_value=[])
+    def test_plugin_exception_does_not_block_run(self, *mocks):
+        """If plugin raises, run() still returns a BatchResult."""
+        import batch_generator
+        from batch_generator import BatchGenerator, BatchJob, BatchVideoResult, BatchResult
+
+        mock_pm = MagicMock()
+        mock_pm.hook.on_batch_start.side_effect = RuntimeError("plugin exploded")
+
+        gen = BatchGenerator()
+        gen._delay = 0
+        job = BatchJob(topics=["t1"])
+
+        with patch.object(batch_generator, "_get_plugin_manager", return_value=mock_pm):
+            with patch.object(batch_generator, "_get_health_monitor", return_value=None):
+                with patch.object(gen, "_generate_single") as mock_gen:
+                    mock_gen.return_value = BatchVideoResult(topic="t1", success=True)
+                    with patch.object(gen, "_track_batch_analytics"):
+                        with patch("batch_generator.time.sleep"):
+                            result = gen.run(job)  # Must not raise
+
+        assert isinstance(result, BatchResult)
+        assert result.total == 1

@@ -1,0 +1,65 @@
+title: "Iteration 19: Pipeline Health Wiring + Dashboard Health Endpoints + Lifecycle Hooks"
+date: "2026-03-31"
+hypotheses: [H59, H60, H61]
+files_modified:
+  - src/publisher.py        # H59 + H61: health reporting + plugin dispatch
+  - src/content_scheduler.py # H59 + H61: health reporting + plugin dispatch
+  - src/batch_generator.py   # H59 + H61: health reporting + plugin dispatch
+  - src/dashboard.py         # H60: liveness/readiness + module health
+  - src/plugin_manager.py    # H61: 6 new lifecycle hookspecs
+files_tested:
+  - tests/test_publisher.py
+  - tests/test_content_scheduler.py
+  - tests/test_batch_generator.py
+  - tests/test_dashboard.py
+  - tests/test_plugin_manager.py
+new_deps: none
+
+phases:
+  - name: "H61 foundation: plugin lifecycle hookspecs"
+    steps:
+      - file: src/plugin_manager.py
+        action: "Add 6 hookspecs: on_pre_publish, on_post_publish, on_pre_schedule, on_post_schedule, on_batch_start, on_batch_complete"
+        risk: low
+
+  - name: "H59: pipeline health wiring"
+    parallel: true
+    steps:
+      - file: src/publisher.py
+        action: "Add _get_health_monitor() lazy singleton, report_health() in publish() with ok/degraded/error status"
+      - file: src/content_scheduler.py
+        action: "Add _get_health_monitor(), report_health() in add_job() and execute_job()"
+      - file: src/batch_generator.py
+        action: "Add _get_health_monitor(), report_health() in run() with counts metadata"
+
+  - name: "H60: dashboard health endpoints"
+    steps:
+      - file: src/dashboard.py
+        action: |
+          Add _get_pipeline_module_health() helper
+          Add GET /api/health/liveness (no I/O, returns 200)
+          Add GET /api/health/readiness (checks pipeline + ollama + .mp dir, returns 503 on failure)
+          Augment GET /api/health with pipeline.summary + pipeline.modules
+
+  - name: "H61 wiring: plugin dispatch"
+    parallel: true
+    steps:
+      - file: src/publisher.py
+        action: "Add _get_plugin_manager() singleton, dispatch on_pre_publish before quality gate, on_post_publish after results"
+      - file: src/content_scheduler.py
+        action: "Dispatch on_pre_schedule before validate, on_post_schedule after save"
+      - file: src/batch_generator.py
+        action: "Dispatch on_batch_start after validate, on_batch_complete before return"
+
+design_decisions:
+  - "All health reporting and plugin dispatch wrapped in try/except: pass — fail-soft pattern"
+  - "Lazy singleton pattern for health monitor and plugin manager — avoids circular imports"
+  - "Dashboard reads health from disk (fresh PipelineHealthMonitor.load()) — not shared in-process singleton"
+  - "Plugin hook params are plain dicts — no coupling to internal dataclasses"
+  - "Liveness endpoint has zero I/O — readiness checks pipeline + ollama + .mp dir"
+
+test_plan:
+  H59_tests: ~15 tests (5 publisher + 5 scheduler + 5 batch_generator)
+  H60_tests: ~10 tests (2 liveness + 5 readiness + 3 api_health augmentation)
+  H61_tests: ~20 tests (9 hookspec + 6 publisher + 3 scheduler + 3 batch_generator)
+  total_new: ~45 tests

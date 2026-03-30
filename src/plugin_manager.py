@@ -127,6 +127,34 @@ class MoneyPrinterSpec:
             Transformed description string.
         """
 
+    # ------------------------------------------------------------------
+    # Lifecycle hooks — fired once per publish/schedule/batch operation
+    # ------------------------------------------------------------------
+
+    @hookspec
+    def on_pre_publish(self, job: dict) -> None:
+        """Called before the publish loop starts (after validation)."""
+
+    @hookspec
+    def on_post_publish(self, job: dict, results: list) -> None:
+        """Called after all platforms in a publish job have been attempted."""
+
+    @hookspec
+    def on_pre_schedule(self, job: dict) -> None:
+        """Called before a ScheduledJob is persisted to the queue."""
+
+    @hookspec
+    def on_post_schedule(self, job: dict, job_id: str) -> None:
+        """Called after a ScheduledJob has been added to the queue."""
+
+    @hookspec
+    def on_batch_start(self, job: dict) -> None:
+        """Called when a BatchGenerator.run() begins."""
+
+    @hookspec
+    def on_batch_complete(self, job: dict, result: dict) -> None:
+        """Called when a BatchGenerator.run() finishes."""
+
 
 # ---------------------------------------------------------------------------
 # Plugin Manager

@@ -1,0 +1,36 @@
+title: Short-Form Video Automation Landscape March 2026
+sources:
+  - url: https://www.shortsfaceless.com/blog/2026-comparison-guide-ai-faceless-video-generator
+    title: 2026 Comparison Guide Faceless Creators
+  - url: https://clippie.ai/blog/ai-video-creation-trends-2025-2026
+    title: AI Video Creation Trends 2025-2026
+  - url: https://autofaceless.ai/blog/bigmotion-ai-alternatives
+    title: BigMotion AI Alternatives 2026
+
+competitors:
+  - name: AutoShorts.ai
+    focus: full autopilot shorts
+    pricing: "$19/mo"
+    key: topic to script to voice to upload
+  - name: ShortX.ai
+    focus: customizable automation
+    key: template control, branding
+  - name: Clippie
+    focus: long to short clipping
+    key: virality prediction, platform-specific
+  - name: InVideo
+    focus: prompt to video
+    pricing: "$15/mo"
+    key: stock clips, timeline editor
+  - name: Synthesia
+    focus: presenter-based
+    pricing: "$22/mo"
+    key: 120+ languages, photoreal avatars
+
+trends_2026:
+  - autonomous_agents: AI manages full pipeline research to publish
+  - scale: 1-2 person teams producing 300+ videos per month
+  - quality_of_attention: algorithms evaluate watch time replays satisfaction
+  - hyper_personalization: customized video variants per viewer
+  - realtime_generation: sub-second generation, interactive editing
+  - stock_replacement: AI-generated B-roll matching script descriptions

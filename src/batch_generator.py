@@ -60,6 +60,32 @@ _DEFAULT_DELAY_SECONDS = 30
 _MAX_VIDEOS_PER_RUN = 50
 
 
+def _get_health_monitor():
+    """Lazy singleton for PipelineHealthMonitor."""
+    if _get_health_monitor._instance is None:
+        try:
+            from pipeline_health import PipelineHealthMonitor
+            _get_health_monitor._instance = PipelineHealthMonitor()
+        except Exception:
+            return None
+    return _get_health_monitor._instance
+
+_get_health_monitor._instance = None
+
+
+def _get_plugin_manager():
+    """Lazy singleton for PluginManager."""
+    if _get_plugin_manager._instance is None:
+        try:
+            from plugin_manager import PluginManager
+            _get_plugin_manager._instance = PluginManager()
+        except Exception:
+            return None
+    return _get_plugin_manager._instance
+
+_get_plugin_manager._instance = None
+
+
 # ---------------------------------------------------------------------------
 # Configuration helpers
 # ---------------------------------------------------------------------------
@@ -251,6 +277,19 @@ class BatchGenerator:
         # Validate input
         job.validate()
 
+        # Plugin lifecycle: batch start
+        try:
+            pm = _get_plugin_manager()
+            if pm:
+                pm.hook.on_batch_start(job={
+                    "topics_count": len(job.topics),
+                    "niche": job.niche,
+                    "language": job.language,
+                    "auto_publish": job.auto_publish,
+                })
+        except Exception:
+            pass
+
         # Apply per-run cap
         topics = job.topics[:self._max_per_run]
 
@@ -315,6 +354,38 @@ class BatchGenerator:
 
         # Track analytics
         self._track_batch_analytics(result)
+
+        # Pipeline health reporting
+        try:
+            monitor = _get_health_monitor()
+            if monitor:
+                health_status = "ok" if result.failed == 0 else (
+                    "degraded" if result.succeeded > 0 else "error"
+                )
+                monitor.report_health(
+                    "batch_generator",
+                    health_status,
+                    error_msg="" if health_status == "ok" else f"{result.failed} video(s) failed",
+                    metadata={
+                        "total": result.total,
+                        "succeeded": result.succeeded,
+                        "failed": result.failed,
+                        "duration_seconds": round(result.duration_seconds, 2),
+                    },
+                )
+        except Exception:
+            pass
+
+        # Plugin lifecycle: batch complete
+        try:
+            pm = _get_plugin_manager()
+            if pm:
+                pm.hook.on_batch_complete(
+                    job={"niche": job.niche, "language": job.language},
+                    result=result.to_dict(),
+                )
+        except Exception:
+            pass
 
         return result
 

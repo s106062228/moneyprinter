@@ -1,0 +1,30 @@
+title: FastAPI Health Check Patterns 2026
+sources:
+  - url: https://patrykgolabek.dev/guides/fastapi-production/health-checks/
+    title: FastAPI Production Guide — Health Checks
+  - url: https://pypi.org/project/fastapi-healthchecks/
+    title: fastapi-healthchecks PyPI v1.1.0
+
+key_pattern: Liveness vs Readiness Separation
+liveness:
+  endpoint: /healthcheck
+  purpose: Is the process alive? Zero I/O, returns 200 immediately.
+  failure_action: Kubernetes restarts pod
+readiness:
+  endpoint: /ready
+  purpose: Can the process serve traffic? Checks all registered dependencies.
+  failure_action: Kubernetes removes from load balancer (503)
+
+critical_rule: Never add external dependency checks to liveness
+
+registry_pattern:
+  ReadinessCheckResult: "dataclass with name, is_healthy, detail, latency_ms"
+  ReadinessRegistry: "dict of named checks, run() executes all sequentially"
+  supports: both sync and async checks via isawaitable()
+
+fastapi_healthchecks_lib:
+  version: "1.1.0"
+  license: MIT
+  python: ">=3.10"
+  builtin_checks: [PostgreSQL, Redis, RabbitMQ, HTTP, Ceph]
+  custom: "extend Check base class with async __call__ returning CheckResult"

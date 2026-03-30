@@ -1902,3 +1902,405 @@ class TestQualityGateAndWatermarkIntegration:
         finally:
             os.unlink(tmp)
             os.unlink(tmp_wm)
+
+
+# ---------------------------------------------------------------------------
+# Pipeline health reporting tests (H59)
+# ---------------------------------------------------------------------------
+
+class TestPublisherHealthReporting:
+    """Tests for pipeline health reporting in publisher.publish() (H59)."""
+
+    def setup_method(self):
+        """Reset the health monitor singleton before each test."""
+        import publisher
+        publisher._get_health_monitor._instance = None
+
+    def teardown_method(self):
+        """Clean up singleton."""
+        import publisher
+        publisher._get_health_monitor._instance = None
+
+    def _make_publisher(self):
+        from publisher import ContentPublisher
+        with patch("publisher.get_retry_failed", return_value=False):
+            with patch("publisher.get_max_retries", return_value=0):
+                with patch("publisher.get_uniqueness_mode", return_value="off"):
+                    with patch("publisher.get_quality_gate_mode", return_value="off"):
+                        with patch("publisher.get_watermark_enabled", return_value=False):
+                            return ContentPublisher()
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_publish_all_succeed_reports_ok(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """Health reports 'ok' when all platforms succeed."""
+        from publisher import PublishJob, PublishResult
+
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        mock_monitor = MagicMock()
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                platforms=["youtube"],
+            )
+            with patch("publisher._get_health_monitor", return_value=mock_monitor):
+                with patch.object(pub, "_check_uniqueness", return_value=None):
+                    pub.publish(job)
+
+            mock_monitor.report_health.assert_called_once()
+            call_args = mock_monitor.report_health.call_args
+            assert call_args[0][0] == "publisher"
+            assert call_args[0][1] == "ok"
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_publish_all_fail_reports_error(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """Health reports 'error' when all platforms fail."""
+        from publisher import PublishJob, PublishResult
+
+        mock_pub.return_value = PublishResult(
+            platform="youtube", success=False, error_type="UploadFailed"
+        )
+
+        mock_monitor = MagicMock()
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                platforms=["youtube"],
+            )
+            with patch("publisher._get_health_monitor", return_value=mock_monitor):
+                with patch.object(pub, "_check_uniqueness", return_value=None):
+                    pub.publish(job)
+
+            mock_monitor.report_health.assert_called_once()
+            call_args = mock_monitor.report_health.call_args
+            assert call_args[0][0] == "publisher"
+            assert call_args[0][1] == "error"
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_publish_partial_fail_reports_degraded(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """Health reports 'degraded' when some platforms fail."""
+        from publisher import PublishJob, PublishResult
+
+        mock_pub.side_effect = [
+            PublishResult(platform="youtube", success=True),
+            PublishResult(platform="tiktok", success=False, error_type="UploadFailed"),
+        ]
+
+        mock_monitor = MagicMock()
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                platforms=["youtube", "tiktok"],
+            )
+            with patch("publisher._get_health_monitor", return_value=mock_monitor):
+                with patch.object(pub, "_check_uniqueness", return_value=None):
+                    pub.publish(job)
+
+            mock_monitor.report_health.assert_called_once()
+            call_args = mock_monitor.report_health.call_args
+            assert call_args[0][0] == "publisher"
+            assert call_args[0][1] == "degraded"
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_health_metadata_includes_counts(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """Metadata dict has 'succeeded', 'total', 'platforms' keys."""
+        from publisher import PublishJob, PublishResult
+
+        mock_pub.side_effect = [
+            PublishResult(platform="youtube", success=True),
+            PublishResult(platform="tiktok", success=False, error_type="UploadFailed"),
+        ]
+
+        mock_monitor = MagicMock()
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                platforms=["youtube", "tiktok"],
+            )
+            with patch("publisher._get_health_monitor", return_value=mock_monitor):
+                with patch.object(pub, "_check_uniqueness", return_value=None):
+                    pub.publish(job)
+
+            mock_monitor.report_health.assert_called_once()
+            _, kwargs = mock_monitor.report_health.call_args
+            metadata = kwargs.get("metadata", {})
+            assert "succeeded" in metadata
+            assert "total" in metadata
+            assert "platforms" in metadata
+            assert metadata["succeeded"] == 1
+            assert metadata["total"] == 2
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_health_exception_does_not_block_publish(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """If health monitor raises, publish() still returns results."""
+        from publisher import PublishJob, PublishResult
+
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        mock_monitor = MagicMock()
+        mock_monitor.report_health.side_effect = RuntimeError("monitor exploded")
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                platforms=["youtube"],
+            )
+            with patch("publisher._get_health_monitor", return_value=mock_monitor):
+                with patch.object(pub, "_check_uniqueness", return_value=None):
+                    results = pub.publish(job)
+
+            # publish() must still return results despite monitor raising
+            assert len(results) == 1
+            assert results[0].success is True
+        finally:
+            os.unlink(tmp)
+
+
+# ---------------------------------------------------------------------------
+# Plugin dispatch lifecycle hook tests (H61)
+# ---------------------------------------------------------------------------
+
+class TestPublisherPluginDispatch:
+    """Tests for plugin lifecycle hooks in publisher.publish() (H61)."""
+
+    def setup_method(self):
+        import publisher
+        publisher._get_plugin_manager._instance = None
+        publisher._get_health_monitor._instance = None
+
+    def teardown_method(self):
+        import publisher
+        publisher._get_plugin_manager._instance = None
+        publisher._get_health_monitor._instance = None
+
+    def _make_publisher(self):
+        from publisher import ContentPublisher
+        with patch("publisher.get_retry_failed", return_value=False):
+            with patch("publisher.get_max_retries", return_value=0):
+                with patch("publisher.get_uniqueness_mode", return_value="off"):
+                    with patch("publisher.get_quality_gate_mode", return_value="off"):
+                        with patch("publisher.get_watermark_enabled", return_value=False):
+                            return ContentPublisher()
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_on_pre_publish_called(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """on_pre_publish is called before quality gate."""
+        from publisher import PublishJob, PublishResult
+
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        mock_pm = MagicMock()
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                platforms=["youtube"],
+            )
+            with patch("publisher._get_plugin_manager", return_value=mock_pm):
+                with patch("publisher._get_health_monitor", return_value=MagicMock()):
+                    with patch.object(pub, "_check_uniqueness", return_value=None):
+                        pub.publish(job)
+
+            mock_pm.hook.on_pre_publish.assert_called_once()
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_on_post_publish_called_with_results(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """on_post_publish is called with job dict and results list."""
+        from publisher import PublishJob, PublishResult
+
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        mock_pm = MagicMock()
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                platforms=["youtube"],
+            )
+            with patch("publisher._get_plugin_manager", return_value=mock_pm):
+                with patch("publisher._get_health_monitor", return_value=MagicMock()):
+                    with patch.object(pub, "_check_uniqueness", return_value=None):
+                        pub.publish(job)
+
+            mock_pm.hook.on_post_publish.assert_called_once()
+            call_kwargs = mock_pm.hook.on_post_publish.call_args[1]
+            assert "job" in call_kwargs
+            assert "results" in call_kwargs
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_on_post_publish_results_format(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """Results list contains dicts with platform, success, error_type keys."""
+        from publisher import PublishJob, PublishResult
+
+        mock_pub.return_value = PublishResult(
+            platform="youtube", success=True, error_type=""
+        )
+
+        mock_pm = MagicMock()
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                platforms=["youtube"],
+            )
+            with patch("publisher._get_plugin_manager", return_value=mock_pm):
+                with patch("publisher._get_health_monitor", return_value=MagicMock()):
+                    with patch.object(pub, "_check_uniqueness", return_value=None):
+                        pub.publish(job)
+
+            call_kwargs = mock_pm.hook.on_post_publish.call_args[1]
+            results_list = call_kwargs["results"]
+            assert len(results_list) == 1
+            entry = results_list[0]
+            assert "platform" in entry
+            assert "success" in entry
+            assert "error_type" in entry
+            assert entry["platform"] == "youtube"
+            assert entry["success"] is True
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_plugin_exception_does_not_block_publish(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """If plugin manager raises, publish() still returns results."""
+        from publisher import PublishJob, PublishResult
+
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        mock_pm = MagicMock()
+        mock_pm.hook.on_pre_publish.side_effect = RuntimeError("plugin exploded")
+        mock_pm.hook.on_post_publish.side_effect = RuntimeError("plugin exploded")
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                platforms=["youtube"],
+            )
+            with patch("publisher._get_plugin_manager", return_value=mock_pm):
+                with patch("publisher._get_health_monitor", return_value=MagicMock()):
+                    with patch.object(pub, "_check_uniqueness", return_value=None):
+                        results = pub.publish(job)
+
+            # publish() must still return results despite plugin raising
+            assert len(results) == 1
+            assert results[0].success is True
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_no_plugin_manager_does_not_block(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """If _get_plugin_manager returns None, publish proceeds normally."""
+        from publisher import PublishJob, PublishResult
+
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher()
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                platforms=["youtube"],
+            )
+            with patch("publisher._get_plugin_manager", return_value=None):
+                with patch("publisher._get_health_monitor", return_value=MagicMock()):
+                    with patch.object(pub, "_check_uniqueness", return_value=None):
+                        results = pub.publish(job)
+
+            assert len(results) == 1
+            assert results[0].success is True
+        finally:
+            os.unlink(tmp)

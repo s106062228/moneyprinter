@@ -72,6 +72,32 @@ _DAY_WEIGHTS = {
 }
 
 
+def _get_health_monitor():
+    """Lazy singleton for PipelineHealthMonitor."""
+    if _get_health_monitor._instance is None:
+        try:
+            from pipeline_health import PipelineHealthMonitor
+            _get_health_monitor._instance = PipelineHealthMonitor()
+        except Exception:
+            return None
+    return _get_health_monitor._instance
+
+_get_health_monitor._instance = None
+
+
+def _get_plugin_manager():
+    """Lazy singleton for PluginManager."""
+    if _get_plugin_manager._instance is None:
+        try:
+            from plugin_manager import PluginManager
+            _get_plugin_manager._instance = PluginManager()
+        except Exception:
+            return None
+    return _get_plugin_manager._instance
+
+_get_plugin_manager._instance = None
+
+
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
@@ -392,6 +418,18 @@ class ContentScheduler:
         Raises:
             ValueError: If the job is invalid or queue is full.
         """
+        # Plugin lifecycle: pre-schedule
+        try:
+            pm = _get_plugin_manager()
+            if pm:
+                pm.hook.on_pre_schedule(job={
+                    "title": job.title,
+                    "platforms": job.platforms,
+                    "scheduled_time": job.scheduled_time,
+                })
+        except Exception:
+            pass
+
         job.validate()
 
         with self._lock:
@@ -408,6 +446,29 @@ class ContentScheduler:
             _save_schedule(data)
 
         logger.info(f"Scheduled job {job.job_id}: '{job.title}' for {job.scheduled_time or 'immediate'}")
+
+        # Pipeline health reporting
+        try:
+            monitor = _get_health_monitor()
+            if monitor:
+                monitor.report_health(
+                    "content_scheduler", "ok",
+                    metadata={"last_action": "add_job", "job_id": job.job_id},
+                )
+        except Exception:
+            pass
+
+        # Plugin lifecycle: post-schedule
+        try:
+            pm = _get_plugin_manager()
+            if pm:
+                pm.hook.on_post_schedule(
+                    job={"title": job.title, "platforms": job.platforms},
+                    job_id=job.job_id,
+                )
+        except Exception:
+            pass
+
         return job.job_id
 
     def remove_job(self, job_id: str) -> bool:
@@ -513,6 +574,15 @@ class ContentScheduler:
             if all_succeeded:
                 self._update_job_status(job.job_id, "completed")
                 success(f" => Scheduled job {job.job_id} completed successfully!")
+                try:
+                    monitor = _get_health_monitor()
+                    if monitor:
+                        monitor.report_health(
+                            "content_scheduler", "ok",
+                            metadata={"last_action": "execute_job", "job_id": job.job_id},
+                        )
+                except Exception:
+                    pass
             else:
                 failed_platforms = [r.platform for r in results if not r.success]
                 self._update_job_status(
@@ -538,6 +608,16 @@ class ContentScheduler:
             logger.warning(
                 f"Scheduled job {job.job_id} failed: {type(e).__name__}"
             )
+            try:
+                monitor = _get_health_monitor()
+                if monitor:
+                    monitor.report_health(
+                        "content_scheduler", "error",
+                        error_msg=type(e).__name__,
+                        metadata={"last_action": "execute_job", "job_id": job.job_id},
+                    )
+            except Exception:
+                pass
             return False
 
     def run_pending(self) -> dict:

@@ -290,6 +290,24 @@
 - [x] Write tests for pipeline_health module (99 tests, 93.01% coverage) [H58]
 - [x] Run full test suite (2763/2763 passing, 0 failures) [H56, H57, H58]
 
+## Completed — Iteration 19 (2026-03-31)
+- [x] Add 6 lifecycle hookspecs to MoneyPrinterSpec in plugin_manager.py [H61]
+- [x] Write tests for lifecycle hookspecs (13 tests) [H61]
+- [x] Add _get_health_monitor() lazy singleton + report_health() in publisher.py [H59]
+- [x] Add _get_health_monitor() + report_health() in content_scheduler.py [H59]
+- [x] Add _get_health_monitor() + report_health() in batch_generator.py [H59]
+- [x] Write tests for health reporting in publisher/scheduler/batch (14 tests) [H59]
+- [x] Add _get_pipeline_module_health() helper to dashboard.py [H60]
+- [x] Add GET /api/health/liveness endpoint to dashboard.py [H60]
+- [x] Add GET /api/health/readiness endpoint to dashboard.py [H60]
+- [x] Augment GET /api/health with pipeline module data [H60]
+- [x] Write tests for dashboard health endpoints (10 tests) [H60]
+- [x] Wire plugin dispatch into publisher.py (on_pre_publish, on_post_publish) [H61]
+- [x] Wire plugin dispatch into content_scheduler.py (on_pre_schedule, on_post_schedule) [H61]
+- [x] Wire plugin dispatch into batch_generator.py (on_batch_start, on_batch_complete) [H61]
+- [x] Write tests for plugin dispatch wiring (11 tests) [H61]
+- [x] Run full test suite (2791/2791 passing, 0 failures) [H59, H60, H61]
+
 ## Planned — High Priority
 - [x] Content calendar UI (frontend for content scheduler) — DONE (iteration 7)
 - [x] Dashboard frontend polish (charts, job management, content calendar view) — DONE (iteration 7)

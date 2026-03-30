@@ -635,3 +635,212 @@ class TestGetBestPostingTime:
         for platform in _ALLOWED_PLATFORMS:
             result = get_best_posting_time(platform)
             assert result["platform"] == platform
+
+
+# ---------------------------------------------------------------------------
+# Health reporting tests (H59)
+# ---------------------------------------------------------------------------
+
+class TestSchedulerHealthReporting:
+    """Tests that ContentScheduler integrates with PipelineHealthMonitor (H59)."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path):
+        import content_scheduler
+        self._original_file = content_scheduler._SCHEDULE_FILE
+        content_scheduler._SCHEDULE_FILE = str(tmp_path / "schedule.json")
+        # Reset singletons before each test
+        content_scheduler._get_health_monitor._instance = None
+        content_scheduler._get_plugin_manager._instance = None
+        yield
+        content_scheduler._SCHEDULE_FILE = self._original_file
+        content_scheduler._get_health_monitor._instance = None
+        content_scheduler._get_plugin_manager._instance = None
+
+    def _make_job(self, **overrides):
+        from content_scheduler import ScheduledJob
+        from datetime import datetime, timedelta
+        defaults = {
+            "video_path": "/tmp/test_video.mp4",
+            "title": "Test Video",
+            "platforms": ["youtube"],
+            "scheduled_time": (datetime.now() + timedelta(hours=1)).isoformat(),
+        }
+        defaults.update(overrides)
+        return ScheduledJob(**defaults)
+
+    @patch("os.path.isfile", return_value=True)
+    def test_add_job_reports_ok(self, _mock_isfile):
+        """After successful add_job(), report_health('content_scheduler', 'ok') is called."""
+        import content_scheduler
+
+        mock_monitor = MagicMock()
+        with patch.object(content_scheduler, "_get_health_monitor", return_value=mock_monitor):
+            with patch.object(content_scheduler, "_get_plugin_manager", return_value=None):
+                from content_scheduler import ContentScheduler
+                scheduler = ContentScheduler()
+                job = self._make_job()
+                scheduler.add_job(job)
+
+        mock_monitor.report_health.assert_called_once()
+        call_args = mock_monitor.report_health.call_args
+        assert call_args[0][0] == "content_scheduler"
+        assert call_args[0][1] == "ok"
+
+    @patch("os.path.isfile", return_value=True)
+    def test_execute_job_success_reports_ok(self, _mock_isfile):
+        """When all platforms succeed, report_health with 'ok'."""
+        import content_scheduler
+
+        mock_monitor = MagicMock()
+
+        mock_result = MagicMock()
+        mock_result.success = True
+        mock_publisher = MagicMock()
+        mock_publisher.publish.return_value = [mock_result]
+
+        with patch.object(content_scheduler, "_get_health_monitor", return_value=mock_monitor):
+            with patch.object(content_scheduler, "_get_plugin_manager", return_value=None):
+                from content_scheduler import ContentScheduler
+                scheduler = ContentScheduler()
+                job = self._make_job()
+                scheduler.add_job(job)
+                mock_monitor.reset_mock()  # Clear the add_job call
+
+                with patch("publisher.ContentPublisher", return_value=mock_publisher):
+                    scheduler.execute_job(job)
+
+        # report_health should have been called with "ok" for execute_job
+        calls = mock_monitor.report_health.call_args_list
+        assert any(
+            c[0][0] == "content_scheduler" and c[0][1] == "ok"
+            for c in calls
+        )
+
+    @patch("os.path.isfile", return_value=True)
+    def test_execute_job_failure_reports_error(self, _mock_isfile):
+        """When execute_job catches an exception, report_health with 'error'."""
+        import content_scheduler
+
+        mock_monitor = MagicMock()
+
+        with patch.object(content_scheduler, "_get_health_monitor", return_value=mock_monitor):
+            with patch.object(content_scheduler, "_get_plugin_manager", return_value=None):
+                from content_scheduler import ContentScheduler
+                scheduler = ContentScheduler()
+                job = self._make_job()
+                scheduler.add_job(job)
+                mock_monitor.reset_mock()
+
+                # Make publisher raise to trigger the exception handler
+                with patch("os.path.isfile", return_value=False):
+                    scheduler.execute_job(job)
+
+        calls = mock_monitor.report_health.call_args_list
+        assert any(
+            c[0][0] == "content_scheduler" and c[0][1] == "error"
+            for c in calls
+        )
+
+    @patch("os.path.isfile", return_value=True)
+    def test_health_exception_does_not_block_add_job(self, _mock_isfile):
+        """If monitor raises, add_job still returns job_id."""
+        import content_scheduler
+
+        mock_monitor = MagicMock()
+        mock_monitor.report_health.side_effect = RuntimeError("monitor down")
+
+        with patch.object(content_scheduler, "_get_health_monitor", return_value=mock_monitor):
+            with patch.object(content_scheduler, "_get_plugin_manager", return_value=None):
+                from content_scheduler import ContentScheduler
+                scheduler = ContentScheduler()
+                job = self._make_job()
+                job_id = scheduler.add_job(job)  # Must not raise
+
+        assert job_id == job.job_id
+
+
+# ---------------------------------------------------------------------------
+# Plugin dispatch tests (H61)
+# ---------------------------------------------------------------------------
+
+class TestSchedulerPluginDispatch:
+    """Tests that ContentScheduler dispatches plugin hooks (H61)."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path):
+        import content_scheduler
+        self._original_file = content_scheduler._SCHEDULE_FILE
+        content_scheduler._SCHEDULE_FILE = str(tmp_path / "schedule.json")
+        content_scheduler._get_health_monitor._instance = None
+        content_scheduler._get_plugin_manager._instance = None
+        yield
+        content_scheduler._SCHEDULE_FILE = self._original_file
+        content_scheduler._get_health_monitor._instance = None
+        content_scheduler._get_plugin_manager._instance = None
+
+    def _make_job(self, **overrides):
+        from content_scheduler import ScheduledJob
+        from datetime import datetime, timedelta
+        defaults = {
+            "video_path": "/tmp/test_video.mp4",
+            "title": "Test Video",
+            "platforms": ["youtube"],
+            "scheduled_time": (datetime.now() + timedelta(hours=1)).isoformat(),
+        }
+        defaults.update(overrides)
+        return ScheduledJob(**defaults)
+
+    @patch("os.path.isfile", return_value=True)
+    def test_on_pre_schedule_called(self, _mock_isfile):
+        """on_pre_schedule hook is called before add_job validates."""
+        import content_scheduler
+
+        mock_pm = MagicMock()
+
+        with patch.object(content_scheduler, "_get_plugin_manager", return_value=mock_pm):
+            with patch.object(content_scheduler, "_get_health_monitor", return_value=None):
+                from content_scheduler import ContentScheduler
+                scheduler = ContentScheduler()
+                job = self._make_job()
+                scheduler.add_job(job)
+
+        mock_pm.hook.on_pre_schedule.assert_called_once()
+        call_kwargs = mock_pm.hook.on_pre_schedule.call_args[1]
+        assert "job" in call_kwargs
+        assert call_kwargs["job"]["title"] == job.title
+
+    @patch("os.path.isfile", return_value=True)
+    def test_on_post_schedule_called_with_job_id(self, _mock_isfile):
+        """on_post_schedule hook is called after save, and receives job_id."""
+        import content_scheduler
+
+        mock_pm = MagicMock()
+
+        with patch.object(content_scheduler, "_get_plugin_manager", return_value=mock_pm):
+            with patch.object(content_scheduler, "_get_health_monitor", return_value=None):
+                from content_scheduler import ContentScheduler
+                scheduler = ContentScheduler()
+                job = self._make_job()
+                scheduler.add_job(job)
+
+        mock_pm.hook.on_post_schedule.assert_called_once()
+        call_kwargs = mock_pm.hook.on_post_schedule.call_args[1]
+        assert call_kwargs.get("job_id") == job.job_id
+
+    @patch("os.path.isfile", return_value=True)
+    def test_plugin_exception_does_not_block_add_job(self, _mock_isfile):
+        """If plugin raises, add_job still works and returns job_id."""
+        import content_scheduler
+
+        mock_pm = MagicMock()
+        mock_pm.hook.on_pre_schedule.side_effect = RuntimeError("plugin exploded")
+
+        with patch.object(content_scheduler, "_get_plugin_manager", return_value=mock_pm):
+            with patch.object(content_scheduler, "_get_health_monitor", return_value=None):
+                from content_scheduler import ContentScheduler
+                scheduler = ContentScheduler()
+                job = self._make_job()
+                job_id = scheduler.add_job(job)  # Must not raise
+
+        assert job_id == job.job_id
