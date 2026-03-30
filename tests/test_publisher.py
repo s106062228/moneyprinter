@@ -1381,3 +1381,524 @@ class TestPublishWithAffiliateLinks:
             assert job.description == original_desc
         finally:
             os.unlink(tmp)
+
+
+# ---------------------------------------------------------------------------
+# get_quality_gate_mode and get_watermark_enabled config tests
+# ---------------------------------------------------------------------------
+
+class TestQualityGateConfig:
+    """Tests for get_quality_gate_mode() and get_watermark_enabled() helpers."""
+
+    @patch("publisher._get")
+    def test_quality_gate_mode_block(self, mock_get):
+        mock_get.return_value = {"quality_gate_mode": "block"}
+        from publisher import get_quality_gate_mode
+        assert get_quality_gate_mode() == "block"
+
+    @patch("publisher._get")
+    def test_quality_gate_mode_warn(self, mock_get):
+        mock_get.return_value = {"quality_gate_mode": "warn"}
+        from publisher import get_quality_gate_mode
+        assert get_quality_gate_mode() == "warn"
+
+    @patch("publisher._get")
+    def test_quality_gate_mode_off(self, mock_get):
+        mock_get.return_value = {"quality_gate_mode": "off"}
+        from publisher import get_quality_gate_mode
+        assert get_quality_gate_mode() == "off"
+
+    @patch("publisher._get")
+    def test_quality_gate_mode_default_warn(self, mock_get):
+        mock_get.return_value = {}
+        from publisher import get_quality_gate_mode
+        assert get_quality_gate_mode() == "warn"
+
+    @patch("publisher._get")
+    def test_quality_gate_mode_invalid_defaults_to_warn(self, mock_get):
+        mock_get.return_value = {"quality_gate_mode": "strict"}
+        from publisher import get_quality_gate_mode
+        assert get_quality_gate_mode() == "warn"
+
+    @patch("publisher._get")
+    def test_watermark_enabled_true(self, mock_get):
+        mock_get.return_value = {"watermark_enabled": True}
+        from publisher import get_watermark_enabled
+        assert get_watermark_enabled() is True
+
+    @patch("publisher._get")
+    def test_watermark_enabled_false(self, mock_get):
+        mock_get.return_value = {"watermark_enabled": False}
+        from publisher import get_watermark_enabled
+        assert get_watermark_enabled() is False
+
+    @patch("publisher._get")
+    def test_watermark_enabled_default_false(self, mock_get):
+        mock_get.return_value = {}
+        from publisher import get_watermark_enabled
+        assert get_watermark_enabled() is False
+
+
+# ---------------------------------------------------------------------------
+# Quality gate pre-publish hook tests
+# ---------------------------------------------------------------------------
+
+class TestQualityGateHook:
+    """Tests for _check_quality_gate pre-publish hook."""
+
+    def _make_publisher_with_qg_mode(self, mode):
+        from publisher import ContentPublisher
+        with patch("publisher.get_retry_failed", return_value=False):
+            with patch("publisher.get_max_retries", return_value=0):
+                with patch("publisher.get_quality_gate_mode", return_value=mode):
+                    with patch("publisher.get_watermark_enabled", return_value=False):
+                        return ContentPublisher()
+
+    def _make_temp_job(self, tmp_path, **kwargs):
+        from publisher import PublishJob
+        defaults = {
+            "video_path": tmp_path,
+            "title": "Test Title",
+            "description": "Test description",
+            "platforms": ["youtube"],
+            "tags": ["ai"],
+            "script": "Full script text.",
+        }
+        defaults.update(kwargs)
+        return PublishJob(**defaults)
+
+    def test_mode_off_skips_quality_gate(self):
+        """When mode='off', ContentQualityGate is never called."""
+        from publisher import PublishJob
+        pub = self._make_publisher_with_qg_mode("off")
+        job = PublishJob(
+            video_path="/tmp/x.mp4",
+            title="Test",
+            platforms=["youtube"],
+        )
+
+        with patch("builtins.__import__") as mock_import:
+            pub._check_quality_gate(job)
+            imported_modules = [c.args[0] for c in mock_import.call_args_list]
+            assert "quality_gate" not in imported_modules
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_mode_warn_score_above_threshold_publishes(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """warn mode + score above threshold → publishes normally."""
+        from publisher import PublishResult
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_qg_mode("warn")
+            job = self._make_temp_job(tmp)
+
+            mock_verdict = MagicMock()
+            mock_verdict.passed = True
+            mock_verdict.overall_score = 85.0
+
+            mock_gate = MagicMock()
+            mock_gate.check_and_gate.return_value = (True, mock_verdict)
+
+            mock_module = MagicMock()
+            mock_module.ContentQualityGate.return_value = mock_gate
+
+            import sys
+            with patch.dict(sys.modules, {"quality_gate": mock_module}):
+                with patch.object(pub, "_check_uniqueness", return_value=None):
+                    results = pub.publish(job)
+
+            assert len(results) == 1
+            assert results[0].success is True
+        finally:
+            os.unlink(tmp)
+
+    def test_mode_warn_score_below_threshold_logs_warning_publishes(self):
+        """warn mode + verdict.passed=False → warning logged, returns None (proceed)."""
+        from publisher import PublishJob
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_qg_mode("warn")
+            job = self._make_temp_job(tmp)
+
+            mock_verdict = MagicMock()
+            mock_verdict.passed = False
+            mock_verdict.overall_score = 35.0
+
+            mock_gate = MagicMock()
+            # should_proceed=True, but verdict.passed=False → warn path
+            mock_gate.check_and_gate.return_value = (True, mock_verdict)
+
+            mock_module = MagicMock()
+            mock_module.ContentQualityGate.return_value = mock_gate
+
+            import sys
+            with patch.dict(sys.modules, {"quality_gate": mock_module}):
+                result = pub._check_quality_gate(job)
+
+            # warn mode: returns None (never blocks)
+            assert result is None
+        finally:
+            os.unlink(tmp)
+
+    def test_mode_block_score_below_threshold_returns_blocked(self):
+        """block mode + should_proceed=False → returns QualityBlocked results."""
+        from publisher import PublishJob
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_qg_mode("block")
+            pub._quality_gate_mode = "block"
+            job = self._make_temp_job(tmp, platforms=["youtube", "tiktok"])
+
+            mock_verdict = MagicMock()
+            mock_verdict.passed = False
+            mock_verdict.overall_score = 28.0
+
+            mock_gate = MagicMock()
+            mock_gate.check_and_gate.return_value = (False, mock_verdict)
+
+            mock_module = MagicMock()
+            mock_module.ContentQualityGate.return_value = mock_gate
+
+            import sys
+            with patch.dict(sys.modules, {"quality_gate": mock_module}):
+                result = pub._check_quality_gate(job)
+
+            assert result is not None
+            assert len(result) == 2
+            assert all(not r.success for r in result)
+            assert all(r.error_type == "QualityBlocked" for r in result)
+            assert result[0].details["quality_score"] == 28.0
+            assert result[0].details["quality_passed"] is False
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_mode_block_score_above_threshold_publishes(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """block mode + should_proceed=True → publishes normally."""
+        from publisher import PublishResult
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_qg_mode("block")
+            pub._quality_gate_mode = "block"
+            job = self._make_temp_job(tmp)
+
+            mock_verdict = MagicMock()
+            mock_verdict.passed = True
+            mock_verdict.overall_score = 78.0
+
+            mock_gate = MagicMock()
+            mock_gate.check_and_gate.return_value = (True, mock_verdict)
+
+            mock_module = MagicMock()
+            mock_module.ContentQualityGate.return_value = mock_gate
+
+            import sys
+            with patch.dict(sys.modules, {"quality_gate": mock_module}):
+                with patch.object(pub, "_check_uniqueness", return_value=None):
+                    results = pub.publish(job)
+
+            assert len(results) == 1
+            assert results[0].success is True
+        finally:
+            os.unlink(tmp)
+
+    def test_quality_gate_exception_fail_soft_returns_none(self):
+        """If ContentQualityGate raises, _check_quality_gate returns None (publish proceeds)."""
+        from publisher import PublishJob
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_qg_mode("warn")
+            job = self._make_temp_job(tmp)
+
+            mock_module = MagicMock()
+            mock_module.ContentQualityGate.side_effect = RuntimeError("gate exploded")
+
+            import sys
+            with patch.dict(sys.modules, {"quality_gate": mock_module}):
+                result = pub._check_quality_gate(job)
+
+            assert result is None
+        finally:
+            os.unlink(tmp)
+
+    def test_quality_gate_import_failure_fail_soft_returns_none(self):
+        """If quality_gate module cannot be imported, publishing is not blocked."""
+        from publisher import PublishJob
+
+        pub = self._make_publisher_with_qg_mode("warn")
+        job = PublishJob(
+            video_path="/tmp/x.mp4",
+            title="Test",
+            platforms=["youtube"],
+        )
+
+        import sys
+        with patch.dict(sys.modules, {"quality_gate": None}):
+            result = pub._check_quality_gate(job)
+
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Watermark pre-publish hook tests
+# ---------------------------------------------------------------------------
+
+class TestWatermarkHook:
+    """Tests for _apply_watermark pre-publish hook."""
+
+    def _make_publisher_with_watermark(self, enabled):
+        from publisher import ContentPublisher
+        with patch("publisher.get_retry_failed", return_value=False):
+            with patch("publisher.get_max_retries", return_value=0):
+                with patch("publisher.get_quality_gate_mode", return_value="off"):
+                    with patch("publisher.get_watermark_enabled", return_value=enabled):
+                        return ContentPublisher()
+
+    def test_watermark_disabled_returns_original_path(self):
+        """When watermark_enabled=False, _apply_watermark returns job.video_path unchanged."""
+        from publisher import PublishJob
+        pub = self._make_publisher_with_watermark(False)
+        job = PublishJob(video_path="/tmp/test.mp4", title="Test")
+
+        result_path = pub._apply_watermark(job)
+        assert result_path == "/tmp/test.mp4"
+
+    def test_watermark_disabled_no_import_attempted(self):
+        """When watermark_enabled=False, content_watermarker is never imported."""
+        from publisher import PublishJob
+        pub = self._make_publisher_with_watermark(False)
+        job = PublishJob(video_path="/tmp/test.mp4", title="Test")
+
+        with patch("builtins.__import__") as mock_import:
+            pub._apply_watermark(job)
+            imported_modules = [c.args[0] for c in mock_import.call_args_list]
+            assert "content_watermarker" not in imported_modules
+
+    def test_watermark_enabled_embed_called_path_updated(self):
+        """When watermark_enabled=True and embed succeeds, returns new file path."""
+        from publisher import PublishJob
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_watermark(True)
+            pub._watermark_enabled = True
+            job = PublishJob(video_path=tmp, title="My Great Video Title Here")
+
+            mock_result = MagicMock()
+            mock_result.embedded = True
+            mock_result.file_path = "/tmp/watermarked.mp4"
+            mock_result.error = None
+
+            mock_wm = MagicMock()
+            mock_wm.embed.return_value = mock_result
+
+            mock_module = MagicMock()
+            mock_module.ContentWatermarker.return_value = mock_wm
+
+            import sys
+            with patch.dict(sys.modules, {"content_watermarker": mock_module}):
+                result_path = pub._apply_watermark(job)
+
+            assert result_path == "/tmp/watermarked.mp4"
+            # embed called with title truncated to 30 chars
+            mock_wm.embed.assert_called_once_with(tmp, message="My Great Video Title Here"[:30])
+        finally:
+            os.unlink(tmp)
+
+    def test_watermark_enabled_embed_fails_returns_original_path(self):
+        """When watermark_enabled=True but embed fails (embedded=False), returns original path."""
+        from publisher import PublishJob
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_watermark(True)
+            pub._watermark_enabled = True
+            job = PublishJob(video_path=tmp, title="Test")
+
+            mock_result = MagicMock()
+            mock_result.embedded = False
+            mock_result.file_path = None
+            mock_result.error = "FFmpeg not found"
+
+            mock_wm = MagicMock()
+            mock_wm.embed.return_value = mock_result
+
+            mock_module = MagicMock()
+            mock_module.ContentWatermarker.return_value = mock_wm
+
+            import sys
+            with patch.dict(sys.modules, {"content_watermarker": mock_module}):
+                result_path = pub._apply_watermark(job)
+
+            assert result_path == tmp
+        finally:
+            os.unlink(tmp)
+
+    def test_watermark_exception_fail_soft_returns_original_path(self):
+        """If ContentWatermarker raises, _apply_watermark returns original path (publish continues)."""
+        from publisher import PublishJob
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher_with_watermark(True)
+            pub._watermark_enabled = True
+            job = PublishJob(video_path=tmp, title="Test")
+
+            mock_module = MagicMock()
+            mock_module.ContentWatermarker.side_effect = RuntimeError("watermarker exploded")
+
+            import sys
+            with patch.dict(sys.modules, {"content_watermarker": mock_module}):
+                result_path = pub._apply_watermark(job)
+
+            assert result_path == tmp
+        finally:
+            os.unlink(tmp)
+
+
+# ---------------------------------------------------------------------------
+# Integration tests: both hooks together
+# ---------------------------------------------------------------------------
+
+class TestQualityGateAndWatermarkIntegration:
+    """Integration tests exercising quality gate + watermark hooks together in publish()."""
+
+    def _make_publisher(self, qg_mode="off", watermark=False):
+        from publisher import ContentPublisher
+        with patch("publisher.get_retry_failed", return_value=False):
+            with patch("publisher.get_max_retries", return_value=0):
+                with patch("publisher.get_quality_gate_mode", return_value=qg_mode):
+                    with patch("publisher.get_watermark_enabled", return_value=watermark):
+                        with patch("publisher.get_uniqueness_mode", return_value="off"):
+                            return ContentPublisher()
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_both_hooks_off_publishes_normally(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """quality_gate=off + watermark=False → publish proceeds unaffected."""
+        from publisher import PublishResult
+        mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher(qg_mode="off", watermark=False)
+            from publisher import PublishJob
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                platforms=["youtube"],
+            )
+            results = pub.publish(job)
+            assert len(results) == 1
+            assert results[0].success is True
+            mock_pub.assert_called_once()
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_quality_blocked_before_watermark(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """When quality gate blocks, watermark is never applied and publish is aborted."""
+        from publisher import PublishResult
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        try:
+            pub = self._make_publisher(qg_mode="block", watermark=True)
+            pub._quality_gate_mode = "block"
+            pub._watermark_enabled = True
+
+            from publisher import PublishJob
+            job = PublishJob(
+                video_path=tmp,
+                title="Low Quality Content",
+                platforms=["youtube"],
+            )
+
+            with patch.object(pub, "_check_quality_gate") as mock_qg, \
+                 patch.object(pub, "_apply_watermark") as mock_wm:
+
+                blocked = [PublishResult(
+                    platform="youtube",
+                    success=False,
+                    error_type="QualityBlocked",
+                    details={"quality_score": 20.0, "quality_passed": False},
+                )]
+                mock_qg.return_value = blocked
+
+                results = pub.publish(job)
+
+            assert len(results) == 1
+            assert results[0].error_type == "QualityBlocked"
+            # watermark should NOT have been called since quality gate blocked first
+            mock_wm.assert_not_called()
+            # _publish_to_platform also should not have been called
+            mock_pub.assert_not_called()
+        finally:
+            os.unlink(tmp)
+
+    @patch("publisher.ContentPublisher._send_notification")
+    @patch("publisher.ContentPublisher._track_analytics")
+    @patch("publisher.ContentPublisher._publish_to_platform")
+    def test_watermark_applied_then_publish_uses_new_path(
+        self, mock_pub, mock_analytics, mock_notify
+    ):
+        """When watermark succeeds, _publish_to_platform receives watermarked job."""
+        from publisher import PublishResult
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            tmp = f.name
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f2:
+            tmp_wm = f2.name
+        try:
+            pub = self._make_publisher(qg_mode="off", watermark=True)
+            pub._watermark_enabled = True
+
+            from publisher import PublishJob
+            job = PublishJob(
+                video_path=tmp,
+                title="Test",
+                platforms=["youtube"],
+            )
+
+            mock_pub.return_value = PublishResult(platform="youtube", success=True)
+
+            with patch.object(pub, "_apply_watermark", return_value=tmp_wm):
+                results = pub.publish(job)
+
+            # job.video_path should have been updated to watermarked path
+            assert job.video_path == tmp_wm
+            assert len(results) == 1
+            assert results[0].success is True
+        finally:
+            os.unlink(tmp)
+            os.unlink(tmp_wm)

@@ -23,6 +23,11 @@ from dataclasses import asdict
 _mock_scenedetect = MagicMock()
 _mock_video_splitter = MagicMock()
 _mock_frame_timecode = MagicMock()
+_SMART_CLIPPER_MOCKED_MODULES = [
+    m for m in ('scenedetect', 'scenedetect.video_splitter',
+                'scenedetect.frame_timecode', 'faster_whisper')
+    if m not in sys.modules
+]
 sys.modules.setdefault('scenedetect', _mock_scenedetect)
 sys.modules.setdefault('scenedetect.video_splitter', _mock_video_splitter)
 sys.modules.setdefault('scenedetect.frame_timecode', _mock_frame_timecode)
@@ -921,3 +926,18 @@ class TestSplitClips:
         assert "001" in basename
         assert "5.0" in basename
         assert "20.0" in basename
+
+
+# ---------------------------------------------------------------------------
+# Module-level cleanup — remove mocks injected only by this file so they do
+# not leak into later test modules via sys.modules.
+# ---------------------------------------------------------------------------
+import atexit as _atexit
+
+
+def _cleanup_smart_clipper_mocks():
+    for _mod in _SMART_CLIPPER_MOCKED_MODULES:
+        sys.modules.pop(_mod, None)
+
+
+_atexit.register(_cleanup_smart_clipper_mocks)

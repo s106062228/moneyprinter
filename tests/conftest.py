@@ -9,6 +9,48 @@ import pytest
 import tempfile
 import shutil
 
+# --- sys.modules protection ---
+
+# Snapshot of sys.modules keys at session start
+_INITIAL_SYS_MODULES_KEYS: frozenset = frozenset()
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _protect_sys_modules():
+    """Record sys.modules at session start; warn on unexpected additions."""
+    global _INITIAL_SYS_MODULES_KEYS
+    _INITIAL_SYS_MODULES_KEYS = frozenset(sys.modules.keys())
+    yield
+    # Session teardown — log any leaked modules (informational only)
+    leaked = set(sys.modules.keys()) - _INITIAL_SYS_MODULES_KEYS
+    # Filter out test-related and standard lib additions that pytest naturally creates
+    leaked = {
+        k for k in leaked
+        if not k.startswith(("_pytest", "pytest", "pluggy", "tests."))
+    }
+    if leaked:
+        print(f"\n[conftest] sys.modules additions during test session: {sorted(leaked)[:20]}")
+
+
+def mock_optional_dep(name: str, mock_obj=None):
+    """Register a mock for an optional dependency in sys.modules.
+
+    Use this instead of raw sys.modules.setdefault() for cleaner intent.
+    Returns the mock object (either provided or a new MagicMock).
+
+    Args:
+        name: Module name to mock (e.g., "moviepy", "videoseal").
+        mock_obj: Optional mock to use. If None, creates a MagicMock.
+
+    Returns:
+        The mock object installed in sys.modules.
+    """
+    from unittest.mock import MagicMock
+    if mock_obj is None:
+        mock_obj = MagicMock()
+    sys.modules.setdefault(name, mock_obj)
+    return sys.modules[name]
+
 # Add src/ to the Python path so we can import modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 

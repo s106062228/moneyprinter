@@ -179,6 +179,20 @@ def get_uniqueness_mode() -> str:
     return mode
 
 
+def get_quality_gate_mode() -> str:
+    """Returns quality gate mode: 'block', 'warn', or 'off'."""
+    mode = _get_publisher_config().get("quality_gate_mode", "warn")
+    if mode not in ("block", "warn", "off"):
+        logger.warning(f"Invalid quality_gate_mode '{mode}', defaulting to 'warn'")
+        return "warn"
+    return mode
+
+
+def get_watermark_enabled() -> bool:
+    """Returns whether watermarking is enabled before publishing."""
+    return bool(_get_publisher_config().get("watermark_enabled", False))
+
+
 def _format_affiliate_links(links: list, platform: str) -> str:
     """Format affiliate links for a specific platform.
 
@@ -247,6 +261,8 @@ class ContentPublisher:
         self._retry_failed = get_retry_failed()
         self._max_retries = get_max_retries()
         self._uniqueness_mode = get_uniqueness_mode()
+        self._quality_gate_mode = get_quality_gate_mode()
+        self._watermark_enabled = get_watermark_enabled()
 
     def publish(self, job: PublishJob) -> list:
         """
@@ -266,6 +282,16 @@ class ContentPublisher:
         job.validate()
 
         verbose = get_verbose()
+
+        # Pre-publish quality gate check
+        quality_blocked = self._check_quality_gate(job)
+        if quality_blocked is not None:
+            return quality_blocked
+
+        # Pre-publish watermark
+        watermarked_path = self._apply_watermark(job)
+        if watermarked_path != job.video_path:
+            job.video_path = watermarked_path
 
         # Pre-publish uniqueness check
         blocked = self._check_uniqueness(job)
@@ -324,6 +350,96 @@ class ContentPublisher:
             self._update_uniqueness_history(job)
 
         return results
+
+    def _check_quality_gate(self, job: PublishJob) -> Optional[list]:
+        """Run quality gate check before publishing.
+
+        Returns None if publishing should proceed.
+        Returns list of PublishResult if publishing should be blocked.
+        """
+        if self._quality_gate_mode == "off":
+            return None
+
+        try:
+            from quality_gate import ContentQualityGate
+            gate = ContentQualityGate(mode=self._quality_gate_mode)
+
+            # Check against first platform (or "youtube" as default)
+            platform = (job.platforms[0] if job.platforms else "youtube").lower()
+
+            should_proceed, verdict = gate.check_and_gate(
+                title=job.title,
+                description=job.description,
+                script=job.script,
+                tags=job.tags,
+                platform=platform,
+            )
+
+            if not should_proceed:
+                score = verdict.overall_score if verdict else 0.0
+                warning(
+                    f" => Content quality below threshold (score={score:.1f}). "
+                    f"Publishing blocked."
+                )
+                logger.warning(
+                    f"Quality gate BLOCKED publish: score={score:.3f}"
+                )
+                return [
+                    PublishResult(
+                        platform=p,
+                        success=False,
+                        error_type="QualityBlocked",
+                        details={
+                            "quality_score": score,
+                            "quality_passed": False,
+                        },
+                    )
+                    for p in (job.platforms or get_default_platforms())
+                ]
+
+            if verdict and not verdict.passed:
+                score = verdict.overall_score
+                warning(
+                    f" => Content quality warning (score={score:.1f}). "
+                    f"Publishing anyway."
+                )
+                logger.warning(
+                    f"Quality gate WARNING: score={score:.3f}"
+                )
+        except Exception as e:
+            # Fail-soft: don't block publishing if quality gate fails
+            logger.warning(f"Quality gate check failed: {type(e).__name__}: {e}")
+
+        return None
+
+    def _apply_watermark(self, job: PublishJob) -> str:
+        """Apply watermark to video if enabled.
+
+        Returns the video path to use for publishing (possibly watermarked).
+        """
+        if not self._watermark_enabled:
+            return job.video_path
+
+        try:
+            from content_watermarker import ContentWatermarker
+            wm = ContentWatermarker()
+            result = wm.embed(job.video_path, message=job.title[:30])
+
+            if result.embedded and result.file_path:
+                logger.info(
+                    f"Watermark applied: {result.file_path}"
+                )
+                info(f" => Watermark applied to video")
+                return result.file_path
+            elif result.error:
+                logger.warning(f"Watermark not applied: {result.error}")
+            else:
+                logger.warning("Watermark not applied: unknown reason")
+        except Exception as e:
+            # Fail-soft: don't block publishing if watermark fails
+            logger.warning(f"Watermark failed: {type(e).__name__}: {e}")
+
+        return job.video_path
 
     def _check_uniqueness(self, job: PublishJob) -> Optional[list]:
         """Run uniqueness check before publishing.

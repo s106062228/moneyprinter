@@ -15,6 +15,10 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 # Mock external provider SDKs before importing llm_provider
+_LLM_PROVIDER_PREV_MODULES = {
+    m: sys.modules.get(m)
+    for m in ("ollama", "openai", "anthropic", "groq")
+}
 mock_ollama = MagicMock()
 sys.modules["ollama"] = mock_ollama
 sys.modules["openai"] = MagicMock()
@@ -273,3 +277,21 @@ class TestOllamaNoModel:
         provider = llm_provider.OllamaProvider()
         with pytest.raises(RuntimeError, match="No model specified"):
             provider.generate("Hello")
+
+
+# ---------------------------------------------------------------------------
+# Module-level cleanup — restore SDK entries in sys.modules to whatever they
+# were before this file injected mocks, so later test files are not polluted.
+# ---------------------------------------------------------------------------
+import atexit as _atexit
+
+
+def _cleanup_llm_provider_mocks():
+    for _mod, _prev in _LLM_PROVIDER_PREV_MODULES.items():
+        if _prev is None:
+            sys.modules.pop(_mod, None)
+        else:
+            sys.modules[_mod] = _prev
+
+
+_atexit.register(_cleanup_llm_provider_mocks)

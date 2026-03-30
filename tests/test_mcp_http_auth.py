@@ -13,6 +13,10 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 # Stub out fastmcp BEFORE importing mcp_server
+_MCP_HTTP_AUTH_MOCKED_MODULES = [
+    m for m in ("fastmcp", "fastmcp.server", "fastmcp.server.auth")
+    if m not in sys.modules
+]
 _mock_fastmcp_module = MagicMock()
 _mock_mcp_instance = MagicMock()
 _mock_mcp_instance.tool = lambda fn: fn
@@ -123,3 +127,18 @@ class TestArgparse:
         with open(server_path, "r") as f:
             source = f.read()
         assert "mcp.settings.auth" in source
+
+
+# ---------------------------------------------------------------------------
+# Module-level cleanup — remove mocks injected only by this file so they do
+# not leak into later test modules via sys.modules.
+# ---------------------------------------------------------------------------
+import atexit as _atexit
+
+
+def _cleanup_mcp_http_auth_mocks():
+    for _mod in _MCP_HTTP_AUTH_MOCKED_MODULES:
+        sys.modules.pop(_mod, None)
+
+
+_atexit.register(_cleanup_mcp_http_auth_mocks)

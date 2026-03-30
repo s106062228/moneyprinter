@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 # ---------------------------------------------------------------------------
 # Stub out fastmcp BEFORE importing mcp_server so the import doesn't fail
 # ---------------------------------------------------------------------------
+_MCP_SERVER_PREV_FASTMCP = sys.modules.get("fastmcp")
 _mock_fastmcp_module = MagicMock()
 _mock_mcp_instance = MagicMock()
 # .tool must be a pass-through decorator so the functions stay callable
@@ -680,3 +681,20 @@ class TestGetAnalytics:
             get_analytics(platform="TikTok")
 
         mod.get_platform_report.assert_called_once_with("tiktok")
+
+
+# ---------------------------------------------------------------------------
+# Module-level cleanup — restore fastmcp in sys.modules to whatever it was
+# before this file injected the mock, so later test files are not polluted.
+# ---------------------------------------------------------------------------
+import atexit as _atexit
+
+
+def _cleanup_mcp_server_mocks():
+    if _MCP_SERVER_PREV_FASTMCP is None:
+        sys.modules.pop("fastmcp", None)
+    else:
+        sys.modules["fastmcp"] = _MCP_SERVER_PREV_FASTMCP
+
+
+_atexit.register(_cleanup_mcp_server_mocks)

@@ -1,0 +1,74 @@
+iteration: 18
+date: "2026-03-30"
+survey_source: "JOURNAL.md — Survey 2026-03-30 (Iteration 18)"
+
+hypotheses:
+  - id: H56
+    title: "Wire quality gate + watermarker into publisher.py as pre-publish hooks"
+    description: |
+      Add two pre-publish hooks to ContentPublisher.publish() that run between
+      validation and platform dispatch:
+      1. Quality gate check: call ContentQualityGate.check_and_gate() with job metadata.
+         In "block" mode, return QualityBlocked PublishResults. In "warn" mode, log and continue.
+      2. Watermark embed: call ContentWatermarker.embed() on the video file before publishing.
+         If watermarking fails, log and continue (fail-soft).
+      Both hooks use lazy imports to avoid hard dependencies. Config keys:
+      - quality_gate.mode (block/warn/off, default "warn")
+      - quality_gate.threshold (0-100, default 60)
+      - watermark.enabled (true/false, default false)
+      - watermark.strength (0.05-1.0, default 0.2)
+    success_criteria:
+      - "Quality gate blocks publish when mode=block and score < threshold"
+      - "Quality gate warns but proceeds when mode=warn"
+      - "Watermark is applied to video before platform dispatch when enabled"
+      - "Both hooks are fail-soft (exceptions logged, publish continues)"
+      - "20+ new tests covering hook integration paths"
+      - ">85% coverage on publisher.py"
+    priority: HIGH
+    risk: LOW
+    estimated_changes: 1 file modified (publisher.py), 1 test file modified
+
+  - id: H57
+    title: "Centralized conftest.py mock registry for optional dependencies"
+    description: |
+      Create a conftest.py-based mock registry that centralizes all sys.modules
+      mocking for optional dependencies (moviepy, videoseal, scenedetect,
+      faster_whisper, fastmcp, ollama, etc.). Replace raw sys.modules.setdefault()
+      calls in 9 test files with pytest fixtures from a shared fixtures module.
+      Use autouse session-scoped fixtures that save/restore sys.modules state,
+      preventing cross-test contamination.
+    success_criteria:
+      - "All 9 test files using sys.modules mocking are migrated to fixtures"
+      - "Session-scoped autouse fixture saves/restores sys.modules"
+      - "Zero cross-test contamination (test order independence)"
+      - "Full test suite passes (2641+ tests, 0 failures)"
+      - "No new dependencies required"
+    priority: MEDIUM
+    risk: MEDIUM
+    estimated_changes: 1 new file (tests/fixtures/optional_deps.py), conftest.py modified, 9 test files modified
+
+  - id: H58
+    title: "Pipeline health monitor module"
+    description: |
+      Create src/pipeline_health.py with a lightweight PipelineHealthMonitor
+      that tracks operational health across all 28+ modules. Features:
+      - ModuleHealth dataclass: module_name, status (ok/degraded/error),
+        last_check timestamp, error_count, success_count, last_error
+      - PipelineHealthMonitor class: register_module(), report_health(),
+        check_all(), get_summary(), reset()
+      - JSON persistence in .mp/pipeline_health.json (consistent with cache pattern)
+      - Dashboard endpoint integration: GET /api/health → module status overview
+    success_criteria:
+      - "ModuleHealth + PipelineHealthMonitor classes created"
+      - "register_module(), report_health(), check_all(), get_summary() methods"
+      - "JSON persistence with atomic writes (existing pattern)"
+      - "60+ new tests, >90% coverage"
+      - "Zero new required dependencies"
+    priority: MEDIUM
+    risk: LOW
+    estimated_changes: 1 new file (src/pipeline_health.py), 1 new test file
+
+priority_ranking:
+  - H56  # Direct retro priority, highest value, lowest risk
+  - H57  # Test infrastructure hardening, prevents future 78-failure incidents
+  - H58  # New module, medium value, addresses observability gap

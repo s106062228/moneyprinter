@@ -277,6 +277,19 @@
 - [x] Fix test contamination: sys.modules cleanup in test_repurpose_orchestrator.py (+78 pre-existing failures fixed)
 - [x] Run full test suite (2641/2641 passing, 0 failures) [H53, H54, H55]
 
+## Completed — Iteration 18 (2026-03-30)
+- [x] Add get_quality_gate_mode() and get_watermark_enabled() helpers to publisher.py [H56]
+- [x] Add _check_quality_gate() method to ContentPublisher [H56]
+- [x] Add _apply_watermark() method to ContentPublisher [H56]
+- [x] Wire hooks into publish() flow between validate() and _check_uniqueness() [H56]
+- [x] Write tests for publisher pre-publish hooks (23 new tests, 71.68% coverage) [H56]
+- [x] Add _protect_sys_modules session fixture + mock_optional_dep() helper to conftest.py [H57]
+- [x] Add atexit cleanup to 5 test files (smart_clipper, pipeline_integrator, mcp_server, mcp_http_auth, llm_provider) [H57]
+- [x] Run full test suite to verify zero regressions (2763 passing) [H57]
+- [x] Create src/pipeline_health.py with ModuleHealth + PipelineHealthMonitor [H58]
+- [x] Write tests for pipeline_health module (99 tests, 93.01% coverage) [H58]
+- [x] Run full test suite (2763/2763 passing, 0 failures) [H56, H57, H58]
+
 ## Planned — High Priority
 - [x] Content calendar UI (frontend for content scheduler) — DONE (iteration 7)
 - [x] Dashboard frontend polish (charts, job management, content calendar view) — DONE (iteration 7)

@@ -1,0 +1,168 @@
+iteration: 18
+date: "2026-03-30"
+hypotheses: [H56, H57, H58]
+
+# H56: Wire quality gate + watermarker into publisher.py
+h56_design:
+  target_file: src/publisher.py
+  approach: |
+    Add two config helpers and two pre-publish hook methods to ContentPublisher:
+    1. get_quality_gate_mode() → "block" | "warn" | "off" (default "warn")
+    2. get_watermark_enabled() → bool (default False)
+    3. _check_quality_gate(job, platforms) → Optional[list[PublishResult]]
+       - Lazy import ContentQualityGate
+       - For each unique platform, call check_and_gate()
+       - If any platform fails in block mode, return list of QualityBlocked results
+       - If warn mode, log warnings and return None (proceed)
+       - If off mode, skip entirely
+       - Fail-soft: exceptions → log + return None
+    4. _apply_watermark(job) → str (video_path, possibly modified)
+       - Lazy import ContentWatermarker
+       - If watermark.enabled is True, call wm.embed(job.video_path)
+       - On success, update job.video_path to watermarked file
+       - Fail-soft: exceptions → log + return original path
+
+    Insert hooks into publish() method:
+      1. After job.validate() and before _check_uniqueness()
+      2. Quality gate first, then watermark
+      3. Order: validate → quality_gate → watermark → uniqueness → platform_dispatch
+
+  new_config_keys:
+    - key: "quality_gate.mode"
+      type: string
+      default: "warn"
+      values: ["block", "warn", "off"]
+    - key: "quality_gate.threshold"
+      type: float
+      default: 60.0
+    - key: "watermark.enabled"
+      type: bool
+      default: false
+    - key: "watermark.strength"
+      type: float
+      default: 0.2
+
+  test_plan:
+    file: tests/test_publisher.py (modify existing)
+    scenarios:
+      - quality_gate off → publish proceeds, no gate call
+      - quality_gate warn + score above threshold → publish proceeds
+      - quality_gate warn + score below threshold → logs warning, publish proceeds
+      - quality_gate block + score below threshold → returns QualityBlocked results
+      - quality_gate block + score above threshold → publish proceeds
+      - quality_gate exception → logs error, publish proceeds (fail-soft)
+      - watermark enabled → embed called, video_path updated
+      - watermark enabled but fails → logs error, uses original path
+      - watermark disabled → embed not called
+      - both hooks together → quality gate first, then watermark, then uniqueness
+    estimated_tests: 25+
+
+# H57: Centralized conftest.py mock registry
+h57_design:
+  approach: |
+    Rather than a separate fixtures module, add session-scoped autouse fixtures
+    directly in conftest.py that manage sys.modules for optional deps. The key
+    insight: conftest.py fixtures with autouse=True + session scope run once
+    and provide clean mock modules that all tests share.
+
+    However, the current pattern is that individual test files set up their own
+    mocks at module level (before imports). This works because each test file
+    needs slightly different mock shapes. A centralized registry would need to
+    accommodate these differences.
+
+    Revised approach: Create a conftest.py fixture that SAVES sys.modules state
+    at session start and RESTORES it at session end. Individual test files
+    continue to set up their own mocks, but contamination is prevented by
+    the save/restore. Additionally, provide a helper function `mock_optional_dep()`
+    that test files can call instead of raw sys.modules manipulation.
+
+    Steps:
+    1. Add session-scoped fixture `_protect_sys_modules` (autouse) to conftest.py
+       that saves sys.modules keys at session start and removes any extras at teardown
+    2. Add `mock_optional_dep(name, mock_obj)` helper function in conftest.py
+    3. Migrate the 9 test files to use the helper where possible
+    4. For test files that need module-level mocking (before import), keep the
+       pattern but ensure cleanup in module-level teardown
+
+  files_modified:
+    - tests/conftest.py (add fixture + helper)
+    - tests/test_animated_captions.py
+    - tests/test_smart_clipper.py
+    - tests/test_pipeline_integrator.py
+    - tests/test_repurpose_orchestrator.py
+    - tests/test_content_watermarker.py
+    - tests/test_mcp_server.py
+    - tests/test_mcp_http_auth.py
+    - tests/test_llm_provider.py
+    - tests/test_video_templates.py
+
+  test_plan:
+    - All 2641+ existing tests continue to pass
+    - Test execution order independence verified
+    - No new test files needed — existing tests serve as validation
+
+# H58: Pipeline health monitor
+h58_design:
+  new_file: src/pipeline_health.py
+  classes:
+    - name: ModuleHealth
+      type: dataclass
+      fields:
+        - module_name: str
+        - status: str  # "ok" | "degraded" | "error" | "unknown"
+        - last_check: str  # ISO timestamp
+        - error_count: int
+        - success_count: int
+        - last_error: str
+        - metadata: dict  # extra key-value pairs
+
+    - name: PipelineHealthMonitor
+      type: class
+      methods:
+        - register_module(name) → None
+        - report_health(name, status, error_msg="", metadata=None) → None
+        - get_module_health(name) → ModuleHealth
+        - check_all() → dict[str, ModuleHealth]
+        - get_summary() → dict  # {total, ok, degraded, error, unknown}
+        - reset() → None
+        - save() → None  # persist to .mp/pipeline_health.json
+        - load() → None  # load from persistence
+      persistence: .mp/pipeline_health.json (atomic writes via tempfile + os.replace)
+      constants:
+        - _VALID_STATUSES: frozenset {"ok", "degraded", "error", "unknown"}
+        - _MAX_MODULES: 100
+        - _MAX_ERROR_LENGTH: 1000
+
+  test_plan:
+    file: tests/test_pipeline_health.py (new)
+    scenarios:
+      - register module, verify initial state
+      - report health ok/degraded/error
+      - report health for unregistered module → auto-registers
+      - get_summary with mixed statuses
+      - persistence save/load round-trip
+      - atomic write (verify tempfile pattern)
+      - max modules limit
+      - invalid status rejected
+      - reset clears all state
+      - concurrent register/report (thread safety basic)
+    estimated_tests: 60+
+
+task_breakdown:
+  h56_tasks:
+    - "Add get_quality_gate_mode() and get_watermark_enabled() helpers to publisher.py"
+    - "Add _check_quality_gate() method to ContentPublisher"
+    - "Add _apply_watermark() method to ContentPublisher"
+    - "Wire hooks into publish() flow between validate() and _check_uniqueness()"
+    - "Write tests for publisher pre-publish hooks (25+ tests)"
+    - "Run full test suite"
+
+  h57_tasks:
+    - "Add _protect_sys_modules session fixture + mock_optional_dep() helper to conftest.py"
+    - "Migrate 9 test files to use cleanup/helper patterns"
+    - "Run full test suite to verify zero regressions"
+
+  h58_tasks:
+    - "Create src/pipeline_health.py with ModuleHealth + PipelineHealthMonitor"
+    - "Write tests for pipeline_health module (60+ tests)"
+    - "Run full test suite"

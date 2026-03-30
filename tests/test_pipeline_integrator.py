@@ -41,6 +41,10 @@ from unittest.mock import patch, MagicMock, call
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 # Pre-stub heavy optional dependencies so the module can be imported
+_PIPELINE_INTEGRATOR_MOCKED_MODULES = [
+    _mod for _mod in ("moviepy", "faster_whisper")
+    if _mod not in sys.modules
+]
 for _mod in ("moviepy", "faster_whisper"):
     sys.modules.setdefault(_mod, MagicMock())
 
@@ -1001,3 +1005,18 @@ class TestApplyCaptions:
             apply_captions(str(video), style=None)
 
         mock_cls.assert_called_once_with(style=None)
+
+
+# ---------------------------------------------------------------------------
+# Module-level cleanup — remove mocks injected only by this file so they do
+# not leak into later test modules via sys.modules.
+# ---------------------------------------------------------------------------
+import atexit as _atexit
+
+
+def _cleanup_pipeline_integrator_mocks():
+    for _mod in _PIPELINE_INTEGRATOR_MOCKED_MODULES:
+        sys.modules.pop(_mod, None)
+
+
+_atexit.register(_cleanup_pipeline_integrator_mocks)

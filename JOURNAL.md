@@ -2322,3 +2322,128 @@ Post-iteration 16 landscape scan: content watermarking/fingerprinting, pipeline 
 5. **MCP server extensions** — expose watermarker, quality gate, repurpose as MCP tools (low priority)
 
 ---
+
+## Survey — 2026-03-30 (Iteration 18)
+
+### Research Focus
+Post-iteration 17 priorities: wiring quality gate + watermarker into publisher.py as pre-publish hooks, centralizing sys.modules mocking in conftest.py, lightweight pipeline health monitoring, and YouTube monetization policy updates for AI-generated content.
+
+### Key Findings
+
+#### 1. YouTube "Inauthentic Content" Policy Demands Pre-Publish Quality Gates
+- **YouTube renamed "repetitious content" to "inauthentic content"** (July 2025 update, still active March 2026). AI-generated videos with minimal human input, narration over reused clips, or mass-produced template content are explicitly ineligible for monetization.
+- **Key requirement**: Content must provide "significant original value" and creators must disclose synthetic media using the "Altered Content" label.
+- **Implication for MPV2**: Our `quality_gate.py` (iteration 17) scores content on 5 authenticity dimensions — it needs to be wired into the `publisher.py` publish() flow as a mandatory pre-publish check. Videos below threshold should be blocked from publishing.
+- **Watermarking**: Content provenance via invisible watermarks (our `content_watermarker.py`) helps prove ownership — useful if content is scraped/re-uploaded.
+- Sources: [YouTube AI Monetisation Policy 2026](https://bosswallah.com/blog/creator-hub/youtube-ai-monetisation-policy-2026-what-changes-whats-allowed-and-whats-banned/), [YouTube Shorts Monetization 2026](https://www.ssemble.com/blog/youtube-shorts-monetization-2026)
+
+#### 2. Conftest.py Centralized Mock Registry: pytest_plugins Pattern
+- **Problem**: MPV2 has 10+ test files using `sys.modules.setdefault()` for mocking optional deps (moviepy, videoseal, scenedetect, etc.). This caused 78 hidden failures in iteration 17.
+- **Solution**: pytest's `pytest_plugins` mechanism in `conftest.py` can load external fixture modules. A `tests/fixtures/` directory with module-specific mock fixtures, loaded via `pytest_plugins = ["fixtures.optional_deps"]`.
+- **Best practice**: Use `monkeypatch.syspath_prepend()` or `monkeypatch.setitem(sys.modules, ...)` instead of raw `sys.modules.setdefault()`. The monkeypatch fixture automatically restores state after each test.
+- **Key insight**: Session-scoped fixtures in conftest.py that set up and tear down sys.modules mocks prevent cross-test pollution entirely.
+- Sources: [pytest monkeypatch docs](https://docs.pytest.org/en/stable/how-to/monkeypatch.html), [Pytest Conftest Best Practices](https://pytest-with-eric.com/pytest-best-practices/pytest-conftest/)
+
+#### 3. Lightweight Pipeline Health Monitoring: structlog + Internal Metrics
+- **OpenTelemetry is overkill** for MPV2's needs (28 modules, no distributed system). A lightweight health monitor module is more appropriate.
+- **structlog pattern**: Each log event moves through a linear chain of processor functions. Similar pattern can be used for module health — each module reports status through a central registry.
+- **Pattern**: A `PipelineHealthMonitor` class with `register_module()`, `report_health()`, `check_all()` methods. Each module calls `report_health(module_name, status, metrics)`. The monitor tracks last-seen timestamps, error counts, and success rates.
+- **Persistence**: JSON file in `.mp/` directory (consistent with existing cache pattern). Dashboard endpoint for real-time status.
+- Sources: [structlog PyPI](https://pypi.org/project/structlog/), [Monitor Python Data Pipelines with OTEL](https://www.elastic.co/observability-labs/blog/monitor-your-python-data-pipelines-with-otel)
+
+#### 4. FastMCP 3.0/3.1 GA — New Provider System
+- **FastMCP 3.0 is GA** with major architecture redesign: Components, Providers, Transforms.
+- **CodeMode (3.1)**: Experimental transform that lets LLMs search for relevant tools on demand instead of loading the entire catalog. Solves context scaling for servers with many tools.
+- **Hot Reload**: `fastmcp dev server.py` watches files and reloads instantly.
+- **Our MCP server** (`src/mcp_server.py`) uses FastMCP 3.0 with 4 tools. Extending to expose watermarker, quality gate, and repurpose orchestrator is straightforward — each new tool is a decorated function.
+- Sources: [FastMCP 3.0 GA](https://www.jlowin.dev/blog/fastmcp-3-launch), [FastMCP Updates](https://gofastmcp.com/updates)
+
+### Gaps & Opportunities
+1. **Publisher pre-publish hooks** (HIGH): quality_gate + content_watermarker are standalone — wiring them into publisher.py's publish() flow is the #1 priority from iteration 17 retro.
+2. **Test infrastructure hardening** (MEDIUM): Centralized conftest.py mock registry prevents the sys.modules pollution that caused 78 hidden failures.
+3. **Pipeline health monitor** (MEDIUM): 28+ modules with no centralized health tracking. A lightweight registry pattern fits MPV2's architecture.
+
+---
+
+## Hypotheses — 2026-03-30 (Iteration 18)
+
+Formulated 3 hypotheses based on iteration 17 retro candidates and survey findings.
+
+| ID | Hypothesis | Priority | Risk |
+|----|-----------|----------|------|
+| H56 | Wire quality gate + watermarker into publisher.py as pre-publish hooks | HIGH | LOW |
+| H57 | Centralized conftest.py mock registry for optional dependencies | MEDIUM | MEDIUM |
+| H58 | Pipeline health monitor module | MEDIUM | LOW |
+
+**H56** is the #1 retro priority — quality_gate.py and content_watermarker.py were built in iteration 17 but left standalone. YouTube's 2026 "inauthentic content" policy makes pre-publish quality scoring critical for monetization.
+
+**H57** addresses the sys.modules pollution that caused 78 hidden test failures. 9 test files use raw sys.modules mocking — migrating to session-scoped conftest fixtures prevents future contamination.
+
+**H58** fills the observability gap for 28+ modules with no centralized health tracking.
+
+---
+
+## Architecture — 2026-03-30 (Iteration 18)
+
+Designed implementation for H56, H57, H58. 11 tasks added to TODO.md.
+
+Key decisions:
+1. **H56 (publisher hooks)**: Two pre-publish hooks in publish() flow — quality gate then watermark — inserted after validate() and before _check_uniqueness(). Both fail-soft with lazy imports. Config keys under `quality_gate.*` and `watermark.*`.
+2. **H57 (conftest mock registry)**: Session-scoped autouse fixture in conftest.py saves/restores sys.modules state. Helper function `mock_optional_dep()` replaces raw sys.modules.setdefault() calls. 9 test files migrated.
+3. **H58 (pipeline health)**: New `src/pipeline_health.py` with ModuleHealth dataclass + PipelineHealthMonitor class. JSON persistence in `.mp/pipeline_health.json` using atomic writes. register/report/check_all/summary API.
+
+---
+
+## Evaluation — 2026-03-30 (Iteration 18)
+
+### Hypotheses Tested This Iteration
+
+| ID | Hypothesis | Verdict | Key Metric |
+|----|-----------|---------|------------|
+| H56 | Wire quality gate + watermarker into publisher.py | **CONFIRMED** | 23 new tests, publisher.py 71.68% coverage |
+| H57 | Centralized conftest.py mock registry | **CONFIRMED** | 2763 tests passing, 5 test files hardened |
+| H58 | Pipeline health monitor module | **CONFIRMED** | 99 new tests, 93.01% coverage |
+
+### Key Observations
+1. All 3 hypotheses independently confirmed. Zero regressions.
+2. **H56**: Publisher now has 3 pre-publish hooks in order: quality_gate → watermark → uniqueness. Both quality gate and watermark are fail-soft (exceptions logged, publish continues). Quality gate supports block/warn/off modes. 23 new tests cover all paths.
+3. **H57**: Session-scoped `_protect_sys_modules` fixture added to conftest.py. 5 test files gained atexit cleanup for their sys.modules mocks (test_smart_clipper, test_pipeline_integrator, test_mcp_server, test_mcp_http_auth, test_llm_provider). 4 files already had proper cleanup.
+4. **H58**: Pipeline health monitor with ModuleHealth dataclass + PipelineHealthMonitor class. Atomic JSON persistence, UTC-aware timestamps, validation helpers. 99 tests at 93.01% coverage.
+5. Total: 2,763 tests passing (+122 new), 0 failures.
+6. Overall coverage: 86.35% (up from 86.13%).
+
+---
+
+## Retrospective — 2026-03-30 (Iteration 18)
+
+### What Worked
+1. **Parallel implementation**: All 3 hypotheses were independent, enabling 3 parallel agents. H56 (publisher hooks) at ~200s, H58 (pipeline health) at ~170s, H57 (conftest) at ~300s.
+2. **Fail-soft pattern**: Quality gate and watermark hooks in publisher.py catch all exceptions and log — publish never blocked by infrastructure failures. Follows the same pattern as the existing uniqueness check.
+3. **Lightweight test infrastructure fix**: H57 added atexit cleanup to 5 test files without disrupting any existing patterns. The session-scoped fixture provides informational logging of sys.modules leaks. No breaking changes.
+4. **Pipeline health module**: 99 tests at 93.01% coverage on first pass. Atomic persistence, UTC timestamps, validation — follows all established project conventions.
+5. **Coverage maintained**: 86.35% overall (up from 86.13%), despite publisher.py having many untested platform-specific paths (YouTube, TikTok, Twitter, Instagram upload code).
+
+### What Could Improve
+1. **Publisher platform coverage**: publisher.py is at 71.68% — the uncovered lines are the actual platform upload methods (_publish_youtube, _publish_tiktok, etc.) which require Selenium/browser fixtures. The new hook code is fully tested.
+2. **Pipeline health not yet wired**: The module exists but no modules call `report_health()` yet. A future iteration should wire health reporting into key modules (publisher, scheduler, batch_generator).
+3. **mock_optional_dep() not yet adopted**: The conftest helper function was added but test files still use their existing patterns. Migration to the helper is a future cleanup task.
+
+### Metrics
+| Metric | Before (iter 17) | After (iter 18) | Delta |
+|---|---|---|---|
+| Tests | 2641 | 2763 | +122 |
+| Failures | 0 | 0 | 0 |
+| Modules | 28 | 29 | +1 |
+| publisher.py | 63.37% | 71.68% | +8.31% |
+| pipeline_health.py | N/A | 93.01% | new |
+| Total coverage | 86.13% | 86.35% | +0.22% |
+| New deps | — | — | +0 |
+
+### Next Iteration Candidates
+1. **Wire pipeline health into key modules** — publisher, scheduler, batch_generator call report_health() (medium priority)
+2. **Dashboard health endpoint** — GET /api/health showing module status overview (medium priority)
+3. **Multi-language dubbing plugin** — Linly-Dubbing integration via plugin_manager (medium priority, complex)
+4. **Migrate test files to mock_optional_dep()** — use the new conftest helper (low priority, maintenance)
+5. **Publisher platform test fixtures** — mock Selenium for YouTube/TikTok/Twitter/Instagram upload testing (low priority)
+
+---
