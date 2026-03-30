@@ -1,0 +1,64 @@
+title: "Hypotheses — Iteration 16 (2026-03-30)"
+date: "2026-03-30"
+based_on: "papers/2026-03-30-iteration16-survey-refs.yaml"
+
+hypotheses:
+  - id: H50
+    title: "Plugin system for extensible platform integrations"
+    priority: HIGH
+    hypothesis: >
+      Adding a pluggy-based plugin system (plugin_manager.py) with hook specifications
+      for platform publishing, content generation, and analytics will enable third-party
+      platform integrations without modifying core code. This addresses the medium-priority
+      TODO item "Plugin system for custom platform integrations."
+    metric: >
+      Module passes unit tests with >90% coverage; plugin discovery, registration,
+      and hook calling work; at least one example plugin (e.g., Mastodon stub) demonstrates
+      the interface; existing publisher.py can be wired to call plugin hooks.
+    dependencies:
+      - "pluggy>=1.5.0"
+    status: UNTESTED
+
+  - id: H51
+    title: "Video analytics tracker with cross-platform engagement metrics"
+    priority: HIGH
+    hypothesis: >
+      Adding a video_analytics.py module that tracks per-video engagement metrics
+      (views, likes, comments, shares) across YouTube, TikTok, Twitter, and Instagram
+      with a unified VideoMetrics dataclass, history persistence, and trend computation
+      will address the TODO item "Video analytics dashboard (views, engagement tracking)."
+      The module collects metrics locally (no external API calls at this stage) and provides
+      reporting functions that can later be wired to platform APIs.
+    metric: >
+      Module passes unit tests with >90% coverage; VideoMetrics dataclass stores
+      per-video per-platform metrics; update/query/trend functions work; atomic JSON
+      persistence; integrates with existing analytics_report.py.
+    dependencies: []
+    status: UNTESTED
+
+  - id: H52
+    title: "Configurable rate limiter for API and publishing operations"
+    priority: MEDIUM
+    hypothesis: >
+      Adding a rate_limiter.py module with a configurable token-bucket rate limiter
+      (RateLimiter class) that supports per-platform limits, burst allowance, and
+      persistence will provide a reusable primitive for the publisher, webhook, LLM provider,
+      and API modules. This replaces ad-hoc time.sleep() calls scattered across the codebase
+      with a centralized, testable mechanism.
+    metric: >
+      Module passes unit tests with >90% coverage; token-bucket algorithm correctly
+      enforces rate limits; supports per-key limits (e.g., per-platform); thread-safe;
+      configurable via config.json.
+    dependencies: []
+    status: UNTESTED
+
+priority_ranking:
+  1: "H50 — Plugin system (addresses medium-priority TODO, enables extensibility)"
+  2: "H51 — Video analytics tracker (addresses medium-priority TODO, builds on existing analytics)"
+  3: "H52 — Rate limiter (fills architectural gap, reusable across modules)"
+
+implementation_recommendation: >
+  All three hypotheses are independent and can be implemented in parallel.
+  H50 introduces a new dependency (pluggy). H51 and H52 are zero-dependency additions.
+  All three produce standalone modules with comprehensive test suites.
+  Combined effort: ~150-200 new tests, bringing total to ~2200.

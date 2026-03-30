@@ -1,0 +1,35 @@
+title: "Retrospective — Iteration 16"
+date: "2026-03-30"
+iteration: 16
+
+hypotheses:
+  - { id: H50, title: "Plugin system (pluggy-based)", verdict: CONFIRMED, tests: 89, coverage: "96.08%" }
+  - { id: H51, title: "Video analytics tracker", verdict: CONFIRMED, tests: 102, coverage: "94.94%" }
+  - { id: H52, title: "Configurable rate limiter", verdict: CONFIRMED, tests: 76, coverage: "100.00%" }
+
+metrics:
+  tests_before: 2020
+  tests_after: 2287
+  tests_delta: 267
+  failures: 0
+  modules_before: 25
+  modules_after: 28
+  overall_coverage: "85.42%"
+  new_deps: ["pluggy>=1.5.0"]
+
+what_worked:
+  - "Parallel implementation of 3 independent modules"
+  - "Consistent project patterns (atomic JSON, threading, config)"
+  - "100% coverage on rate_limiter"
+  - "Zero regressions across 2287 tests"
+
+what_could_improve:
+  - "Wire plugin hooks into publisher.py"
+  - "Connect video analytics to platform APIs"
+  - "Migrate ad-hoc rate limiting to centralized module"
+
+next_candidates:
+  - "Wire plugin hooks into publisher.py"
+  - "YouTube API integration for metrics"
+  - "Migrate ad-hoc sleep patterns to rate_limiter"
+  - "Multi-language dubbing pipeline"

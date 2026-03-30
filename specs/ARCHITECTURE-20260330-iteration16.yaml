@@ -1,0 +1,168 @@
+title: "Architecture — Iteration 16 (2026-03-30)"
+date: "2026-03-30"
+hypotheses: [H50, H51, H52]
+baseline_tests: 2020
+
+modules:
+  # ─── H50: Plugin System ────────────────────────────────────────────
+  - id: H50
+    file: src/plugin_manager.py
+    test_file: tests/test_plugin_manager.py
+    description: >
+      Pluggy-based plugin system for extensible platform integrations.
+      Defines hook specifications for publishing, content generation, and analytics.
+      Provides PluginManager class for discovery, registration, and invocation.
+    new_dependency: "pluggy>=1.5.0"
+    classes:
+      - name: MoneyPrinterSpec
+        description: "Hook specification class decorated with @hookspec"
+        methods:
+          - "on_before_publish(job) -> Optional[dict]"
+          - "on_after_publish(job, results) -> None"
+          - "on_content_generated(content_type, metadata) -> None"
+          - "on_analytics_event(event_type, data) -> None"
+          - "transform_description(description, platform) -> str"
+      - name: PluginManager
+        description: "Core manager for plugin lifecycle"
+        methods:
+          - "__init__(project_name='moneyprinter')"
+          - "register(plugin) -> None"
+          - "unregister(plugin) -> None"
+          - "load_from_directory(path) -> int"
+          - "get_plugins() -> list"
+          - "hook -> pluggy.HookRelay"
+          - "is_registered(plugin) -> bool"
+    constants:
+      - "_PROJECT_NAME = 'moneyprinter'"
+      - "_MAX_PLUGINS = 50"
+    test_targets:
+      - "Hook spec discovery and registration"
+      - "Plugin register/unregister lifecycle"
+      - "Hook calling with multiple plugins"
+      - "Hook result aggregation (firstresult vs all)"
+      - "Plugin load from directory"
+      - "Max plugin limit enforcement"
+      - "Error handling for bad plugins"
+      - "Example plugin (MastodonStub) demonstrating interface"
+    estimated_tests: 55
+    target_coverage: ">90%"
+
+  # ─── H51: Video Analytics Tracker ─────────────────────────────────
+  - id: H51
+    file: src/video_analytics.py
+    test_file: tests/test_video_analytics.py
+    description: >
+      Per-video engagement metrics tracker with cross-platform support.
+      Stores views, likes, comments, shares per video per platform.
+      Provides trend computation, top-performers queries, and atomic persistence.
+    new_dependency: null
+    classes:
+      - name: VideoMetrics
+        type: dataclass
+        fields:
+          - "video_id: str"
+          - "platform: str"
+          - "views: int = 0"
+          - "likes: int = 0"
+          - "comments: int = 0"
+          - "shares: int = 0"
+          - "recorded_at: str (ISO timestamp)"
+      - name: VideoAnalyticsTracker
+        description: "Core tracker for video engagement metrics"
+        methods:
+          - "__init__(storage_path=None)"
+          - "record_metrics(video_id, platform, views, likes, comments, shares) -> VideoMetrics"
+          - "get_metrics(video_id, platform=None) -> list[VideoMetrics]"
+          - "get_latest_metrics(video_id, platform) -> Optional[VideoMetrics]"
+          - "get_top_videos(platform=None, metric='views', limit=10) -> list[VideoMetrics]"
+          - "get_trend(video_id, platform, metric='views', days=7) -> dict"
+          - "get_platform_summary(platform) -> dict"
+          - "delete_metrics(video_id) -> int"
+          - "_load() -> dict"
+          - "_save(data) -> None"
+    constants:
+      - "_MAX_RECORDS_PER_VIDEO = 1000"
+      - "_MAX_TOTAL_RECORDS = 100000"
+      - "_SUPPORTED_PLATFORMS = {'youtube', 'tiktok', 'twitter', 'instagram'}"
+      - "_VALID_METRICS = {'views', 'likes', 'comments', 'shares'}"
+    persistence: "Atomic JSON write (tempfile + os.replace) to .mp/video_analytics.json"
+    test_targets:
+      - "Record metrics for single and multiple platforms"
+      - "Query latest metrics, history, and trends"
+      - "Top videos by different metrics"
+      - "Platform summary aggregation"
+      - "Delete metrics"
+      - "Atomic persistence (crash safety)"
+      - "Record limits (per-video and total)"
+      - "Invalid platform/metric validation"
+      - "Empty state handling"
+      - "Thread safety"
+    estimated_tests: 65
+    target_coverage: ">90%"
+
+  # ─── H52: Rate Limiter ────────────────────────────────────────────
+  - id: H52
+    file: src/rate_limiter.py
+    test_file: tests/test_rate_limiter.py
+    description: >
+      Configurable token-bucket rate limiter for API and publishing operations.
+      Supports per-key limits, burst allowance, and thread-safety.
+      Replaces ad-hoc time.sleep() patterns across the codebase.
+    new_dependency: null
+    classes:
+      - name: RateLimiter
+        description: "Token-bucket rate limiter with per-key support"
+        methods:
+          - "__init__(rate, burst=1, name='')"
+          - "acquire(key='default', timeout=None) -> bool"
+          - "wait(key='default', timeout=None) -> None"
+          - "try_acquire(key='default') -> bool"
+          - "reset(key=None) -> None"
+          - "get_wait_time(key='default') -> float"
+          - "tokens_available(key='default') -> float"
+      - name: RateLimiterRegistry
+        description: "Global registry for named rate limiters"
+        methods:
+          - "get_limiter(name, rate=None, burst=None) -> RateLimiter"
+          - "configure_from_config() -> None"
+          - "reset_all() -> None"
+          - "list_limiters() -> list[str]"
+    constants:
+      - "_MAX_RATE = 1000.0  # max requests per second"
+      - "_MAX_BURST = 100"
+      - "_DEFAULT_TIMEOUT = 30.0"
+    config_key: "rate_limits"
+    config_example:
+      rate_limits:
+        publisher: { rate: 1.0, burst: 3 }
+        webhook: { rate: 1.0, burst: 1 }
+        llm: { rate: 5.0, burst: 10 }
+        api: { rate: 10.0, burst: 20 }
+    test_targets:
+      - "Token bucket fill and drain"
+      - "Burst allowance"
+      - "Per-key isolation"
+      - "Acquire with timeout"
+      - "try_acquire (non-blocking)"
+      - "wait (blocking)"
+      - "Thread safety (concurrent acquires)"
+      - "Reset single key and all keys"
+      - "Registry get_limiter with auto-create"
+      - "Registry configure_from_config"
+      - "Rate/burst bounds validation"
+      - "get_wait_time accuracy"
+    estimated_tests: 55
+    target_coverage: ">90%"
+
+implementation_order:
+  - "All three modules are independent — implement in parallel"
+  - "1. Add pluggy to requirements.txt"
+  - "2. Create src/plugin_manager.py [H50]"
+  - "3. Create src/video_analytics.py [H51]"
+  - "4. Create src/rate_limiter.py [H52]"
+  - "5. Create tests for all three modules"
+  - "6. Run full test suite"
+  - "7. Update TODO.md"
+
+total_estimated_new_tests: 175
+target_total_tests: 2195

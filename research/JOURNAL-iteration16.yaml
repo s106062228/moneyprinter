@@ -1,0 +1,70 @@
+title: "Journal — Iteration 16 (2026-03-30)"
+date: "2026-03-30"
+iteration: 16
+
+survey_findings:
+  - "Plugin systems: pluggy (pytest's plugin framework) is the best fit for MPV2 — lightweight, hook-based, proven at scale. Stevedore is overkill."
+  - "Video analytics: YouTube Data API v3, TikTok-Api (unofficial), SocialKit (commercial) for cross-platform engagement. Local metrics collection is the right first step."
+  - "Dubbing: LatentSync v1.5 (ByteDance) and MuseTalk are leading open-source lip sync models. Linly-Dubbing provides complete pipeline reference."
+  - "Competitors: AutoShorts.ai and AutoFaceless.ai are main commercial competitors. ShortGPT is closest open-source."
+  - "Rate limiting: Ad-hoc time.sleep() patterns in webhooks.py, publisher.py — centralized rate limiter fills an architectural gap."
+
+hypotheses_tested:
+  - id: H50
+    title: "Plugin system (pluggy-based)"
+    verdict: CONFIRMED
+    tests: 89
+    coverage: "96.08%"
+  - id: H51
+    title: "Video analytics tracker"
+    verdict: CONFIRMED
+    tests: 102
+    coverage: "94.94%"
+  - id: H52
+    title: "Configurable rate limiter"
+    verdict: CONFIRMED
+    tests: 76
+    coverage: "100.00%"
+
+key_observations:
+  - "All 3 hypotheses independently confirmed. Zero regressions."
+  - "pluggy provides clean hook specification with minimal boilerplate — 5 hooks cover all extension points."
+  - "Video analytics tracker reuses atomic persistence pattern from cache.py and analytics.py."
+  - "Token-bucket rate limiter is thread-safe and configurable via config.json."
+  - "Total: 2,287 tests passing (+267), 0 failures, overall coverage 85.42%."
+
+retrospective:
+  what_worked:
+    - "Parallel implementation: All 3 hypotheses independent, enabling parallel agent execution."
+    - "Consistent patterns: All modules follow project conventions (atomic JSON, threading.Lock, config.json, mp_logger)."
+    - "High test coverage: 100% on rate_limiter, 96% on plugin_manager, 95% on video_analytics."
+    - "2287-test milestone: Suite grew by 267 tests with zero regressions."
+  what_could_improve:
+    - "Plugin system not yet wired: publisher.py doesn't call hooks yet."
+    - "Video analytics not connected to platform APIs: Metrics are manually recorded."
+    - "Rate limiter not replacing ad-hoc sleeps: webhooks.py still uses own time.sleep()."
+
+metrics:
+  before:
+    tests: 2020
+    failures: 0
+    modules: 25
+  after:
+    tests: 2287
+    failures: 0
+    modules: 28
+    overall_coverage: "85.42%"
+    plugin_manager_coverage: "96.08%"
+    video_analytics_coverage: "94.94%"
+    rate_limiter_coverage: "100.00%"
+  delta:
+    tests: "+267"
+    modules: "+3"
+    new_deps: "pluggy"
+
+next_iteration_candidates:
+  - "Wire plugin hooks into publisher.py (low effort, high value)"
+  - "YouTube API integration for video_analytics (medium effort)"
+  - "Migrate ad-hoc rate limiting to rate_limiter (low effort)"
+  - "Multi-language dubbing pipeline (high effort, complex)"
+  - "Plugin directory auto-loading from ~/.moneyprinter/plugins/ (low effort)"

@@ -102,6 +102,12 @@
 - [x] Virality scorer module (`virality_scorer.py`) with LLM-based metadata scoring, platform-specific weights
 - [x] Unit tests for A/B testing (71 tests, 96.15% coverage), virality scorer (71 tests, 95.29% coverage), PATCH endpoint (12 tests)
 
+## Completed — Iteration 16 (2026-03-30)
+- [x] Plugin system (`plugin_manager.py`) with pluggy-based hook specs, plugin registration, directory loading (89 tests, 96.08% coverage) [H50]
+- [x] Video analytics tracker (`video_analytics.py`) with per-video engagement metrics, trend computation, atomic persistence (102 tests, 94.94% coverage) [H51]
+- [x] Configurable rate limiter (`rate_limiter.py`) with token-bucket algorithm, per-key limits, registry, config integration (76 tests, 100% coverage) [H52]
+- [x] Unit tests: 267 new tests, 2287 total suite, 0 failures [H50, H51, H52]
+
 ## Completed — Iteration 15 (2026-03-30)
 - [x] Predictive trend detection: TrendSpyG migration + predict_trends() + _forecast_peak() (37 tests, 91% coverage) [H47]
 - [x] Cache encryption at rest: Fernet symmetric encryption via MONEYPRINTER_CACHE_KEY env var (21 tests, 94% coverage) [H48]
@@ -244,6 +250,16 @@
 - [x] Write tests for affiliate link injection (26 tests, >85% coverage) [H49]
 - [x] Run full test suite (2000/2000 passing, 0 failures) [H47, H48, H49]
 
+## Implementation Tasks — Iteration 16 (2026-03-30)
+- [x] Add pluggy>=1.5.0 to requirements.txt [H50]
+- [x] Create src/plugin_manager.py with MoneyPrinterSpec, PluginManager [H50]
+- [x] Write tests for plugin_manager module (89 tests, 96.08% coverage) [H50]
+- [x] Create src/video_analytics.py with VideoMetrics, VideoAnalyticsTracker [H51]
+- [x] Write tests for video_analytics module (102 tests, 94.94% coverage) [H51]
+- [x] Create src/rate_limiter.py with RateLimiter, RateLimiterRegistry [H52]
+- [x] Write tests for rate_limiter module (76 tests, 100% coverage) [H52]
+- [x] Run full test suite (2287/2287 passing, 0 failures) [H50, H51, H52]
+
 ## Planned — High Priority
 - [x] Content calendar UI (frontend for content scheduler) — DONE (iteration 7)
 - [x] Dashboard frontend polish (charts, job management, content calendar view) — DONE (iteration 7)
@@ -259,9 +275,9 @@
 - [ ] Multi-language dubbing (AI lip-sync for cross-language distribution)
 
 ## Planned — Low Priority
-- [ ] Plugin system for custom platform integrations
+- [x] Plugin system for custom platform integrations — DONE (iteration 16, pluggy-based)
 - [ ] Multi-language UI
-- [ ] Video analytics dashboard (views, engagement tracking)
+- [x] Video analytics dashboard (views, engagement tracking) — DONE (iteration 16, video_analytics.py)
 - [x] Auto-niche detection from trending topics — DONE (iteration 10)
 - [x] Encrypt cache files containing account data at rest — DONE (iteration 15)
 - [ ] Kubernetes Helm chart for scaled deployment

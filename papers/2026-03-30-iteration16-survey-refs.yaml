@@ -1,0 +1,82 @@
+title: "Survey — Iteration 16 (2026-03-30)"
+date: "2026-03-30"
+focus_areas:
+  - Plugin system architecture for extensible platform integrations
+  - Video analytics dashboard (cross-platform engagement tracking)
+  - Multi-language dubbing pipeline (lip sync + voice cloning)
+
+references:
+  plugin_systems:
+    - title: "pluggy — minimalist production ready plugin system"
+      url: "https://github.com/pytest-dev/pluggy"
+      type: library
+      relevance: "Hook-based plugin framework used by pytest. Ideal for MPV2's extensible platform integration system. Lightweight, well-documented, proven in major projects."
+    - title: "stevedore — manage dynamic plugins for Python applications"
+      url: "https://github.com/openstack/stevedore"
+      type: library
+      relevance: "Entry-point-based plugin discovery via setuptools. Heavier than pluggy but supports pip-installable plugins."
+    - title: "How to Build Plugin Systems in Python (2026)"
+      url: "https://oneuptime.com/blog/post/2026-01-30-python-plugin-systems/view"
+      type: article
+      relevance: "Comparison of pluggy, stevedore, importlib approaches for Python plugin architectures."
+    - title: "Building a Plugin Architecture with Python"
+      url: "https://mwax911.medium.com/building-a-plugin-architecture-with-python-7b4ab39ad4fc"
+      type: article
+      relevance: "Practical walkthrough of microkernel plugin pattern in Python."
+
+  video_analytics:
+    - title: "SocialKit — Turn Social Media Videos Into Structured Data"
+      url: "https://www.socialkit.dev/"
+      type: api
+      relevance: "REST API for YouTube, TikTok, Instagram video analytics. $13/mo for 2000 credits. Could power MPV2 analytics dashboard."
+    - title: "YouTube Data API v3 Guide 2026"
+      url: "https://zernio.com/blog/youtube-api"
+      type: guide
+      relevance: "YouTube API setup, quotas, and Python code examples for engagement tracking."
+    - title: "TikTok-Api — Unofficial TikTok API Wrapper in Python"
+      url: "https://github.com/davidteather/TikTok-Api"
+      type: library
+      relevance: "Python wrapper for TikTok data access — video stats, trending, user profiles."
+    - title: "EnsembleData — TikTok Data Scraping API"
+      url: "https://ensembledata.com/tiktok-api"
+      type: api
+      relevance: "Real-time TikTok data API for trending videos, hashtags, engagement metrics."
+
+  dubbing_lipsync:
+    - title: "LatentSync — ByteDance Open-Source Lip Sync"
+      url: "https://github.com/bytedance/LatentSync"
+      type: model
+      relevance: "State-of-art lip sync via audio-conditioned latent diffusion. v1.5 supports Chinese, 6.8GB VRAM. Could replace MuseTalk in dubbing pipeline."
+    - title: "MuseTalk — Real-Time High Quality Lip Sync"
+      url: "https://github.com/TMElyralab/MuseTalk"
+      type: model
+      relevance: "Near-photorealistic lip sync. One of highest-quality open-source models in 2026."
+    - title: "Linly-Dubbing — Multi-Language AI Dubbing"
+      url: "https://braintitan.medium.com/linly-dubbing-an-open-source-multi-language-ai-dubbing-and-video-translation-tool-2cda94cbf45e"
+      type: tool
+      relevance: "Complete open-source dubbing pipeline: transcription → translation → voice cloning → lip sync."
+    - title: "faster-whisper large-v3-turbo CT2"
+      url: "https://huggingface.co/deepdml/faster-whisper-large-v3-turbo-ct2"
+      type: model
+      relevance: "Optimized Whisper model for fast transcription. 13min audio in ~1min on GPU."
+
+  competitors:
+    - title: "AutoShorts.ai — #1 Faceless Video Generator"
+      url: "https://autoshorts.ai/"
+      type: competitor
+      relevance: "Auto-creates, schedules, and posts faceless videos. Direct competitor to MPV2."
+    - title: "ShortGPT — AI framework for YouTube Shorts/TikTok"
+      url: "https://github.com/RayVentura/ShortGPT"
+      type: competitor
+      relevance: "Open-source competitor. Experimental AI framework for channel automation."
+    - title: "AutoFaceless.ai — Automated Faceless Video Pipeline"
+      url: "https://autofaceless.ai/"
+      type: competitor
+      relevance: "Backed by OpenAI/ElevenLabs/Microsoft. Full pipeline from script to daily posting."
+
+key_findings:
+  - "Plugin systems: pluggy is the best fit for MPV2 — lightweight, hook-based, proven in pytest. Stevedore is overkill for our use case."
+  - "Video analytics: YouTube Data API v3 is free with quota limits. TikTok unofficial API (davidteather/TikTok-Api) provides video stats. SocialKit unifies all platforms but costs $13/mo."
+  - "Dubbing: LatentSync v1.5 and MuseTalk are the two leading open-source lip sync models. Linly-Dubbing provides a complete pipeline reference architecture."
+  - "Competitor landscape: AutoShorts.ai and AutoFaceless.ai are the main commercial competitors. ShortGPT is the closest open-source competitor but appears less actively maintained."
+  - "Multi-language dubbing remains the most complex planned feature — requires Whisper + translation + voice cloning + lip sync. Best to start with a modular design that can swap components."
