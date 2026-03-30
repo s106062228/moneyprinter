@@ -102,6 +102,13 @@
 - [x] Virality scorer module (`virality_scorer.py`) with LLM-based metadata scoring, platform-specific weights
 - [x] Unit tests for A/B testing (71 tests, 96.15% coverage), virality scorer (71 tests, 95.29% coverage), PATCH endpoint (12 tests)
 
+## Completed — Iteration 17 (2026-03-30)
+- [x] Content watermarker (`content_watermarker.py`) with WatermarkResult, ContentWatermarker, VideoSeal lazy integration (118 tests, 100% coverage) [H53]
+- [x] Content quality gate (`quality_gate.py`) with QualityVerdict, ContentQualityGate, 5-dimension LLM scoring, platform weights (149 tests, 94.02% coverage) [H54]
+- [x] Repurposing orchestrator (`repurpose_orchestrator.py`) with RepurposeConfig, RepurposeOrchestrator, clip→optimize→publish pipeline (87 tests, 91.83% coverage) [H55]
+- [x] Fix test contamination: sys.modules cleanup in test_repurpose_orchestrator.py (+78 pre-existing failures fixed)
+- [x] Unit tests: 354 new tests, 2641 total suite, 0 failures [H53, H54, H55]
+
 ## Completed — Iteration 16 (2026-03-30)
 - [x] Plugin system (`plugin_manager.py`) with pluggy-based hook specs, plugin registration, directory loading (89 tests, 96.08% coverage) [H50]
 - [x] Video analytics tracker (`video_analytics.py`) with per-video engagement metrics, trend computation, atomic persistence (102 tests, 94.94% coverage) [H51]
@@ -259,6 +266,16 @@
 - [x] Create src/rate_limiter.py with RateLimiter, RateLimiterRegistry [H52]
 - [x] Write tests for rate_limiter module (76 tests, 100% coverage) [H52]
 - [x] Run full test suite (2287/2287 passing, 0 failures) [H50, H51, H52]
+
+## Implementation Tasks — Iteration 17 (2026-03-30)
+- [x] Create src/content_watermarker.py with WatermarkResult, ContentWatermarker [H53]
+- [x] Write tests for content_watermarker module (118 tests, 100% coverage) [H53]
+- [x] Create src/quality_gate.py with QualityVerdict, ContentQualityGate [H54]
+- [x] Write tests for quality_gate module (149 tests, 94.02% coverage) [H54]
+- [x] Create src/repurpose_orchestrator.py with RepurposeConfig, RepurposeOrchestrator [H55]
+- [x] Write tests for repurpose_orchestrator module (87 tests, 91.83% coverage) [H55]
+- [x] Fix test contamination: sys.modules cleanup in test_repurpose_orchestrator.py (+78 pre-existing failures fixed)
+- [x] Run full test suite (2641/2641 passing, 0 failures) [H53, H54, H55]
 
 ## Planned — High Priority
 - [x] Content calendar UI (frontend for content scheduler) — DONE (iteration 7)

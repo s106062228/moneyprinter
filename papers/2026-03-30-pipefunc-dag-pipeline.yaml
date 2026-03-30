@@ -1,0 +1,11 @@
+title: "pipefunc: Lightweight DAG Pipeline in Pure Python"
+source: https://github.com/pipefunc/pipefunc
+date: 2026-03-30
+type: tool
+relevance: medium
+summary: |
+  Decorator-based function pipeline (DAG) creation in pure Python.
+  Automatic execution order handling.
+  Zero infrastructure overhead — no server, no database.
+  Pattern: @pipefunc decorator auto-wires function inputs/outputs.
+  Relevant pattern for MPV2 pipeline orchestrator module.

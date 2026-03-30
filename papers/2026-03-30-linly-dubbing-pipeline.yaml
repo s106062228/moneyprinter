@@ -1,0 +1,11 @@
+title: "Linly-Dubbing: Multi-Language AI Dubbing Pipeline"
+source: https://github.com/Kedreamix/Linly-Dubbing
+date: 2026-03-30
+type: tool
+relevance: medium
+summary: |
+  4-stage pipeline: WhisperX STT → GPT/Qwen translation → CosyVoice/XTTS/EdgeTTS → Linly-Talker lip-sync.
+  Supports Chinese, English, Japanese, Korean, Cantonese.
+  Components: Demucs (vocal separation), yt-dlp (download), FFmpeg (processing).
+  Requires Python 3.10, PyTorch 2.3.1, CUDA 11.8/12.1, FFmpeg 7.0.2.
+  Too heavy for core MPV2 integration — better as plugin.

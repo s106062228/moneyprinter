@@ -1,0 +1,13 @@
+title: "VideoSeal: Open and Efficient Video and Image Watermarking"
+source: https://github.com/facebookresearch/videoseal
+date: 2026-03-30
+type: tool
+relevance: high
+summary: |
+  Meta's MIT-licensed invisible watermarking for video/image.
+  PixelSeal (256-bit) and ChunkySeal (1024-bit) capacity.
+  Python/PyTorch API with streaming mode for long videos.
+  Temporal consistency across frames.
+  Requires Python 3.10+, PyTorch 2.3+, CUDA 12.1.
+  Key API: model = videoseal.load("videoseal"); outputs = model.embed(video, is_video=True)
+  Adjustable strength via model.blender.scaling_w parameter.

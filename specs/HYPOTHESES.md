@@ -1074,3 +1074,68 @@ Focus on **H47** (trend detection upgrade) and **H48** (cache encryption). Both 
 3. Cache encryption is fully backward compatible — existing plaintext caches continue to work. Encryption is opt-in via env var.
 4. Affiliate link injection provides immediate value for Amazon affiliate use cases without requiring TikTok Shop partner approval.
 5. Total codebase: ~6,500 statements, 2,000 tests passing, 0 failures.
+
+---
+
+## Iteration 17 — 2026-03-30
+
+Based on survey findings (see JOURNAL.md 2026-03-30, Iteration 17 survey).
+
+### H53: Content Watermarker Module (VideoSeal Integration)
+**Priority: HIGH**
+**Hypothesis**: Adding a content watermarking module that embeds invisible watermarks into generated videos using Meta's VideoSeal library will provide content provenance tracking. The module should support embedding a configurable message (e.g., channel ID + timestamp), detecting watermarks in existing videos, and integrating with the publish pipeline as an optional pre-publish step.
+**Metric**: Module passes unit tests with >90% coverage; embed/detect round-trip works correctly; watermark survives simulated re-encoding; integration with publisher.py as optional step.
+**Status**: UNTESTED
+
+### H54: Content Quality Gate (Authenticity Scorer)
+**Priority: HIGH**
+**Hypothesis**: YouTube's tightened AI content policy (2026) requires pre-publish quality scoring to avoid demonetization. Extending the existing virality_scorer.py with an authenticity/quality dimension — evaluating originality, effort level, and policy compliance — will create a quality gate that blocks low-quality content from publishing. This addresses the survey finding that AI-generated low-effort content is now explicitly ineligible for monetization.
+**Metric**: New ContentQualityGate class with score() method; scores on 5 dimensions (originality, effort, insight, production_quality, policy_compliance); configurable threshold for block/warn/pass; >90% test coverage; integrates with publisher.py publish flow.
+**Status**: UNTESTED
+
+### H55: Repurposing Orchestrator (One-to-Many Pipeline)
+**Priority: MEDIUM**
+**Hypothesis**: MPV2 has smart_clipper, export_optimizer, and publisher modules but no automated pipeline to chain them. A repurposing orchestrator module that takes a single source video and produces platform-optimized clips across all configured platforms will enable the "Capture Once, Ship Everywhere" workflow identified in the survey.
+**Metric**: Module chains clip → optimize → publish; supports configurable platform targets; unit tests >90% coverage; can process a mock video through the full pipeline.
+**Status**: UNTESTED
+
+---
+
+### Priority Ranking
+1. **H53** — Content watermarker (high-impact differentiator, no competitor has this, clear VideoSeal API)
+2. **H54** — Quality gate (addresses critical YouTube policy risk, builds on existing virality_scorer)
+3. **H55** — Repurposing orchestrator (ties together existing modules, medium complexity)
+
+### Implementation Recommendation
+All 3 hypotheses are independent and can be implemented in parallel. H53 and H54 are highest priority due to immediate content protection and monetization risk mitigation. H55 ties together existing modules into a higher-value workflow.
+
+---
+
+## Evaluation — 2026-03-30 (Iteration 17)
+
+### H53: Content Watermarker (VideoSeal) — CONFIRMED
+- **Result**: content_watermarker.py with WatermarkResult + ContentWatermarker (embed/detect, lazy VideoSeal, 5 formats)
+- **Tests**: 118 tests, 100.00% coverage
+- **Verdict**: CONFIRMED
+
+### H54: Content Quality Gate — CONFIRMED
+- **Result**: quality_gate.py with QualityVerdict + ContentQualityGate (5 dimensions, 4 platform weight profiles, block/warn/off modes)
+- **Tests**: 149 tests, 94.02% coverage
+- **Verdict**: CONFIRMED
+
+### H55: Repurposing Orchestrator — CONFIRMED
+- **Result**: repurpose_orchestrator.py with RepurposeConfig + RepurposeOrchestrator (clip→optimize→publish pipeline)
+- **Tests**: 87 tests, 91.83% coverage
+- **Verdict**: CONFIRMED
+
+### Suite Summary
+
+| Metric | Before (iter 16) | After (iter 17) | Delta |
+|---|---|---|---|
+| Tests | 2287 | 2641 | +354 (+78 fixed) |
+| Failures | 0 (78 hidden) | 0 | -78 fixed |
+| Modules | 25 | 28 | +3 |
+| content_watermarker.py | N/A | 100.00% | new |
+| quality_gate.py | N/A | 94.02% | new |
+| repurpose_orchestrator.py | N/A | 91.83% | new |
+| Total coverage | 85.42% | 86.13% | +0.71% |

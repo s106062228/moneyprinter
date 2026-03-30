@@ -1,0 +1,105 @@
+iteration: 17
+date: 2026-03-30
+hypotheses: [H53, H54, H55]
+
+# H53: Content Watermarker Module
+h53_content_watermarker:
+  file: src/content_watermarker.py
+  test_file: tests/test_content_watermarker.py
+  pattern: "Follows uniqueness_scorer.py pattern — dataclass result, lazy imports, configurable"
+  classes:
+    - WatermarkResult:
+        fields: [embedded, message, strength, file_path, error]
+    - ContentWatermarker:
+        methods:
+          - embed(video_path, message, strength=0.2) -> WatermarkResult
+          - detect(video_path) -> WatermarkResult
+          - _load_model() -> model  # lazy load videoseal
+        config:
+          - "watermark.enabled" (bool, default false)
+          - "watermark.message" (str, default "MPV2-{timestamp}")
+          - "watermark.strength" (float, default 0.2)
+  dependencies:
+    - videoseal (lazy import — pip install videoseal)
+    - torch, torchvision (lazy — only if watermarking enabled)
+  integration:
+    - publisher.py: optional pre-publish step after uniqueness check
+    - "watermark.mode" config: "off" | "embed" | "detect"
+  constraints:
+    - All videoseal imports are lazy (try/except) for test isolation
+    - Tests mock videoseal entirely — no GPU/model requirement
+    - Strength parameter capped at [0.05, 1.0]
+    - Max message length: 256 bits (32 bytes)
+    - Video path validated (exists, not null bytes, max length)
+
+# H54: Content Quality Gate
+h54_quality_gate:
+  file: src/quality_gate.py
+  test_file: tests/test_quality_gate.py
+  pattern: "Extends virality_scorer.py approach — LLM-based scoring with structured output"
+  classes:
+    - QualityVerdict:
+        fields: [overall_score, dimensions, passed, threshold, suggestions]
+    - ContentQualityGate:
+        methods:
+          - evaluate(title, description, script, tags, platform) -> QualityVerdict
+          - _build_prompt(title, description, script, tags, platform) -> str
+          - _parse_response(response) -> QualityVerdict
+        config:
+          - "quality_gate.enabled" (bool, default false)
+          - "quality_gate.threshold" (float, default 60.0)
+          - "quality_gate.mode" (str: "block" | "warn" | "off")
+  dimensions:
+    - originality: "Does content provide unique insight vs generic AI output?"
+    - effort_level: "Evidence of research, editing, custom visuals?"
+    - insight_depth: "Substantive analysis vs surface-level coverage?"
+    - production_quality: "Audio/visual quality, pacing, engagement hooks?"
+    - policy_compliance: "Meets YouTube 2026 AI content policy?"
+  integration:
+    - publisher.py: pre-publish check after uniqueness, before platform dispatch
+  constraints:
+    - LLM call via existing generate_text() — no new providers
+    - Prompt engineering for structured JSON output (same pattern as virality_scorer)
+    - Score 0-100 per dimension, weighted average for overall
+    - Tests mock generate_text — no LLM requirement
+
+# H55: Repurposing Orchestrator
+h55_repurposing_orchestrator:
+  file: src/repurpose_orchestrator.py
+  test_file: tests/test_repurpose_orchestrator.py
+  pattern: "Pipeline orchestration — chains existing modules"
+  classes:
+    - RepurposeConfig:
+        fields: [source_video, platforms, max_clips, min_clip_duration, max_clip_duration, auto_publish]
+    - RepurposeResult:
+        fields: [source_video, clips_created, clips_exported, clips_published, errors, duration_seconds]
+    - RepurposeOrchestrator:
+        methods:
+          - run(config) -> RepurposeResult
+          - _clip(source_video, max_clips, min_dur, max_dur) -> list[str]
+          - _optimize(clip_paths, platforms) -> dict[str, list[str]]
+          - _publish(optimized, title_template, description) -> list[PublishResult]
+  dependencies:
+    - smart_clipper (lazy import)
+    - export_optimizer (lazy import)
+    - publisher (lazy import)
+  integration:
+    - Standalone module — can be called from main.py menu or MCP server
+    - Uses existing smart_clipper.detect_scenes() + split_clips()
+    - Uses existing export_optimizer.optimize_clip() per platform
+    - Uses existing publisher.publish() for final distribution
+  constraints:
+    - All module imports lazy (try/except) for test isolation
+    - Max 20 clips per run to prevent runaway processing
+    - Source video path validated
+    - Tests mock all 3 downstream modules
+
+# TODO.md updates
+todo_additions:
+  - "Create src/content_watermarker.py with WatermarkResult, ContentWatermarker [H53]"
+  - "Write tests for content_watermarker (target: 80+ tests, >90% coverage) [H53]"
+  - "Create src/quality_gate.py with QualityVerdict, ContentQualityGate [H54]"
+  - "Write tests for quality_gate (target: 70+ tests, >90% coverage) [H54]"
+  - "Create src/repurpose_orchestrator.py with RepurposeConfig, RepurposeOrchestrator [H55]"
+  - "Write tests for repurpose_orchestrator (target: 60+ tests, >90% coverage) [H55]"
+  - "Run full test suite (target: 2500+ tests, 0 failures) [H53, H54, H55]"

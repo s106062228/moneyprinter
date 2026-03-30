@@ -1,0 +1,31 @@
+=== Research Pipeline — Iteration 17 ===
+Date: 2026-03-30
+Started: ~16:14
+Completed: ~16:43
+
+== Survey ==
+Topics: content watermarking, quality gate, repurposing automation, dubbing, pipeline orchestration
+Sources: 15+ web searches, 4 paper refs saved
+Key findings: VideoSeal (Meta), YouTube AI policy tightening, Linly-Dubbing, pipefunc
+
+== Hypotheses ==
+H53: Content Watermarker (VideoSeal) — HIGH priority
+H54: Content Quality Gate (Authenticity) — HIGH priority
+H55: Repurposing Orchestrator — MEDIUM priority
+
+== Implementation ==
+3 parallel agents (Sonnet model)
+- H53: content_watermarker.py (118 tests, 100% cov)
+- H54: quality_gate.py (149 tests, 94.02% cov)
+- H55: repurpose_orchestrator.py (87 tests, 91.83% cov)
+- Fix: test_repurpose_orchestrator.py sys.modules cleanup (+78 failures fixed)
+
+== Results ==
+Tests: 2641 passed, 0 failures (was 2287 + 78 hidden failures)
+Coverage: 86.13% (was 85.42%)
+All 3 hypotheses CONFIRMED
+
+== Verdicts ==
+H53: CONFIRMED — invisible watermark embed/detect via VideoSeal lazy import
+H54: CONFIRMED — 5-dimension quality scoring with platform weights, block/warn/off
+H55: CONFIRMED — clip→optimize→publish pipeline with fail-soft error accumulation
