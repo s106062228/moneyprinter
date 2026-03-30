@@ -677,12 +677,12 @@ class TestBatchHealthReporting:
     def setup_method(self):
         import batch_generator
         batch_generator._get_health_monitor._instance = None
-        batch_generator._get_plugin_manager._instance = None
+        batch_generator.get_plugin_manager._instance = None
 
     def teardown_method(self):
         import batch_generator
         batch_generator._get_health_monitor._instance = None
-        batch_generator._get_plugin_manager._instance = None
+        batch_generator.get_plugin_manager._instance = None
 
     def _run_with_results(self, gen, job, video_results, mock_monitor):
         """Helper to run batch with mocked single results and health monitor."""
@@ -690,7 +690,7 @@ class TestBatchHealthReporting:
         results_iter = iter(video_results)
 
         with patch.object(batch_generator, "_get_health_monitor", return_value=mock_monitor):
-            with patch.object(batch_generator, "_get_plugin_manager", return_value=None):
+            with patch.object(batch_generator, "get_plugin_manager", return_value=None):
                 with patch.object(gen, "_generate_single", side_effect=lambda **kw: next(results_iter)):
                     with patch.object(gen, "_track_batch_analytics"):
                         with patch("batch_generator.time.sleep"):
@@ -830,12 +830,12 @@ class TestBatchPluginDispatch:
     def setup_method(self):
         import batch_generator
         batch_generator._get_health_monitor._instance = None
-        batch_generator._get_plugin_manager._instance = None
+        batch_generator.get_plugin_manager._instance = None
 
     def teardown_method(self):
         import batch_generator
         batch_generator._get_health_monitor._instance = None
-        batch_generator._get_plugin_manager._instance = None
+        batch_generator.get_plugin_manager._instance = None
 
     @patch("batch_generator.get_max_videos_per_run", return_value=10)
     @patch("batch_generator.get_delay_between_videos", return_value=0)
@@ -852,7 +852,7 @@ class TestBatchPluginDispatch:
 
         job = BatchJob(topics=["t1", "t2"], niche="finance", language="en", auto_publish=False)
 
-        with patch.object(batch_generator, "_get_plugin_manager", return_value=mock_pm):
+        with patch.object(batch_generator, "get_plugin_manager", return_value=mock_pm):
             with patch.object(batch_generator, "_get_health_monitor", return_value=None):
                 with patch.object(gen, "_generate_single") as mock_gen:
                     mock_gen.return_value = BatchVideoResult(topic="t", success=True)
@@ -883,7 +883,7 @@ class TestBatchPluginDispatch:
 
         job = BatchJob(topics=["t1"])
 
-        with patch.object(batch_generator, "_get_plugin_manager", return_value=mock_pm):
+        with patch.object(batch_generator, "get_plugin_manager", return_value=mock_pm):
             with patch.object(batch_generator, "_get_health_monitor", return_value=None):
                 with patch.object(gen, "_generate_single") as mock_gen:
                     mock_gen.return_value = BatchVideoResult(topic="t1", success=True)
@@ -914,7 +914,7 @@ class TestBatchPluginDispatch:
         gen._delay = 0
         job = BatchJob(topics=["t1"])
 
-        with patch.object(batch_generator, "_get_plugin_manager", return_value=mock_pm):
+        with patch.object(batch_generator, "get_plugin_manager", return_value=mock_pm):
             with patch.object(batch_generator, "_get_health_monitor", return_value=None):
                 with patch.object(gen, "_generate_single") as mock_gen:
                     mock_gen.return_value = BatchVideoResult(topic="t1", success=True)

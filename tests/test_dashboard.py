@@ -1092,3 +1092,103 @@ class TestHealthApiPipelineKey:
         assert response.status_code == 200
         data = response.json()
         assert data["pipeline"] == empty_pipeline
+
+
+# ===========================================================================
+# Pipeline Health Panel (H63)
+# ===========================================================================
+
+
+class TestDashboardPipelineHealth:
+    """Tests for pipeline health data in dashboard page and SSE."""
+
+    @pytest.fixture
+    def client(self, tmp_path):
+        from starlette.testclient import TestClient
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            yield TestClient(app)
+
+    def test_dashboard_page_includes_pipeline_health(self, client):
+        """dashboard_page() passes pipeline_health to the template."""
+        with patch("dashboard._get_pipeline_module_health", return_value={
+            "summary": {"total": 2, "ok": 1, "degraded": 0, "error": 1, "unknown": 0},
+            "modules": {
+                "publisher": {
+                    "module_name": "publisher", "status": "ok",
+                    "success_count": 10, "error_count": 0,
+                    "last_check": "2026-03-31T12:00:00+00:00", "last_error": "",
+                    "metadata": {},
+                },
+                "scheduler": {
+                    "module_name": "scheduler", "status": "error",
+                    "success_count": 5, "error_count": 3,
+                    "last_check": "2026-03-31T12:01:00+00:00", "last_error": "timeout",
+                    "metadata": {},
+                },
+            },
+        }):
+            resp = client.get("/dashboard")
+            assert resp.status_code == 200
+            html = resp.text
+            assert "Pipeline Modules" in html
+            assert "publisher" in html
+            assert "scheduler" in html
+
+    def test_dashboard_page_empty_pipeline_health(self, client):
+        """Empty pipeline health shows 'No pipeline modules' message."""
+        with patch("dashboard._get_pipeline_module_health", return_value={
+            "summary": {}, "modules": {},
+        }):
+            resp = client.get("/dashboard")
+            assert resp.status_code == 200
+            assert "No pipeline modules registered" in resp.text
+
+    def test_api_health_includes_pipeline(self, client):
+        """GET /api/health includes pipeline data."""
+        with patch("dashboard._get_pipeline_module_health", return_value={
+            "summary": {"total": 0, "ok": 0, "degraded": 0, "error": 0, "unknown": 0},
+            "modules": {},
+        }):
+            with patch.dict(sys.modules, {"ollama": MagicMock()}):
+                resp = client.get("/api/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "pipeline" in data
+
+    def test_sse_stream_includes_pipeline_health(self, tmp_path):
+        """SSE stream payload includes pipeline_health field."""
+        from starlette.testclient import TestClient
+        from starlette.requests import Request
+
+        mp_dir = tmp_path / ".mp"
+        mp_dir.mkdir()
+
+        # Stop the generator after the first event by simulating a disconnect.
+        disconnect_count = 0
+
+        async def fake_is_disconnected(self):
+            nonlocal disconnect_count
+            disconnect_count += 1
+            return disconnect_count > 1
+
+        pipeline_data = {
+            "summary": {"total": 1, "ok": 1, "degraded": 0, "error": 0, "unknown": 0},
+            "modules": {"test_mod": {"status": "ok"}},
+        }
+
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            with patch("dashboard._get_pipeline_module_health", return_value=pipeline_data):
+                with patch.object(Request, "is_disconnected", fake_is_disconnected):
+                    app = dashboard.create_app()
+                    client = TestClient(app)
+                    with client.stream("GET", "/api/stream") as resp:
+                        assert resp.status_code == 200
+                        content = ""
+                        for chunk in resp.iter_text():
+                            content += chunk
+                            if "pipeline_health" in content:
+                                break
+        assert "pipeline_health" in content

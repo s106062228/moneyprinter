@@ -1,0 +1,41 @@
+title: "Auto-Persist Health Monitoring Patterns for FastAPI Pipelines"
+date: "2026-03-31"
+iteration: 20
+type: survey_reference
+
+sources:
+  - title: "FastAPI Best Practices for Production: Complete 2026 Guide"
+    url: "https://fastlaunchapi.dev/blog/fastapi-best-practices-production-2026"
+    relevance: "Production health check patterns with liveness/readiness separation"
+  - title: "Building a Health-Check Microservice with FastAPI"
+    url: "https://dev.to/lisan_al_gaib/building-a-health-check-microservice-with-fastapi-26jo"
+    relevance: "FastAPI health check endpoint design with auto-recovery"
+  - title: "FastAPI Health Monitor (GitHub)"
+    url: "https://github.com/adamkirchberger/fastapi-health-monitor"
+    relevance: "Dedicated health monitor library for FastAPI with auto-persist"
+  - title: "Python atexit module documentation"
+    url: "https://docs.python.org/3/library/atexit.html"
+    relevance: "atexit handlers for auto-saving state on process shutdown"
+  - title: "Real-Time Dashboards with FastAPI and HTMX"
+    url: "https://medium.com/codex/building-real-time-dashboards-with-fastapi-and-htmx-01ea458673cb"
+    relevance: "SSE-based real-time dashboard update patterns"
+  - title: "HTMX SSE Extension Documentation"
+    url: "https://htmx.org/extensions/sse/"
+    relevance: "sse-connect, sse-swap, hx-trigger='sse:<event>' patterns"
+
+key_findings:
+  auto_persist_patterns:
+    - "atexit.register() for save-on-shutdown — combined with signal handlers for SIGTERM/SIGINT"
+    - "Periodic save via threading.Timer (every N reports or every N seconds)"
+    - "Save after N health reports (counter-based batch persistence)"
+    - "atexit does NOT fire on unhandled signals — must register SIGTERM handler that calls sys.exit()"
+  dashboard_health_panel:
+    - "HTMX sse-connect + sse-swap for real-time health fragment updates"
+    - "Per-module color-coded status badges (ok=green, degraded=yellow, error=red)"
+    - "Include success/error counters and last_check timestamp in module cards"
+    - "No custom JavaScript needed — HTMX handles the swap from SSE events"
+  competitor_landscape:
+    - "OpusClip: virality scoring, auto-scheduling, multi-platform publishing"
+    - "Vizard.ai: text-based video editing, 100+ language subtitles, auto-reframing"
+    - "Submagic: speed-focused, 50+ languages, hooks/music/effects auto-added"
+    - "All competitors now have real-time dashboards and health monitoring"

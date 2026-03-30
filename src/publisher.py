@@ -61,17 +61,10 @@ def _get_health_monitor():
 _get_health_monitor._instance = None
 
 
-def _get_plugin_manager():
-    """Lazy singleton for PluginManager."""
-    if _get_plugin_manager._instance is None:
-        try:
-            from plugin_manager import PluginManager
-            _get_plugin_manager._instance = PluginManager()
-        except Exception:
-            return None
-    return _get_plugin_manager._instance
-
-_get_plugin_manager._instance = None
+try:
+    from plugin_manager import get_plugin_manager
+except ImportError:
+    get_plugin_manager = lambda: None
 
 
 # ---------------------------------------------------------------------------
@@ -311,7 +304,7 @@ class ContentPublisher:
 
         # Plugin lifecycle: pre-publish
         try:
-            pm = _get_plugin_manager()
+            pm = get_plugin_manager()
             if pm:
                 pm.hook.on_pre_publish(job={
                     "title": job.title,
@@ -412,7 +405,7 @@ class ContentPublisher:
 
         # Plugin lifecycle: post-publish
         try:
-            pm = _get_plugin_manager()
+            pm = get_plugin_manager()
             if pm:
                 pm.hook.on_post_publish(
                     job={"title": job.title, "platforms": job.platforms},

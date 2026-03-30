@@ -1,0 +1,47 @@
+hypotheses:
+  - id: H62
+    title: "Auto-persist pipeline health — atexit + periodic save"
+    priority: HIGH
+    risk: LOW
+    hypothesis: >
+      Adding auto-persistence to PipelineHealthMonitor via (1) atexit.register(save)
+      on first report_health() call, and (2) save-after-every-N-reports (configurable,
+      default 10), will ensure pipeline health data survives process restarts without
+      requiring callers to manually invoke save().
+    metric: >
+      Auto-save triggers on atexit and after every N reports. Unit tests verify
+      both paths. Existing 99 pipeline_health tests continue to pass.
+      Coverage maintained above 93%.
+    status: UNTESTED
+
+  - id: H63
+    title: "Dashboard health panel HTML — per-module status with SSE"
+    priority: HIGH
+    risk: LOW
+    hypothesis: >
+      Adding a "Pipeline Modules" card to dashboard.html that renders per-module
+      health status (badges, counters, last_check timestamps) and including pipeline
+      health data in the SSE stream will make pipeline operational status visible
+      in real-time without page reloads.
+    metric: >
+      dashboard.html renders pipeline module cards with color-coded badges.
+      SSE stream includes pipeline module health data. Dashboard endpoint
+      passes pipeline data to template. Unit tests verify the HTML rendering
+      and SSE data inclusion. Dashboard coverage maintained above 91%.
+    status: UNTESTED
+
+  - id: H64
+    title: "Shared global PluginManager — single instance in plugin_manager.py"
+    priority: MEDIUM
+    risk: LOW
+    hypothesis: >
+      Moving the lazy singleton pattern into plugin_manager.py as a public
+      get_plugin_manager() function and updating publisher, content_scheduler,
+      and batch_generator to import it (removing their per-module _get_plugin_manager()
+      duplicates) will reduce code duplication while maintaining the same fail-soft
+      behavior. All modules will share one PluginManager instance.
+    metric: >
+      3 duplicated _get_plugin_manager() functions removed. 1 shared
+      get_plugin_manager() in plugin_manager.py. All existing tests pass
+      with zero regressions. plugin_manager.py coverage maintained above 96%.
+    status: UNTESTED

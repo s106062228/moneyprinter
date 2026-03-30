@@ -1,0 +1,24 @@
+Survey Log — Iteration 20 (2026-03-31)
+========================================
+
+Searches performed:
+1. "auto-persist health monitoring FastAPI pipeline 2026 best practices"
+2. "HTMX SSE real-time health dashboard panel 2026 patterns"
+3. "Python pluggy shared global plugin manager singleton pattern 2026"
+4. "content automation video pipeline health auto-save persistence 2026"
+5. "FastAPI HTMX health status panel server-sent events dashboard template 2026"
+6. "Python atexit signal handler auto-persist state periodic save pattern"
+7. "youtube shorts automation competitors 2026 new features OpusClip Submagic Vizard"
+
+Pages fetched:
+- vizard.ai/blog/top-5-ai-clipping-tools-2026 (AI clipping features roundup)
+- fastlaunchapi.dev/blog/fastapi-best-practices-production-2026 (CSS only, no content)
+
+Key findings:
+1. Auto-persist via atexit + SIGTERM handler is the standard Python pattern for save-on-shutdown
+2. Counter-based periodic save (every N reports) reduces I/O while ensuring persistence
+3. HTMX sse-swap can push HTML fragments for per-module health cards — no JS needed
+4. All 3 iteration 19 "next candidates" are well-supported by existing libraries/patterns
+5. Competitors (OpusClip, Vizard, Submagic) all have real-time dashboards in 2026
+
+Findings saved to: papers/2026-03-31-health-auto-persist-patterns.yaml

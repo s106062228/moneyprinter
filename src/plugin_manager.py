@@ -388,6 +388,29 @@ class PluginManager:
 
 
 # ---------------------------------------------------------------------------
+# Shared singleton — all modules should import this instead of creating
+# their own PluginManager instances.
+# ---------------------------------------------------------------------------
+
+
+def get_plugin_manager():
+    """Lazy singleton for a shared PluginManager instance.
+
+    Returns the same PluginManager on every call. Returns None if
+    pluggy is unavailable or initialisation fails (fail-soft).
+    """
+    if get_plugin_manager._instance is None:
+        try:
+            get_plugin_manager._instance = PluginManager()
+        except Exception:
+            return None
+    return get_plugin_manager._instance
+
+
+get_plugin_manager._instance = None
+
+
+# ---------------------------------------------------------------------------
 # Example plugin — demonstrates how to implement a plugin
 # ---------------------------------------------------------------------------
 

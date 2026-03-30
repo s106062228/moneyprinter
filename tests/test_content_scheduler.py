@@ -651,11 +651,11 @@ class TestSchedulerHealthReporting:
         content_scheduler._SCHEDULE_FILE = str(tmp_path / "schedule.json")
         # Reset singletons before each test
         content_scheduler._get_health_monitor._instance = None
-        content_scheduler._get_plugin_manager._instance = None
+        content_scheduler.get_plugin_manager._instance = None
         yield
         content_scheduler._SCHEDULE_FILE = self._original_file
         content_scheduler._get_health_monitor._instance = None
-        content_scheduler._get_plugin_manager._instance = None
+        content_scheduler.get_plugin_manager._instance = None
 
     def _make_job(self, **overrides):
         from content_scheduler import ScheduledJob
@@ -676,7 +676,7 @@ class TestSchedulerHealthReporting:
 
         mock_monitor = MagicMock()
         with patch.object(content_scheduler, "_get_health_monitor", return_value=mock_monitor):
-            with patch.object(content_scheduler, "_get_plugin_manager", return_value=None):
+            with patch.object(content_scheduler, "get_plugin_manager", return_value=None):
                 from content_scheduler import ContentScheduler
                 scheduler = ContentScheduler()
                 job = self._make_job()
@@ -700,7 +700,7 @@ class TestSchedulerHealthReporting:
         mock_publisher.publish.return_value = [mock_result]
 
         with patch.object(content_scheduler, "_get_health_monitor", return_value=mock_monitor):
-            with patch.object(content_scheduler, "_get_plugin_manager", return_value=None):
+            with patch.object(content_scheduler, "get_plugin_manager", return_value=None):
                 from content_scheduler import ContentScheduler
                 scheduler = ContentScheduler()
                 job = self._make_job()
@@ -725,7 +725,7 @@ class TestSchedulerHealthReporting:
         mock_monitor = MagicMock()
 
         with patch.object(content_scheduler, "_get_health_monitor", return_value=mock_monitor):
-            with patch.object(content_scheduler, "_get_plugin_manager", return_value=None):
+            with patch.object(content_scheduler, "get_plugin_manager", return_value=None):
                 from content_scheduler import ContentScheduler
                 scheduler = ContentScheduler()
                 job = self._make_job()
@@ -751,7 +751,7 @@ class TestSchedulerHealthReporting:
         mock_monitor.report_health.side_effect = RuntimeError("monitor down")
 
         with patch.object(content_scheduler, "_get_health_monitor", return_value=mock_monitor):
-            with patch.object(content_scheduler, "_get_plugin_manager", return_value=None):
+            with patch.object(content_scheduler, "get_plugin_manager", return_value=None):
                 from content_scheduler import ContentScheduler
                 scheduler = ContentScheduler()
                 job = self._make_job()
@@ -773,11 +773,11 @@ class TestSchedulerPluginDispatch:
         self._original_file = content_scheduler._SCHEDULE_FILE
         content_scheduler._SCHEDULE_FILE = str(tmp_path / "schedule.json")
         content_scheduler._get_health_monitor._instance = None
-        content_scheduler._get_plugin_manager._instance = None
+        content_scheduler.get_plugin_manager._instance = None
         yield
         content_scheduler._SCHEDULE_FILE = self._original_file
         content_scheduler._get_health_monitor._instance = None
-        content_scheduler._get_plugin_manager._instance = None
+        content_scheduler.get_plugin_manager._instance = None
 
     def _make_job(self, **overrides):
         from content_scheduler import ScheduledJob
@@ -798,7 +798,7 @@ class TestSchedulerPluginDispatch:
 
         mock_pm = MagicMock()
 
-        with patch.object(content_scheduler, "_get_plugin_manager", return_value=mock_pm):
+        with patch.object(content_scheduler, "get_plugin_manager", return_value=mock_pm):
             with patch.object(content_scheduler, "_get_health_monitor", return_value=None):
                 from content_scheduler import ContentScheduler
                 scheduler = ContentScheduler()
@@ -817,7 +817,7 @@ class TestSchedulerPluginDispatch:
 
         mock_pm = MagicMock()
 
-        with patch.object(content_scheduler, "_get_plugin_manager", return_value=mock_pm):
+        with patch.object(content_scheduler, "get_plugin_manager", return_value=mock_pm):
             with patch.object(content_scheduler, "_get_health_monitor", return_value=None):
                 from content_scheduler import ContentScheduler
                 scheduler = ContentScheduler()
@@ -836,7 +836,7 @@ class TestSchedulerPluginDispatch:
         mock_pm = MagicMock()
         mock_pm.hook.on_pre_schedule.side_effect = RuntimeError("plugin exploded")
 
-        with patch.object(content_scheduler, "_get_plugin_manager", return_value=mock_pm):
+        with patch.object(content_scheduler, "get_plugin_manager", return_value=mock_pm):
             with patch.object(content_scheduler, "_get_health_monitor", return_value=None):
                 from content_scheduler import ContentScheduler
                 scheduler = ContentScheduler()

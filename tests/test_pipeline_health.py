@@ -5,6 +5,7 @@ Comprehensive tests for src/pipeline_health.py
 import json
 import os
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -783,3 +784,130 @@ class TestEdgeCases:
         meta = {str(i): i for i in range(_MAX_METADATA_KEYS + 1)}
         with pytest.raises(ValueError):
             m.report_health("pub", "ok", metadata=meta)
+
+
+# ===========================================================================
+# Auto-persist (H62)
+# ===========================================================================
+
+
+class TestAutoSaveInterval:
+    """Test auto-save triggers after N report_health() calls."""
+
+    def test_auto_save_triggers_after_n_reports(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=3,
+        )
+        persist_file = tmp_path / "ph.json"
+        assert not persist_file.exists()
+
+        monitor.report_health("mod1", "ok")
+        monitor.report_health("mod1", "ok")
+        assert not persist_file.exists()  # not yet
+
+        monitor.report_health("mod1", "ok")
+        assert persist_file.exists()  # triggered at 3
+
+    def test_auto_save_resets_counter(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=2,
+        )
+        monitor.report_health("a", "ok")
+        monitor.report_health("a", "ok")  # save triggers, counter resets
+        assert monitor._report_count == 0
+
+        monitor.report_health("a", "ok")
+        assert monitor._report_count == 1  # counting again
+
+    def test_auto_save_interval_default(self, tmp_path):
+        monitor = PipelineHealthMonitor(persist_path=str(tmp_path / "ph.json"))
+        assert monitor._auto_save_interval == 10
+
+    def test_auto_save_interval_configurable(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=5,
+        )
+        assert monitor._auto_save_interval == 5
+
+    def test_auto_save_persists_correct_data(self, tmp_path):
+        persist_file = tmp_path / "ph.json"
+        monitor = PipelineHealthMonitor(
+            persist_path=str(persist_file),
+            auto_save_interval=2,
+        )
+        monitor.report_health("pub", "ok")
+        monitor.report_health("pub", "error", error_msg="timeout")
+        # auto-save should have fired
+        data = json.loads(persist_file.read_text())
+        assert "pub" in data
+        assert data["pub"]["status"] == "error"
+        assert data["pub"]["error_count"] == 1
+
+    def test_auto_save_failure_does_not_propagate(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path="/nonexistent/dir/health.json",
+            auto_save_interval=1,
+        )
+        # Should not raise even though save will fail
+        monitor.report_health("mod", "ok")
+        # counter is NOT reset on failure — it stays at its post-increment value
+        assert monitor._report_count == 1
+
+    def test_reset_clears_report_count(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=100,
+        )
+        monitor.report_health("a", "ok")
+        monitor.report_health("a", "ok")
+        assert monitor._report_count == 2
+        monitor.reset()
+        assert monitor._report_count == 0
+
+
+class TestAtexitRegistration:
+    """Test atexit handler registration on first report_health() call."""
+
+    def test_atexit_registered_on_first_report(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=100,
+        )
+        assert not monitor._atexit_registered
+        monitor.report_health("mod", "ok")
+        assert monitor._atexit_registered
+
+    def test_atexit_not_re_registered(self, tmp_path):
+        import atexit as atexit_mod
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=100,
+        )
+        with patch.object(atexit_mod, "register") as mock_reg:
+            monitor.report_health("a", "ok")
+            monitor.report_health("a", "ok")
+            monitor.report_health("a", "ok")
+            assert mock_reg.call_count == 1
+
+    def test_atexit_save_calls_save(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=100,
+        )
+        monitor.report_health("mod", "ok")
+        persist_file = tmp_path / "ph.json"
+        assert not persist_file.exists()  # interval not reached
+        monitor._atexit_save()
+        assert persist_file.exists()
+
+    def test_atexit_save_failsoft(self):
+        monitor = PipelineHealthMonitor(
+            persist_path="/nonexistent/dir/health.json",
+            auto_save_interval=100,
+        )
+        monitor.report_health("mod", "ok")
+        # Should not raise
+        monitor._atexit_save()

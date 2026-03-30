@@ -1,0 +1,79 @@
+title: "Architecture — Iteration 20"
+date: "2026-03-31"
+hypotheses: [H62, H63, H64]
+
+design:
+  H62_auto_persist_health:
+    summary: "Add auto-persistence to PipelineHealthMonitor"
+    files_modified:
+      - src/pipeline_health.py
+    changes:
+      - description: "Add _AUTO_SAVE_INTERVAL constant (default 10)"
+        detail: "After every N report_health() calls, auto-call save()"
+      - description: "Add _report_count instance variable"
+        detail: "Tracks calls to report_health() since last save"
+      - description: "Add atexit registration in report_health()"
+        detail: "On first report_health() call, register atexit.register(self.save). Use _atexit_registered flag."
+      - description: "Add auto_save_interval param to __init__"
+        detail: "Configurable interval, default _AUTO_SAVE_INTERVAL=10"
+      - description: "Call save() after every N reports in report_health()"
+        detail: "Increment _report_count, if >= auto_save_interval, call save() and reset counter"
+      - description: "Fail-soft: wrap auto-save in try/except"
+        detail: "Auto-save failure should never block report_health()"
+    tests_to_write:
+      - "test auto_save triggers after N reports"
+      - "test atexit registered on first report_health"
+      - "test atexit not re-registered on subsequent calls"
+      - "test auto_save_interval configurable"
+      - "test auto_save failure does not propagate"
+      - "test report_count resets after save"
+
+  H63_dashboard_health_panel:
+    summary: "Add Pipeline Modules card to dashboard.html + SSE stream"
+    files_modified:
+      - src/templates/dashboard.html
+      - src/dashboard.py
+    changes:
+      - description: "Pass pipeline_health data to dashboard template"
+        detail: "In dashboard_page(), call _get_pipeline_module_health() and pass to template.render()"
+      - description: "Add Pipeline Modules card to dashboard.html"
+        detail: "After System Health card. Iterates pipeline.modules, renders per-module row with status badge (ok=green, degraded=yellow, error=red, unknown=blue), success/error counts, last_check timestamp."
+      - description: "Include pipeline health in SSE stream"
+        detail: "In api_stream(), add pipeline_health data to SSE payload"
+      - description: "Add sse-swap for pipeline health panel"
+        detail: "HTMX sse-swap attribute on the pipeline health div to auto-update"
+    tests_to_write:
+      - "test dashboard_page passes pipeline data to template"
+      - "test SSE stream includes pipeline_health"
+      - "test pipeline module rendering with mock health data"
+
+  H64_shared_plugin_manager:
+    summary: "Centralize PluginManager singleton in plugin_manager.py"
+    files_modified:
+      - src/plugin_manager.py
+      - src/publisher.py
+      - src/content_scheduler.py
+      - src/batch_generator.py
+    changes:
+      - description: "Add get_plugin_manager() function to plugin_manager.py"
+        detail: "Module-level lazy singleton with function-attribute pattern, same as existing per-module pattern but centralized"
+      - description: "Remove _get_plugin_manager() from publisher.py"
+        detail: "Replace with 'from plugin_manager import get_plugin_manager'"
+      - description: "Remove _get_plugin_manager() from content_scheduler.py"
+        detail: "Same — import get_plugin_manager"
+      - description: "Remove _get_plugin_manager() from batch_generator.py"
+        detail: "Same — import get_plugin_manager"
+      - description: "Update all call sites to use imported get_plugin_manager()"
+        detail: "All try/except pass wrappers remain — fail-soft unchanged"
+    tests_to_write:
+      - "test get_plugin_manager returns same instance on repeated calls"
+      - "test get_plugin_manager is importable"
+      - "test existing module-level singleton tests still pass"
+
+implementation_order:
+  - H64  # smallest change, unblocks cleaner code
+  - H62  # independent of others
+  - H63  # independent of others, most visible
+
+total_tasks: 12
+estimated_new_tests: 20-25

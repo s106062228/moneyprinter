@@ -1,0 +1,27 @@
+Experiment Log — Iteration 20 (2026-03-31)
+=============================================
+
+Full test suite: 2811 passed, 0 failures, 20 skipped
+Total coverage: 86.48% (was 86.36%, delta +0.12%)
+
+Per-module coverage (affected files):
+  pipeline_health.py:  95.18% (was 93.01%, delta +2.17%)
+  plugin_manager.py:   96.72% (was 96.49%, delta +0.23%)
+  dashboard.py:        91.05% (maintained — SSE test doesn't count lines)
+  publisher.py:        73.61% (was 73.58%, delta +0.03%)
+  content_scheduler.py: N/A (lazy import — no coverage delta)
+  batch_generator.py:  N/A (lazy import — no coverage delta)
+
+New tests added:
+  H62 (auto-persist health):     11 tests (test_pipeline_health.py)
+  H63 (dashboard health panel):   4 tests (test_dashboard.py)
+  H64 (shared PluginManager):     5 tests (test_plugin_manager.py)
+  Total:                          20 new tests
+
+Test file totals:
+  test_pipeline_health.py: 110 (was 99)
+  test_plugin_manager.py:  107 (was 89 + iter19 lifecycle tests)
+  test_dashboard.py:       88 (was 84)
+
+Regressions: 0
+Pre-existing failures fixed: 0 (test_batch_generator, test_publisher, test_content_scheduler updated for renamed get_plugin_manager)

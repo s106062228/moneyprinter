@@ -16,6 +16,7 @@ Usage:
     # {"total": 1, "ok": 0, "degraded": 0, "error": 1, "unknown": 0}
 """
 
+import atexit
 import json
 import os
 import tempfile
@@ -37,6 +38,7 @@ _MAX_MODULES = 100
 _MAX_MODULE_NAME_LENGTH = 200
 _MAX_ERROR_LENGTH = 1000
 _MAX_METADATA_KEYS = 20
+_AUTO_SAVE_INTERVAL = 10  # save every N report_health() calls
 
 _DEFAULT_PERSIST_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -121,7 +123,7 @@ class ModuleHealth:
 class PipelineHealthMonitor:
     """Tracks and persists health status for all registered pipeline modules."""
 
-    def __init__(self, persist_path: str = "") -> None:
+    def __init__(self, persist_path: str = "", auto_save_interval: int = _AUTO_SAVE_INTERVAL) -> None:
         if persist_path:
             self._persist_path = persist_path
         else:
@@ -133,6 +135,9 @@ class PipelineHealthMonitor:
                 self._persist_path = _DEFAULT_PERSIST_PATH
 
         self._modules: dict[str, ModuleHealth] = {}
+        self._report_count: int = 0
+        self._auto_save_interval: int = auto_save_interval
+        self._atexit_registered: bool = False
 
     # ------------------------------------------------------------------
     # Registration
@@ -212,6 +217,29 @@ class PipelineHealthMonitor:
 
         logger.debug("Module '%s' reported status: %s", name, status)
 
+        # Auto-persist: register atexit on first call, save every N reports
+        if not self._atexit_registered:
+            try:
+                atexit.register(self._atexit_save)
+                self._atexit_registered = True
+            except Exception:
+                pass
+
+        self._report_count += 1
+        if self._report_count >= self._auto_save_interval:
+            try:
+                self.save()
+                self._report_count = 0
+            except Exception:
+                logger.debug("Auto-save failed (non-fatal)")
+
+    def _atexit_save(self) -> None:
+        """Save handler for atexit — fail-soft."""
+        try:
+            self.save()
+        except Exception:
+            pass
+
     # ------------------------------------------------------------------
     # Queries
     # ------------------------------------------------------------------
@@ -254,6 +282,7 @@ class PipelineHealthMonitor:
     def reset(self) -> None:
         """Clear all registered modules."""
         self._modules.clear()
+        self._report_count = 0
         logger.debug("Pipeline health monitor reset.")
 
     # ------------------------------------------------------------------

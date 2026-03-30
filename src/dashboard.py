@@ -255,11 +255,13 @@ def create_app():
         analytics = _load_analytics_data()
         accounts = _load_accounts_summary()
         jobs = _load_scheduled_jobs()
+        pipeline_health = _get_pipeline_module_health()
         return HTMLResponse(content=template.render(
             health=health,
             analytics=analytics,
             accounts=accounts,
             jobs=jobs,
+            pipeline_health=pipeline_health,
         ))
 
     @app.get("/api/health")
@@ -387,6 +389,7 @@ def create_app():
                     "recent_events": analytics.get("events", [])[-5:],
                     "accounts": accounts,
                     "jobs_count": len(jobs),
+                    "pipeline_health": _get_pipeline_module_health(),
                 })
                 yield f"event: dashboard-update\ndata: {payload}\n\n"
                 await asyncio.sleep(_SSE_INTERVAL_SECONDS)

@@ -1204,3 +1204,45 @@ class TestLifecycleHookSpecs:
         pm.register(plugin)
         pm.hook.on_batch_start(job={"topics_count": 5})
         assert plugin.received_job["topics_count"] == 5
+
+
+# ===========================================================================
+# Shared singleton — get_plugin_manager() (H64)
+# ===========================================================================
+
+
+class TestGetPluginManager:
+    """Tests for the module-level get_plugin_manager() lazy singleton."""
+
+    def setup_method(self):
+        """Reset the singleton between tests."""
+        pm_module.get_plugin_manager._instance = None
+
+    def teardown_method(self):
+        """Clean up singleton."""
+        pm_module.get_plugin_manager._instance = None
+
+    def test_returns_plugin_manager_instance(self):
+        result = pm_module.get_plugin_manager()
+        assert isinstance(result, PluginManager)
+
+    def test_returns_same_instance_on_repeated_calls(self):
+        first = pm_module.get_plugin_manager()
+        second = pm_module.get_plugin_manager()
+        assert first is second
+
+    def test_returns_none_on_init_failure(self):
+        with patch.object(pm_module, "PluginManager", side_effect=RuntimeError("boom")):
+            result = pm_module.get_plugin_manager()
+            assert result is None
+
+    def test_is_importable(self):
+        from plugin_manager import get_plugin_manager
+        assert callable(get_plugin_manager)
+
+    def test_singleton_reset_creates_new_instance(self):
+        first = pm_module.get_plugin_manager()
+        pm_module.get_plugin_manager._instance = None
+        second = pm_module.get_plugin_manager()
+        assert first is not second
+        assert isinstance(second, PluginManager)

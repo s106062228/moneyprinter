@@ -330,3 +330,18 @@
 - [x] Encrypt cache files containing account data at rest — DONE (iteration 15)
 - [ ] Kubernetes Helm chart for scaled deployment
 - [x] Predictive micro-trend detection for topic selection — DONE (iteration 15)
+
+## Completed — Iteration 20 (2026-03-31)
+- [x] Add get_plugin_manager() lazy singleton to plugin_manager.py [H64]
+- [x] Remove _get_plugin_manager() from publisher.py, import shared singleton [H64]
+- [x] Remove _get_plugin_manager() from content_scheduler.py, import shared singleton [H64]
+- [x] Remove _get_plugin_manager() from batch_generator.py, import shared singleton [H64]
+- [x] Write tests for shared get_plugin_manager() (singleton, importability) [H64]
+- [x] Add auto_save_interval param + _report_count to PipelineHealthMonitor [H62]
+- [x] Add atexit registration on first report_health() call [H62]
+- [x] Add periodic save in report_health() after every N reports [H62]
+- [x] Write tests for auto-persist health (atexit, periodic save, fail-soft) [H62]
+- [x] Pass pipeline_health data to dashboard template in dashboard_page() [H63]
+- [x] Add Pipeline Modules card to dashboard.html with status badges [H63]
+- [x] Include pipeline health in SSE stream + update tests [H63]
+- [x] Run full test suite (2811 passed, 0 failures, 86.48% coverage) [H62, H63, H64]

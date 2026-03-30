@@ -2117,12 +2117,12 @@ class TestPublisherPluginDispatch:
 
     def setup_method(self):
         import publisher
-        publisher._get_plugin_manager._instance = None
+        publisher.get_plugin_manager._instance = None
         publisher._get_health_monitor._instance = None
 
     def teardown_method(self):
         import publisher
-        publisher._get_plugin_manager._instance = None
+        publisher.get_plugin_manager._instance = None
         publisher._get_health_monitor._instance = None
 
     def _make_publisher(self):
@@ -2156,7 +2156,7 @@ class TestPublisherPluginDispatch:
                 title="Test",
                 platforms=["youtube"],
             )
-            with patch("publisher._get_plugin_manager", return_value=mock_pm):
+            with patch("publisher.get_plugin_manager", return_value=mock_pm):
                 with patch("publisher._get_health_monitor", return_value=MagicMock()):
                     with patch.object(pub, "_check_uniqueness", return_value=None):
                         pub.publish(job)
@@ -2187,7 +2187,7 @@ class TestPublisherPluginDispatch:
                 title="Test",
                 platforms=["youtube"],
             )
-            with patch("publisher._get_plugin_manager", return_value=mock_pm):
+            with patch("publisher.get_plugin_manager", return_value=mock_pm):
                 with patch("publisher._get_health_monitor", return_value=MagicMock()):
                     with patch.object(pub, "_check_uniqueness", return_value=None):
                         pub.publish(job)
@@ -2223,7 +2223,7 @@ class TestPublisherPluginDispatch:
                 title="Test",
                 platforms=["youtube"],
             )
-            with patch("publisher._get_plugin_manager", return_value=mock_pm):
+            with patch("publisher.get_plugin_manager", return_value=mock_pm):
                 with patch("publisher._get_health_monitor", return_value=MagicMock()):
                     with patch.object(pub, "_check_uniqueness", return_value=None):
                         pub.publish(job)
@@ -2264,7 +2264,7 @@ class TestPublisherPluginDispatch:
                 title="Test",
                 platforms=["youtube"],
             )
-            with patch("publisher._get_plugin_manager", return_value=mock_pm):
+            with patch("publisher.get_plugin_manager", return_value=mock_pm):
                 with patch("publisher._get_health_monitor", return_value=MagicMock()):
                     with patch.object(pub, "_check_uniqueness", return_value=None):
                         results = pub.publish(job)
@@ -2281,7 +2281,7 @@ class TestPublisherPluginDispatch:
     def test_no_plugin_manager_does_not_block(
         self, mock_pub, mock_analytics, mock_notify
     ):
-        """If _get_plugin_manager returns None, publish proceeds normally."""
+        """If get_plugin_manager returns None, publish proceeds normally."""
         from publisher import PublishJob, PublishResult
 
         mock_pub.return_value = PublishResult(platform="youtube", success=True)
@@ -2295,7 +2295,7 @@ class TestPublisherPluginDispatch:
                 title="Test",
                 platforms=["youtube"],
             )
-            with patch("publisher._get_plugin_manager", return_value=None):
+            with patch("publisher.get_plugin_manager", return_value=None):
                 with patch("publisher._get_health_monitor", return_value=MagicMock()):
                     with patch.object(pub, "_check_uniqueness", return_value=None):
                         results = pub.publish(job)

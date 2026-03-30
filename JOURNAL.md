@@ -2588,3 +2588,121 @@ Key decisions:
 5. **Migrate test files to mock_optional_dep()** — use conftest helper (low priority, maintenance)
 
 ---
+
+---
+
+## Survey — 2026-03-31 (Iteration 20)
+
+### Research Focus
+Focused on the top 3 "Next Iteration Candidates" from iteration 19 retro:
+1. Auto-persist pipeline health (save() on shutdown + periodic)
+2. Dashboard health panel HTML (render per-module status in dashboard.html)
+3. Shared global PluginManager (single instance across modules)
+
+### Searches (7 queries, 2 page fetches)
+1. FastAPI health monitoring auto-persist best practices 2026
+2. HTMX SSE real-time health dashboard panel patterns
+3. Python pluggy shared global plugin manager singleton
+4. Content automation video pipeline health auto-save
+5. FastAPI + HTMX health status panel + SSE templates
+6. Python atexit + signal handler auto-persist state
+7. YouTube Shorts automation competitors 2026 (OpusClip, Submagic, Vizard)
+
+### Key Findings
+1. **Auto-persist pattern**: `atexit.register()` combined with SIGTERM/SIGINT signal handlers is the standard Python pattern for save-on-shutdown. atexit does NOT fire on unhandled signals — must register a handler that calls `sys.exit()`. Counter-based periodic save (every N reports) reduces I/O.
+2. **Dashboard health panel**: HTMX `sse-swap` can push HTML fragments for per-module health cards without JavaScript. Use `sse-connect` + `sse-swap` + `hx-trigger="sse:<event>"` for real-time updates. Color-coded status badges (ok=green, degraded=yellow, error=red) with counters and timestamps.
+3. **Shared PluginManager**: Pluggy does not enforce a global singleton. The current per-module `_get_plugin_manager()` lazy singletons create independent instances. A shared global can be implemented via a module-level function in `plugin_manager.py` itself — all consumers import and use the same function.
+4. **Competitor landscape**: OpusClip, Vizard, and Submagic all have real-time dashboards, virality scoring, and multi-platform publishing in 2026. MoneyPrinter's feature set is competitive but needs operational visibility (health panels).
+
+### References
+- papers/2026-03-31-health-auto-persist-patterns.yaml
+
+
+---
+
+## Hypotheses — 2026-03-31 (Iteration 20)
+
+### Selection Rationale
+The top 3 candidates from iteration 19 retro are all independent, low-risk, and directly improve operational visibility:
+
+| ID | Hypothesis | Priority | Risk |
+|----|-----------|----------|------|
+| H62 | Auto-persist pipeline health — atexit + periodic save after N reports | HIGH | LOW |
+| H63 | Dashboard health panel HTML — render per-module status with SSE updates | HIGH | LOW |
+| H64 | Shared global PluginManager — single `get_plugin_manager()` in plugin_manager.py, consumers import it | MEDIUM | LOW |
+
+**H62** addresses the #1 retro gap — modules report health to in-memory PipelineHealthMonitor but `save()` is never called automatically. Adding atexit registration + save-after-every-N-reports makes health data survive restarts.
+
+**H63** is the natural follow-up to H60 (iteration 19). The `/api/health` endpoint returns pipeline module data, but `dashboard.html` doesn't render it. Adding a "Pipeline Modules" card with per-module status badges, counters, and timestamps makes the dashboard actionable.
+
+**H64** eliminates the duplicated `_get_plugin_manager()` lazy singletons in publisher, scheduler, and batch_generator. A single `get_plugin_manager()` function in `plugin_manager.py` itself means all modules share one PluginManager instance.
+
+
+---
+
+## Architecture — 2026-03-31 (Iteration 20)
+
+Designed implementation for H62, H63, H64. 12 tasks added to TODO.md.
+
+Key decisions:
+1. **H62 (auto-persist health)**: Add `_report_count` and `auto_save_interval` (default 10) to PipelineHealthMonitor. After every N `report_health()` calls, auto-call `save()`. Register `atexit.register(self.save)` on first report. All auto-save wrapped in try/except (fail-soft).
+2. **H63 (dashboard health panel)**: Add "Pipeline Modules" card to `dashboard.html` with per-module status badges, success/error counts, last_check timestamps. Pass `pipeline_health` to template. Include in SSE stream for real-time updates.
+3. **H64 (shared PluginManager)**: Add `get_plugin_manager()` lazy singleton to `plugin_manager.py`. Remove duplicate `_get_plugin_manager()` from publisher, content_scheduler, batch_generator. All 3 modules import the shared function.
+
+
+---
+
+## Evaluation — 2026-03-31 (Iteration 20)
+
+### Hypotheses Tested This Iteration
+
+| ID | Hypothesis | Verdict | Key Metric |
+|----|-----------|---------|------------|
+| H62 | Auto-persist pipeline health — atexit + periodic save | **CONFIRMED** | 11 new tests, 95.18% coverage, auto-save fires at N reports |
+| H63 | Dashboard health panel HTML — per-module status with SSE | **CONFIRMED** | 4 new tests, Pipeline Modules card renders, SSE includes health |
+| H64 | Shared global PluginManager — single get_plugin_manager() | **CONFIRMED** | 5 new tests, 3 duplicate functions removed, 96.72% coverage |
+
+### Key Observations
+1. All 3 hypotheses independently confirmed. Zero regressions.
+2. **H62**: PipelineHealthMonitor now auto-saves after every `auto_save_interval` (default 10) `report_health()` calls. Registers `atexit.register(self._atexit_save)` on first call. All auto-save wrapped in try/except (fail-soft). Coverage up to 95.18%.
+3. **H63**: New "Pipeline Modules" card in `dashboard.html` renders per-module health with color-coded status badges (green=ok, yellow=degraded, red=error, blue=unknown), success/error counts, and a summary row. Pipeline health data now included in SSE stream payload for real-time updates.
+4. **H64**: New `get_plugin_manager()` lazy singleton in `plugin_manager.py`. Removed 3 duplicate `_get_plugin_manager()` functions from publisher.py, content_scheduler.py, batch_generator.py. All modules now import and share the same singleton. Updated 6 test files to reference new function name.
+5. Total: 2,811 tests passing (+20 new), 0 failures.
+6. Overall coverage: 86.48% (up from 86.36%, delta +0.12%).
+
+
+---
+
+## Retrospective — 2026-03-31 (Iteration 20)
+
+### What Worked
+1. **Parallel agent implementation**: All 3 hypotheses were independent, enabling 3 parallel agents for code changes + 3 parallel agents for test writing. Total implementation time ~3 minutes wall clock.
+2. **Clean deduplication (H64)**: Removing 3 duplicate `_get_plugin_manager()` functions and centralizing in `plugin_manager.py` was straightforward. The import fallback pattern (`try: from plugin_manager import get_plugin_manager / except ImportError: get_plugin_manager = lambda: None`) maintains fail-soft behavior.
+3. **Counter-based auto-save (H62)**: Simple `_report_count` + modulo check is more reliable than threading-based timers. Combined with `atexit` for shutdown, this covers both periodic and graceful-exit save paths.
+4. **Template-only health panel (H63)**: No JavaScript needed for the Pipeline Modules card — Jinja2 + HTMX SSE handles rendering. Consistent with the existing dashboard architecture.
+5. **Quick test fix for renamed function**: Only 3 test files needed `_get_plugin_manager` → `get_plugin_manager` rename — caught on first test run and fixed in one batch edit.
+
+### What Could Improve
+1. **Dashboard health panel not auto-refreshing via SSE swap**: The SSE stream now includes pipeline_health data, but the dashboard.html doesn't use `sse-swap` to auto-update the Pipeline Modules card. A future iteration should add `hx-trigger="sse:dashboard-update"` with a partial template endpoint.
+2. **auto_save_interval not configurable via config.json**: Currently only settable as a constructor parameter. Could be exposed via `_get("pipeline_health_auto_save_interval")` in a future iteration.
+3. **No SIGTERM handler wired**: The atexit handler fires on normal interpreter exit but not on unhandled SIGTERM. Adding a SIGTERM handler that calls `sys.exit()` would make the auto-persist more robust in container environments.
+
+### Metrics
+| Metric | Before (iter 19) | After (iter 20) | Delta |
+|---|---|---|---|
+| Tests | 2791 | 2811 | +20 |
+| Failures | 0 | 0 | 0 |
+| Duplicate _get_plugin_manager functions | 3 | 0 | -3 |
+| pipeline_health.py | 93.01% | 95.18% | +2.17% |
+| plugin_manager.py | 96.49% | 96.72% | +0.23% |
+| publisher.py | 73.58% | 73.61% | +0.03% |
+| Total coverage | 86.36% | 86.48% | +0.12% |
+| New deps | — | — | +0 |
+
+### Next Iteration Candidates
+1. **SSE-swap auto-refresh for health panel** — add hx-trigger="sse:dashboard-update" with partial template (medium priority)
+2. **SIGTERM handler for atexit** — ensure auto-save fires in container shutdown (medium priority)
+3. **Config-driven auto_save_interval** — expose in config.json (low priority)
+4. **Multi-language dubbing plugin** — Wav2Lip + CosyVoice via plugin_manager (medium priority, complex, CUDA dependency)
+5. **Dashboard SSE partial templates** — Jinja2 fragments for HTMX swap (medium priority)
+
