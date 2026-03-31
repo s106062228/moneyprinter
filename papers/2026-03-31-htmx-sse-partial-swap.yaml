@@ -1,0 +1,14 @@
+title: HTMX SSE Extension — Partial Template Swap Patterns
+date: 2026-03-31
+source: https://htmx.org/extensions/sse/
+type: documentation
+relevance: high
+summary: |
+  HTMX SSE extension supports multiple sse-swap elements under a single
+  sse-connect node. Each child can listen for different event types.
+  hx-trigger="sse:<event_name>" triggers HTTP GET for server-rendered
+  partial templates. Recommended pattern for dashboard health panel auto-refresh.
+key_patterns:
+  - "sse-swap on child elements for per-component updates"
+  - "hx-trigger='sse:dashboard-update' + hx-get='/api/health/partial'"
+  - "Zero JavaScript — server returns Jinja2 HTML fragments"

@@ -1,0 +1,17 @@
+title: Linly-Dubbing + CosyVoice Multi-Language Dubbing Pipeline
+date: 2026-03-31
+sources:
+  - https://github.com/Kedreamix/Linly-Dubbing
+  - https://github.com/FunAudioLLM/CosyVoice
+type: reference_architecture
+relevance: medium
+summary: |
+  Linly-Dubbing (2.8k GitHub stars) provides full open-source dubbing
+  pipeline: ASR (FunASR) → translation (Qwen) → TTS (CosyVoice/XTTS) →
+  lip-sync (Wav2Lip/MuseTalk). CosyVoice 2 (10k stars) supports 6+ languages
+  with one-shot voice cloning (3-10s audio sample). Both require CUDA GPU
+  and conda environment with 10GB+ model weights.
+integration_notes: |
+  - High complexity, not suitable for CLI-only tool
+  - Best implemented as plugin via plugin_manager.py
+  - Reference architecture for future multi-language dubbing feature

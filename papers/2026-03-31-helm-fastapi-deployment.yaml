@@ -1,0 +1,16 @@
+title: Kubernetes Helm Chart for FastAPI Deployment
+date: 2026-03-31
+sources:
+  - https://artifacthub.io/packages/helm/fastapi/fastapi
+  - https://www.zestminds.com/blog/fastapi-deployment-guide/
+type: deployment_reference
+relevance: medium
+summary: |
+  Standard FastAPI K8s stack: Nginx/Traefik → Gunicorn → Uvicorn workers → FastAPI.
+  ArtifactHub has ready-made Helm chart with configurable replicas, resource limits,
+  ingress, and health probe paths. MPV2 already has /api/health/liveness and
+  /api/health/readiness endpoints that map directly to Helm chart probes.
+key_config:
+  - "replicaCount, image.repository, resources.limits"
+  - "livenessProbe → /api/health/liveness"
+  - "readinessProbe → /api/health/readiness"

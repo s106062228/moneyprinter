@@ -1,0 +1,37 @@
+{% set modules = pipeline_health.get('modules', {}) if pipeline_health else {} %}
+{% set summary = pipeline_health.get('summary', {}) if pipeline_health else {} %}
+{% if modules %}
+    {% for name, mod in modules.items() %}
+    <div class="stat">
+        <span class="stat-label">{{ name }}</span>
+        <span class="stat-value">
+            {% set st = mod.get('status', 'unknown') %}
+            {% if st == 'ok' %}
+                <span class="badge badge-green">OK</span>
+            {% elif st == 'degraded' %}
+                <span class="badge badge-yellow">Degraded</span>
+            {% elif st == 'error' %}
+                <span class="badge badge-red">Error</span>
+            {% else %}
+                <span class="badge badge-blue">{{ st | capitalize }}</span>
+            {% endif %}
+            <span style="color:#64748b;font-size:0.75rem;margin-left:0.5rem">
+                &#10003;{{ mod.get('success_count', 0) }} &#10007;{{ mod.get('error_count', 0) }}
+            </span>
+        </span>
+    </div>
+    {% endfor %}
+    {% if summary %}
+    <div class="stat" style="margin-top:0.5rem;border-top:1px solid #334155;padding-top:0.5rem">
+        <span class="stat-label">Total</span>
+        <span class="stat-value" style="font-size:0.8rem">
+            {{ summary.get('total', 0) }} modules &mdash;
+            <span style="color:#6ee7b7">{{ summary.get('ok', 0) }} ok</span>,
+            <span style="color:#fde68a">{{ summary.get('degraded', 0) }} degraded</span>,
+            <span style="color:#fca5a5">{{ summary.get('error', 0) }} error</span>
+        </span>
+    </div>
+    {% endif %}
+{% else %}
+    <p class="empty">No pipeline modules registered</p>
+{% endif %}

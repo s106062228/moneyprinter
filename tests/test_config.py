@@ -230,3 +230,56 @@ class TestEnvVarFallbacks:
         """Config file values take precedence over env vars."""
         with patch.dict(os.environ, {"GEMINI_API_KEY": "should-not-use"}):
             assert config_module.get_nanobanana2_api_key() == "test-gemini-key"
+
+
+class TestGetPipelineHealthAutoSaveInterval:
+    """Tests for get_pipeline_health_auto_save_interval()."""
+
+    def test_returns_configured_value(self, tmp_path):
+        """Returns the value set in config.json."""
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps({"pipeline_health_auto_save_interval": 25}))
+        config_module._config_path = str(config_path)
+        assert config_module.get_pipeline_health_auto_save_interval() == 25
+
+    def test_returns_default_10_when_key_missing(self, tmp_path):
+        """Returns default of 10 when key is absent."""
+        config_path = tmp_path / "config.json"
+        config_path.write_text("{}")
+        config_module._config_path = str(config_path)
+        assert config_module.get_pipeline_health_auto_save_interval() == 10
+
+    def test_clamps_to_min_1(self, tmp_path):
+        """Values <= 0 are clamped to 1."""
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps({"pipeline_health_auto_save_interval": 0}))
+        config_module._config_path = str(config_path)
+        assert config_module.get_pipeline_health_auto_save_interval() == 1
+
+    def test_clamps_negative_to_min_1(self, tmp_path):
+        """Negative values are clamped to 1."""
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps({"pipeline_health_auto_save_interval": -50}))
+        config_module._config_path = str(config_path)
+        assert config_module.get_pipeline_health_auto_save_interval() == 1
+
+    def test_clamps_to_max_10000(self, tmp_path):
+        """Values > 10000 are clamped to 10000."""
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps({"pipeline_health_auto_save_interval": 99999}))
+        config_module._config_path = str(config_path)
+        assert config_module.get_pipeline_health_auto_save_interval() == 10000
+
+    def test_invalid_string_returns_default_10(self, tmp_path):
+        """Non-numeric string falls back to default 10."""
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps({"pipeline_health_auto_save_interval": "not-a-number"}))
+        config_module._config_path = str(config_path)
+        assert config_module.get_pipeline_health_auto_save_interval() == 10
+
+    def test_none_value_returns_default_10(self, tmp_path):
+        """None value falls back to default 10."""
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps({"pipeline_health_auto_save_interval": None}))
+        config_module._config_path = str(config_path)
+        assert config_module.get_pipeline_health_auto_save_interval() == 10

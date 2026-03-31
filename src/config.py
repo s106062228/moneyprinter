@@ -378,3 +378,13 @@ def get_seo_enabled() -> bool:
 def get_seo_platforms() -> list:
     """Gets the list of platforms to optimize SEO for."""
     return get_seo_config().get("platforms", ["youtube"])
+
+
+def get_pipeline_health_auto_save_interval() -> int:
+    """Gets the pipeline health auto-save interval (number of reports between saves)."""
+    val = _get("pipeline_health_auto_save_interval", 10)
+    try:
+        result = int(val)
+    except (TypeError, ValueError):
+        return 10
+    return max(1, min(result, 10000))

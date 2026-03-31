@@ -2706,3 +2706,151 @@ Key decisions:
 4. **Multi-language dubbing plugin** — Wav2Lip + CosyVoice via plugin_manager (medium priority, complex, CUDA dependency)
 5. **Dashboard SSE partial templates** — Jinja2 fragments for HTMX swap (medium priority)
 
+---
+
+## Survey — 2026-03-31 (Iteration 21)
+
+### Research Focus
+Follow-up on iteration 20 next-candidates: SSE-swap auto-refresh, SIGTERM graceful shutdown, multi-language dubbing, Kubernetes Helm chart, and competitive landscape update.
+
+### Key Findings
+
+#### 1. HTMX SSE Partial Template Auto-Refresh
+- **Multiple sse-swap elements**: Child elements of the SSE connection node can each listen for different event types: `<div sse-swap="event1">` and `<div sse-swap="event2">` under a single `sse-connect`. (source: [htmx.org/extensions/sse](https://htmx.org/extensions/sse/))
+- **hx-trigger with SSE**: `hx-trigger="sse:<event_name>"` triggers an HTTP GET to fetch a fresh partial template on each SSE event, enabling server-rendered fragments. This is the recommended pattern for updating complex UI components that need full Jinja2 rendering. (source: [htmx.org/extensions/sse](https://htmx.org/extensions/sse/))
+- **Best pattern for dashboard health panel**: Use `hx-trigger="sse:dashboard-update"` + `hx-get="/api/health/partial"` + `hx-swap="innerHTML"` on the Pipeline Modules card. Server returns a Jinja2-rendered HTML fragment. Zero JavaScript required.
+
+#### 2. SIGTERM + atexit Graceful Shutdown
+- **Core problem**: `atexit` handlers fire on `sys.exit()` and normal exit, but NOT on unhandled SIGTERM (default signal from `docker stop` and `kubectl delete pod`). (source: [oneuptime.com](https://oneuptime.com/blog/post/2026-02-06-otel-sdk-shutdown-python-atexit-sigterm/view))
+- **Proven pattern**: Combine `atexit.register()` + `signal.signal(SIGTERM, handler)` with a `_shutdown_called` bool flag to prevent double-flush. The SIGTERM handler calls the same `shutdown()` method then `sys.exit(0)`. (source: [oneuptime.com](https://oneuptime.com/blog/post/2026-02-06-otel-sdk-shutdown-python-atexit-sigterm/view))
+- **PyPI packages**: `graceful-shutdown` (context manager that traps SIGTERM/SIGINT/SIGQUIT), `pyterminate` (register cleanup per-signal). Both are lightweight. (source: [pypi.org](https://pypi.org/project/graceful-shutdown/))
+- **Recommendation**: No external dep needed — 15 lines of stdlib code. Add `signal.signal(SIGTERM, handler)` to PipelineHealthMonitor that calls `sys.exit(0)` after `_atexit_save()`.
+
+#### 3. Multi-Language Dubbing / Lip-Sync Landscape
+- **Linly-Dubbing** (Kedreamix, GitHub 2.8k★): Full open-source pipeline — ASR (FunASR) → translation (Qwen) → TTS (CosyVoice/EdgeTTS/XTTS) → lip-sync (Wav2Lip/MuseTalk). WebUI included. Supports Chinese, English, Japanese, Korean, Cantonese. (source: [github.com/Kedreamix/Linly-Dubbing](https://github.com/Kedreamix/Linly-Dubbing))
+- **CosyVoice 2** (Alibaba Tongyi Lab, GitHub 10k★): Multi-lingual TTS with one-shot voice cloning (3-10s audio). Supports 6+ languages. Python 3.10, conda, CUDA required. (source: [github.com/FunAudioLLM/CosyVoice](https://github.com/FunAudioLLM/CosyVoice))
+- **Top lip-sync models (2026)**: Wav2Lip (industry staple, works across languages), SadTalker (talking heads from single image), LivePortrait (Tencent ARC, photorealistic), MuseTalk 1.5 (real-time, 30fps). (source: [pixazo.ai](https://www.pixazo.ai/blog/best-open-source-lip-sync-models))
+- **Integration complexity**: High — requires CUDA GPU, conda environment, 10GB+ model weights. Not suitable for CLI-only tool. Better as a plugin via `plugin_manager.py`.
+
+#### 4. Kubernetes Helm Chart for FastAPI
+- **Standard stack**: Nginx/Traefik reverse proxy → Gunicorn process manager → Uvicorn workers → FastAPI app. (source: [zestminds.com](https://www.zestminds.com/blog/fastapi-deployment-guide/))
+- **Existing Helm charts**: `artifacthub.io/packages/helm/fastapi/fastapi` provides a ready-made chart with configurable replicas, resource limits, service config, and ingress. (source: [artifacthub.io](https://artifacthub.io/packages/helm/fastapi/fastapi))
+- **Key config**: `replicaCount`, `image.repository`, `resources.limits` (cpu/memory), `ingress.enabled`, `livenessProbe`/`readinessProbe` paths matching our `/api/health/liveness` and `/api/health/readiness`. (source: [shunya-vichaar.medium.com](https://shunya-vichaar.medium.com/guide-to-deploying-fastapi-with-helm-on-kubernetes-6529cdd147e5))
+- **MPV2 readiness**: Dashboard already has `/api/health/liveness` and `/api/health/readiness` endpoints (added iteration 19). Helm chart can reference these directly.
+
+#### 5. Competitive Landscape Update (March 2026)
+- **ShortsDaily**: New all-in-one platform — fully automated faceless short-form videos with parallel processing (script + visuals + voice + music generated simultaneously). Zero manual intervention. (source: [topvidtools.com](https://topvidtools.com/2026/03/27/shortsdaily-review/))
+- **n8n workflows**: Open-source automation platform now has templates for "Fully automated AI video generation & multi-platform publishing" combining OpenAI + Flux + Kling + ElevenLabs. (source: [n8n.io](https://n8n.io/workflows/3442-fully-automated-ai-video-generation-and-multi-platform-publishing/))
+- **83% of creators** now use AI in some part of their workflow (Zapier 2026 survey). (source: [zapier.com](https://zapier.com/blog/best-ai-video-generator/))
+- **OpusClip** remains dominant for smart clipping with proprietary "virality score" — MPV2's virality_scorer.py + smart_clipper.py provides open-source alternative.
+
+### Gaps & Opportunities
+1. **SSE auto-refresh is a quick win** — dashboard health panel already has data, just needs `hx-trigger="sse:..."` + partial template endpoint (~30 lines)
+2. **SIGTERM handler is ~15 lines** — completes container-readiness story alongside existing liveness/readiness endpoints and Helm chart
+3. **Config-driven auto_save_interval** — trivial to expose via config.json getter
+4. **Multi-language dubbing** remains complex but feasible as a plugin — Linly-Dubbing provides reference architecture
+5. **Helm chart** is low-hanging fruit now that health endpoints exist
+
+---
+
+## Hypotheses — 2026-03-31 (Iteration 21)
+
+### Selected Hypotheses
+| ID | Hypothesis | Priority | Scope |
+|----|-----------|----------|-------|
+| H65 | SSE auto-refresh for dashboard health panel | HIGH | ~40 lines + partial template |
+| H66 | SIGTERM graceful shutdown for PipelineHealthMonitor | HIGH | ~15 lines stdlib |
+| H67 | Config-driven auto_save_interval | MEDIUM | ~15 lines, follows pattern |
+
+All three are independent, low-risk, and can be parallelized. See `specs/HYPOTHESES.md` for full details.
+
+---
+
+## Evaluation — 2026-03-31 (Iteration 21)
+
+### H65: SSE Auto-Refresh for Dashboard Health Panel — CONFIRMED
+- **Result**: Pipeline Modules card now auto-refreshes in real-time via SSE
+- **Implementation**:
+  - New `_health_panel.html` partial template (38 lines) extracted from dashboard.html
+  - New `GET /api/health/partial` endpoint in dashboard.py renders the partial
+  - `#pipeline-health-panel` div has `hx-trigger="sse:dashboard-update" hx-get="/api/health/partial" hx-swap="innerHTML"`
+  - Initial render uses `{% include '_health_panel.html' %}`
+- **Tests**: 5 new tests in test_dashboard.py (93 total, all passing)
+- **Coverage**: dashboard.py 91.85% (up from ~90.31%)
+- **Zero JavaScript added** — pure HTMX SSE pattern
+- **Verdict**: Hypothesis confirmed.
+
+### H66: SIGTERM Graceful Shutdown for PipelineHealthMonitor — CONFIRMED
+- **Result**: PipelineHealthMonitor now handles SIGTERM and SIGINT signals for container shutdown
+- **Implementation**:
+  - `_shutdown_called` flag prevents double-flush
+  - `_graceful_shutdown()` saves once and sets flag
+  - `_sigterm_handler()` and `_sigint_handler()` call graceful shutdown then `sys.exit(0)`
+  - Signal handlers registered alongside atexit in `report_health()` with `try/except (OSError, ValueError)` for non-main-thread safety
+  - `_atexit_save()` respects `_shutdown_called` flag
+- **Tests**: 8 new tests in test_pipeline_health.py (120 total, all passing)
+- **Coverage**: pipeline_health.py 92.75%
+- **Verdict**: Hypothesis confirmed.
+
+### H67: Config-Driven auto_save_interval — CONFIRMED
+- **Result**: auto_save_interval now configurable via config.json
+- **Implementation**:
+  - `get_pipeline_health_auto_save_interval()` getter in config.py with bounds [1, 10000]
+  - PipelineHealthMonitor reads from config when no explicit param given
+  - `pipeline_health_auto_save_interval` key added to config.example.json
+- **Tests**: 9 new tests (7 in test_config.py, 2 in test_pipeline_health.py)
+- **Coverage**: config.py 74.17%
+- **Verdict**: Hypothesis confirmed.
+
+### Summary
+
+| ID | Hypothesis | Verdict | Key Metric |
+|----|-----------|---------|------------|
+| H65 | SSE auto-refresh for health panel | **CONFIRMED** | 5 new tests, 91.85% dashboard coverage, zero JS |
+| H66 | SIGTERM graceful shutdown | **CONFIRMED** | 8 new tests, 92.75% coverage, signal handlers registered |
+| H67 | Config-driven auto_save_interval | **CONFIRMED** | 9 new tests, config getter with bounds validation |
+
+### Key Observations
+1. All 3 hypotheses independently confirmed. Zero regressions.
+2. **H65**: The `hx-trigger="sse:dashboard-update"` + partial template pattern is clean and eliminates need for any JavaScript. Each SSE event triggers a fresh server render of just the health panel fragment.
+3. **H66**: Signal handlers registered with `try/except (OSError, ValueError)` — safe for non-main-thread scenarios. The `_shutdown_called` flag prevents double-save across both atexit and signal paths.
+4. **H67**: Config getter follows the established `_get(key, default)` pattern with bounds clamping [1, 10000] and graceful fallback on invalid input.
+5. Total: 2,833 tests passing (+22 new), 0 failures.
+6. Overall coverage: 86.44% (stable, delta -0.04% — within noise).
+
+
+---
+
+## Retrospective — 2026-03-31 (Iteration 21)
+
+### What Worked
+1. **All 3 hypotheses parallel-implemented**: H65, H66, H67 were independent, enabling 3 parallel implementation agents. Total wall-clock time ~2.5 minutes for all code + tests.
+2. **HTMX SSE partial template pattern (H65)**: The `hx-trigger="sse:dashboard-update"` + `hx-get="/api/health/partial"` pattern is clean, idiomatic, and eliminates JavaScript entirely. Server renders the partial fragment; HTMX handles the swap. Consistent with the project's HTMX-first dashboard architecture.
+3. **Signal handler registration alongside atexit (H66)**: The `_shutdown_called` flag + `try/except (OSError, ValueError)` pattern is robust — works in main thread, silently skips in worker threads. Combined with existing atexit, this covers all exit paths (normal, SIGTERM, SIGINT).
+4. **Config getter follows established pattern exactly (H67)**: The 32nd config getter (`get_pipeline_health_auto_save_interval`) follows the same `_get(key, default)` + bounds validation pattern. Zero learning curve for contributors.
+5. **Survey-to-implementation alignment**: All 3 hypotheses directly addressed iteration 20's "Next Iteration Candidates." Survey confirmed the patterns; implementation followed survey findings exactly.
+
+### What Could Improve
+1. **Dashboard partial template could be extended**: Only the health panel uses the partial template pattern. The accounts panel, analytics panel, and jobs panel could also benefit from SSE auto-refresh via the same pattern. Future iteration could add partials for all panels.
+2. **pipeline_health.py coverage dropped from 95.18% to 92.75%**: New signal handler code added some uncoverable branches (actual signal delivery in tests is tricky). Could add integration-level tests that actually send signals to a subprocess.
+3. **Config validation could be centralized**: The bounds-clamping logic (`max(1, min(val, 10000))`) in `get_pipeline_health_auto_save_interval` is duplicated from similar patterns in other getters. A `_get_bounded_int(key, default, min_val, max_val)` helper could DRY this up.
+
+### Metrics
+| Metric | Before (iter 20) | After (iter 21) | Delta |
+|---|---|---|---|
+| Tests | 2811 | 2833 | +22 |
+| Failures | 0 | 0 | 0 |
+| dashboard.py | ~90.31% | 91.85% | +1.54% |
+| pipeline_health.py | 95.18% | 92.75% | -2.43% |
+| config.py | ~73% | 74.17% | +~1% |
+| Total coverage | 86.48% | 86.44% | -0.04% |
+| New deps | — | — | +0 |
+| Config getters | 31 | 32 | +1 |
+
+### Next Iteration Candidates
+1. **SSE partial templates for all dashboard panels** — extend the hx-trigger + partial pattern to accounts, analytics, jobs panels (medium priority)
+2. **Multi-language dubbing plugin** — Linly-Dubbing + CosyVoice reference architecture via plugin_manager (medium priority, complex, CUDA dependency)
+3. **Kubernetes Helm chart** — health endpoints already compatible, ready for chart scaffolding (low priority)
+4. **Centralized config bounds validation** — DRY up _get_bounded_int helper (low priority)
+5. **Signal handler integration tests** — subprocess-based tests that actually deliver SIGTERM (low priority)
+

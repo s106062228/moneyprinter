@@ -4,6 +4,7 @@ Comprehensive tests for src/pipeline_health.py
 
 import json
 import os
+import signal
 import sys
 from unittest.mock import patch
 
@@ -911,3 +912,125 @@ class TestAtexitRegistration:
         monitor.report_health("mod", "ok")
         # Should not raise
         monitor._atexit_save()
+
+
+# ===========================================================================
+# Graceful Shutdown / Signal Handlers (H66)
+# ===========================================================================
+
+
+class TestGracefulShutdown:
+    """Tests for _shutdown_called flag, _graceful_shutdown, and signal handlers."""
+
+    def test_shutdown_called_false_initially(self, tmp_path):
+        monitor = PipelineHealthMonitor(persist_path=str(tmp_path / "ph.json"))
+        assert monitor._shutdown_called is False
+
+    def test_graceful_shutdown_calls_save_once(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=100,
+        )
+        monitor.report_health("mod", "ok")
+        persist_file = tmp_path / "ph.json"
+        assert not persist_file.exists()
+        with patch.object(monitor, "save") as mock_save:
+            monitor._graceful_shutdown()
+            assert mock_save.call_count == 1
+
+    def test_graceful_shutdown_sets_shutdown_called(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=100,
+        )
+        monitor._graceful_shutdown()
+        assert monitor._shutdown_called is True
+
+    def test_graceful_shutdown_double_call_saves_only_once(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=100,
+        )
+        monitor.report_health("mod", "ok")
+        with patch.object(monitor, "save") as mock_save:
+            monitor._graceful_shutdown()
+            monitor._graceful_shutdown()
+            assert mock_save.call_count == 1
+
+    def test_sigterm_handler_registered_on_first_report(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=100,
+        )
+        with patch("signal.signal") as mock_signal:
+            monitor.report_health("mod", "ok")
+            calls = [c.args[0] for c in mock_signal.call_args_list]
+            assert signal.SIGTERM in calls
+
+    def test_sigint_handler_registered_on_first_report(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=100,
+        )
+        with patch("signal.signal") as mock_signal:
+            monitor.report_health("mod", "ok")
+            calls = [c.args[0] for c in mock_signal.call_args_list]
+            assert signal.SIGINT in calls
+
+    def test_signal_registration_failure_is_silent(self, tmp_path):
+        """signal.signal() raises ValueError when not in main thread; should be silent."""
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=100,
+        )
+        with patch("signal.signal", side_effect=ValueError("not main thread")):
+            # Should not raise
+            monitor.report_health("mod", "ok")
+        assert monitor._atexit_registered  # atexit still registered
+
+    def test_atexit_save_noop_after_graceful_shutdown(self, tmp_path):
+        monitor = PipelineHealthMonitor(
+            persist_path=str(tmp_path / "ph.json"),
+            auto_save_interval=100,
+        )
+        monitor.report_health("mod", "ok")
+        monitor._graceful_shutdown()
+        # _shutdown_called is True — _atexit_save must be a no-op now
+        with patch.object(monitor, "save") as mock_save:
+            monitor._atexit_save()
+            assert mock_save.call_count == 0
+
+
+# ===========================================================================
+# Config-driven auto_save_interval
+# ===========================================================================
+
+
+class TestAutoSaveIntervalFromConfig:
+    """Tests that PipelineHealthMonitor reads auto_save_interval from config."""
+
+    def test_uses_config_value_when_no_explicit_param(self, tmp_path):
+        """Monitor picks up auto_save_interval from config getter when not overridden."""
+        import importlib
+        import pipeline_health as ph_module
+
+        with patch(
+            "config.get_pipeline_health_auto_save_interval",
+            return_value=42,
+        ):
+            monitor = ph_module.PipelineHealthMonitor(
+                persist_path=str(tmp_path / "ph.json"),
+            )
+            assert monitor._auto_save_interval == 42
+
+    def test_explicit_param_overrides_config(self, tmp_path):
+        """Explicit auto_save_interval param is used as-is, config is not consulted."""
+        with patch(
+            "config.get_pipeline_health_auto_save_interval",
+            return_value=42,
+        ):
+            monitor = PipelineHealthMonitor(
+                persist_path=str(tmp_path / "ph.json"),
+                auto_save_interval=7,
+            )
+            assert monitor._auto_save_interval == 7

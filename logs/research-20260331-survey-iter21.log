@@ -1,0 +1,22 @@
+Research Pipeline — Survey Step (Iteration 21)
+Date: 2026-03-31
+Status: COMPLETE
+
+Sources surveyed: 15+
+Web searches: 8
+Pages fetched: 3
+
+Key themes:
+1. HTMX SSE partial template swap — sse-swap + hx-trigger pattern for dashboard auto-refresh
+2. Python SIGTERM + atexit graceful shutdown — _shutdown_called flag pattern, no external deps
+3. Multi-language dubbing landscape — Linly-Dubbing + CosyVoice, high complexity, plugin candidate
+4. Kubernetes Helm chart — ready-made FastAPI charts, MPV2 health endpoints already compatible
+5. Competitive landscape — ShortsDaily (new), n8n workflow templates, 83% creator AI adoption
+
+Papers saved: 4
+  - papers/2026-03-31-htmx-sse-partial-swap.yaml
+  - papers/2026-03-31-sigterm-atexit-pattern.yaml
+  - papers/2026-03-31-linly-dubbing-cosyvoice.yaml
+  - papers/2026-03-31-helm-fastapi-deployment.yaml
+
+JOURNAL.md: Appended survey section

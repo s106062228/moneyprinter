@@ -19,6 +19,8 @@ Usage:
 import atexit
 import json
 import os
+import signal
+import sys
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -137,7 +139,14 @@ class PipelineHealthMonitor:
         self._modules: dict[str, ModuleHealth] = {}
         self._report_count: int = 0
         self._auto_save_interval: int = auto_save_interval
+        if auto_save_interval == _AUTO_SAVE_INTERVAL:
+            try:
+                from config import get_pipeline_health_auto_save_interval
+                self._auto_save_interval = get_pipeline_health_auto_save_interval()
+            except (ImportError, Exception):
+                pass
         self._atexit_registered: bool = False
+        self._shutdown_called: bool = False
 
     # ------------------------------------------------------------------
     # Registration
@@ -224,6 +233,11 @@ class PipelineHealthMonitor:
                 self._atexit_registered = True
             except Exception:
                 pass
+            try:
+                signal.signal(signal.SIGTERM, self._sigterm_handler)
+                signal.signal(signal.SIGINT, self._sigint_handler)
+            except (OSError, ValueError):
+                pass  # not main thread or signal not available
 
         self._report_count += 1
         if self._report_count >= self._auto_save_interval:
@@ -234,11 +248,33 @@ class PipelineHealthMonitor:
                 logger.debug("Auto-save failed (non-fatal)")
 
     def _atexit_save(self) -> None:
-        """Save handler for atexit — fail-soft."""
+        """Save handler for atexit — fail-soft, respects shutdown flag."""
+        if self._shutdown_called:
+            return
         try:
             self.save()
         except Exception:
             pass
+
+    def _graceful_shutdown(self) -> None:
+        """Shutdown handler — saves once, prevents double-flush."""
+        if self._shutdown_called:
+            return
+        self._shutdown_called = True
+        try:
+            self.save()
+        except Exception:
+            pass
+
+    def _sigterm_handler(self, signum, frame) -> None:
+        """SIGTERM signal handler for container shutdown."""
+        self._graceful_shutdown()
+        sys.exit(0)
+
+    def _sigint_handler(self, signum, frame) -> None:
+        """SIGINT signal handler for Ctrl+C."""
+        self._graceful_shutdown()
+        sys.exit(0)
 
     # ------------------------------------------------------------------
     # Queries

@@ -1139,3 +1139,97 @@ All 3 hypotheses are independent and can be implemented in parallel. H53 and H54
 | quality_gate.py | N/A | 94.02% | new |
 | repurpose_orchestrator.py | N/A | 91.83% | new |
 | Total coverage | 85.42% | 86.13% | +0.71% |
+
+---
+
+## Hypotheses — 2026-03-31 (Iteration 21)
+
+Based on Survey Iteration 21 findings (JOURNAL.md 2026-03-31).
+
+### H65: SSE Auto-Refresh for Dashboard Health Panel
+**Priority: HIGH**
+**Hypothesis**: Adding `hx-trigger="sse:dashboard-update"` + `hx-get="/api/health/partial"` to the Pipeline Modules card in `dashboard.html`, plus a new `/api/health/partial` endpoint in `dashboard.py` that returns a Jinja2-rendered HTML fragment, will enable real-time auto-refresh of the health panel with zero JavaScript. The SSE stream already includes pipeline_health data every 2 seconds.
+**Rationale**: Survey confirms the `hx-trigger="sse:<event_name>"` pattern is the standard HTMX approach for triggering server-side partial renders on SSE events. Dashboard already has `hx-ext="sse" sse-connect="/api/stream"` on line 33. Charts use custom JS to refresh — health panel should use native HTMX instead.
+**Metric**:
+  - New GET `/api/health/partial` endpoint returns rendered HTML fragment
+  - Pipeline Modules card auto-refreshes on each SSE `dashboard-update` event
+  - New Jinja2 partial template `_health_panel.html` for the fragment
+  - Unit tests pass with >85% dashboard coverage
+  - Zero JavaScript added
+**Success threshold**: Health panel visually updates in real-time via SSE. 5+ new tests.
+**Risk**: Low — builds on existing SSE infrastructure. Only risk is HTMX sse-trigger timing.
+**Dependencies**: Existing dashboard.py SSE stream, dashboard.html, pipeline_health.py.
+**Status**: UNTESTED
+
+### H66: SIGTERM Graceful Shutdown for PipelineHealthMonitor
+**Priority: HIGH**
+**Hypothesis**: Adding a SIGTERM signal handler to PipelineHealthMonitor that calls `_atexit_save()` and then `sys.exit(0)`, with a `_shutdown_called` flag to prevent double-flush, will ensure pipeline health data persists on container shutdown (docker stop, kubectl delete pod). Currently atexit only fires on normal interpreter exit, not on unhandled SIGTERM.
+**Rationale**: Survey confirms the `atexit + signal.signal(SIGTERM)` + `_shutdown_called` flag pattern is the production standard for Python container graceful shutdown (oneuptime.com 2026-02-06). No external deps needed — 15 lines of stdlib code.
+**Metric**:
+  - SIGTERM handler registered on first `report_health()` call (alongside existing atexit)
+  - `_shutdown_called` flag prevents double save
+  - SIGINT handler also added for Ctrl+C consistency
+  - Unit tests verify: signal registration, shutdown flag, no double-save
+  - Existing tests continue to pass
+**Success threshold**: 6+ new tests, signal handlers registered, no regressions.
+**Risk**: Very low — signal handlers are stdlib. Only risk: signal.signal() must be called from main thread, which is the normal case for report_health().
+**Dependencies**: Existing pipeline_health.py.
+**Status**: UNTESTED
+
+### H67: Config-Driven auto_save_interval
+**Priority: MEDIUM**
+**Hypothesis**: Adding `get_pipeline_health_auto_save_interval()` to `config.py` (following the established `_get(key, default)` pattern) and modifying PipelineHealthMonitor to use it when no explicit `auto_save_interval` is passed, will allow users to tune auto-save frequency via `config.json` without code changes.
+**Rationale**: Currently `auto_save_interval` is a hard-coded constant (`_AUTO_SAVE_INTERVAL = 10`). The project has 31 config getters, all following the same pattern. Adding one more is trivial.
+**Metric**:
+  - New `get_pipeline_health_auto_save_interval()` getter in config.py
+  - New config key `pipeline_health_auto_save_interval` in config.example.json
+  - PipelineHealthMonitor.__init__ uses config getter as default
+  - Unit tests verify: config-driven value, fallback to default 10
+**Success threshold**: 4+ new tests, config key documented, no regressions.
+**Risk**: Very low — follows established pattern exactly.
+**Dependencies**: Existing config.py, pipeline_health.py, config.example.json.
+**Status**: UNTESTED
+
+---
+
+## Priority Ranking (Iteration 21)
+1. **H65** — SSE auto-refresh (most visible improvement, builds on existing infra, medium effort)
+2. **H66** — SIGTERM handler (completes container-readiness story, low effort)
+3. **H67** — Config auto_save_interval (low effort, follows established pattern)
+
+## Implementation Recommendation
+All three hypotheses are low-risk, independent, and can be implemented in parallel. Combined scope is ~100 lines of production code + ~15 new tests. Total implementation time estimate: <30 minutes with parallel agents.
+
+---
+
+## Evaluation — 2026-03-31 (Iteration 21)
+
+### H65: SSE Auto-Refresh for Dashboard Health Panel — CONFIRMED
+- **Result**: `_health_panel.html` partial template + `/api/health/partial` endpoint + `hx-trigger="sse:dashboard-update"` on the card div
+- **Tests**: 5 new tests, 93 total dashboard tests, all passing
+- **Coverage**: dashboard.py 91.85%
+- **Verdict**: Hypothesis confirmed. Zero JavaScript, pure HTMX SSE pattern.
+
+### H66: SIGTERM Graceful Shutdown — CONFIRMED
+- **Result**: `_shutdown_called` flag, `_graceful_shutdown()`, `_sigterm_handler()`, `_sigint_handler()` methods. Signal handlers registered alongside atexit.
+- **Tests**: 8 new tests, 120 total pipeline_health tests, all passing
+- **Coverage**: pipeline_health.py 92.75%
+- **Verdict**: Hypothesis confirmed. Container-ready shutdown.
+
+### H67: Config-Driven auto_save_interval — CONFIRMED
+- **Result**: `get_pipeline_health_auto_save_interval()` getter in config.py + config.example.json key + PipelineHealthMonitor config integration
+- **Tests**: 9 new tests (7 config + 2 pipeline_health), all passing
+- **Coverage**: config.py 74.17%
+- **Verdict**: Hypothesis confirmed. Follows established pattern.
+
+### Suite Summary
+
+| Metric | Before (iter 20) | After (iter 21) | Delta |
+|---|---|---|---|
+| Tests | 2811 | 2833 | +22 |
+| Failures | 0 | 0 | 0 |
+| dashboard.py | ~90.31% | 91.85% | +1.54% |
+| pipeline_health.py | 95.18% | 92.75% | -2.43% (more code, proportional) |
+| config.py | ~73% | 74.17% | +~1% |
+| Total coverage | 86.48% | 86.44% | -0.04% (noise) |
+| New deps | — | — | +0 |

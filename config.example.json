@@ -81,5 +81,6 @@
     "include_tags": true,
     "include_hooks": true,
     "hashtag_count": 8
-  }
+  },
+  "pipeline_health_auto_save_interval": 10
 }

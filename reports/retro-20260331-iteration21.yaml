@@ -1,0 +1,45 @@
+title: Retrospective — Iteration 21
+date: 2026-03-31
+iteration: 21
+hypotheses:
+  H65:
+    name: SSE auto-refresh for dashboard health panel
+    verdict: CONFIRMED
+    new_tests: 5
+    coverage: 91.85%
+    key_change: "hx-trigger + partial template + /api/health/partial endpoint"
+  H66:
+    name: SIGTERM graceful shutdown for PipelineHealthMonitor
+    verdict: CONFIRMED
+    new_tests: 8
+    coverage: 92.75%
+    key_change: "signal handlers + _shutdown_called flag"
+  H67:
+    name: Config-driven auto_save_interval
+    verdict: CONFIRMED
+    new_tests: 9
+    coverage: 74.17%
+    key_change: "get_pipeline_health_auto_save_interval() getter + config.example.json"
+metrics:
+  tests_before: 2811
+  tests_after: 2833
+  tests_delta: +22
+  failures: 0
+  coverage_before: 86.48%
+  coverage_after: 86.44%
+  coverage_delta: -0.04%
+  new_deps: 0
+what_worked:
+  - "Parallel implementation of all 3 independent hypotheses"
+  - "HTMX SSE partial template pattern — zero JavaScript"
+  - "Signal handler + atexit combination covers all exit paths"
+  - "Config getter follows established 31-getter pattern"
+what_could_improve:
+  - "Only health panel uses partial templates — extend to all panels"
+  - "pipeline_health.py coverage dropped slightly due to signal handler branches"
+  - "Config bounds validation could be centralized"
+next_candidates:
+  - "SSE partial templates for all dashboard panels"
+  - "Multi-language dubbing plugin via Linly-Dubbing"
+  - "Kubernetes Helm chart"
+  - "Centralized config bounds validation helper"

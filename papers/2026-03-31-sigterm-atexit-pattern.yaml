@@ -1,0 +1,23 @@
+title: Python SIGTERM + atexit Graceful Shutdown Pattern
+date: 2026-03-31
+source: https://oneuptime.com/blog/post/2026-02-06-otel-sdk-shutdown-python-atexit-sigterm/view
+type: blog_post
+relevance: high
+summary: |
+  atexit handlers do NOT fire on unhandled SIGTERM. Proven pattern: combine
+  atexit.register() + signal.signal(SIGTERM, handler) with _shutdown_called
+  flag to prevent double-flush. Handler calls shutdown() then sys.exit(0).
+  No external deps needed — 15 lines of stdlib code.
+code_pattern: |
+  import atexit, signal, sys
+  _shutdown_called = False
+  def shutdown():
+      global _shutdown_called
+      if _shutdown_called: return
+      _shutdown_called = True
+      # ... flush/save logic ...
+  atexit.register(shutdown)
+  def _sigterm_handler(signum, frame):
+      shutdown()
+      sys.exit(0)
+  signal.signal(signal.SIGTERM, _sigterm_handler)

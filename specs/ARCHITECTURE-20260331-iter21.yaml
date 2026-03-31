@@ -1,0 +1,111 @@
+title: Architecture — Iteration 21
+date: 2026-03-31
+hypotheses: [H65, H66, H67]
+
+# H65: SSE Auto-Refresh for Dashboard Health Panel
+h65_sse_autorefresh:
+  files_modified:
+    - src/dashboard.py
+    - src/templates/dashboard.html
+  files_created:
+    - src/templates/_health_panel.html  # Jinja2 partial fragment
+  changes:
+    dashboard_py:
+      - action: "Add GET /api/health/partial endpoint"
+        location: "After _get_pipeline_module_health() ~line 165"
+        details: |
+          New endpoint renders _health_panel.html partial template with
+          pipeline_health data. Returns HTMLResponse. ~10 lines.
+      - action: "Register Jinja2 partial template"
+        location: "In create_app() where jinja_env is created"
+        details: "Already uses FileSystemLoader(templates_dir) — partials auto-discovered."
+    dashboard_html:
+      - action: "Add hx-trigger + hx-get to Pipeline Modules card"
+        location: "Line 75, the #pipeline-health-panel div"
+        details: |
+          Add: hx-trigger="sse:dashboard-update" hx-get="/api/health/partial" hx-swap="innerHTML"
+          This triggers a GET request on each SSE event, fetching the rendered partial.
+    health_panel_html:
+      - action: "Create partial template"
+        details: |
+          Extract the inner content of #pipeline-health-panel (lines 76-113)
+          into _health_panel.html. The main dashboard.html includes it on
+          first load via {% include '_health_panel.html' %}, and the partial
+          endpoint returns it for SSE-triggered refreshes.
+  tests:
+    - "Test /api/health/partial returns HTML with module data"
+    - "Test /api/health/partial returns HTML with 'No pipeline modules' when empty"
+    - "Test /api/health/partial includes status badges"
+    - "Test dashboard.html has hx-trigger attribute"
+    - "Test dashboard.html includes partial template"
+
+# H66: SIGTERM Graceful Shutdown
+h66_sigterm_handler:
+  files_modified:
+    - src/pipeline_health.py
+  changes:
+    pipeline_health_py:
+      - action: "Add _shutdown_called flag to __init__"
+        location: "Line 140, after _atexit_registered"
+        details: "self._shutdown_called: bool = False"
+      - action: "Add _sigterm_handler and _sigint_handler methods"
+        location: "After _atexit_save() ~line 241"
+        details: |
+          def _sigterm_handler(self, signum, frame):
+              self._graceful_shutdown()
+          def _graceful_shutdown(self):
+              if self._shutdown_called: return
+              self._shutdown_called = True
+              self._atexit_save()
+      - action: "Register signal handlers in report_health()"
+        location: "Lines 221-226, alongside atexit registration"
+        details: |
+          try:
+              signal.signal(signal.SIGTERM, self._sigterm_handler)
+              signal.signal(signal.SIGINT, self._sigint_handler)
+          except (OSError, ValueError):
+              pass  # not main thread or signal not available
+      - action: "Guard _atexit_save with _shutdown_called"
+        location: "Line 236"
+        details: "Check _shutdown_called to prevent double-save"
+  tests:
+    - "Test SIGTERM handler registration on first report_health()"
+    - "Test SIGINT handler registration on first report_health()"
+    - "Test _shutdown_called prevents double save"
+    - "Test _graceful_shutdown calls save"
+    - "Test signal registration failure is silent (non-main thread)"
+    - "Test atexit_save respects _shutdown_called"
+
+# H67: Config-Driven auto_save_interval
+h67_config_autosave:
+  files_modified:
+    - src/config.py
+    - src/pipeline_health.py
+    - config.example.json
+  changes:
+    config_py:
+      - action: "Add get_pipeline_health_auto_save_interval() getter"
+        location: "End of file, after get_seo_platforms()"
+        details: |
+          def get_pipeline_health_auto_save_interval() -> int:
+              val = _get("pipeline_health_auto_save_interval", 10)
+              return max(1, min(int(val), 10000))
+    pipeline_health_py:
+      - action: "Use config getter as default in __init__"
+        location: "Line 126"
+        details: |
+          Change default from _AUTO_SAVE_INTERVAL to config getter:
+          if auto_save_interval == _AUTO_SAVE_INTERVAL:
+              try:
+                  from config import get_pipeline_health_auto_save_interval
+                  auto_save_interval = get_pipeline_health_auto_save_interval()
+              except (ImportError, Exception):
+                  pass
+    config_example_json:
+      - action: "Add pipeline_health_auto_save_interval key"
+        details: "Add to config.example.json with default 10"
+  tests:
+    - "Test get_pipeline_health_auto_save_interval returns config value"
+    - "Test get_pipeline_health_auto_save_interval defaults to 10"
+    - "Test PipelineHealthMonitor uses config value"
+    - "Test PipelineHealthMonitor explicit param overrides config"

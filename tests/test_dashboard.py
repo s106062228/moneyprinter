@@ -1192,3 +1192,64 @@ class TestDashboardPipelineHealth:
                             if "pipeline_health" in content:
                                 break
         assert "pipeline_health" in content
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: /api/health/partial endpoint
+# ---------------------------------------------------------------------------
+
+SAMPLE_PIPELINE_HEALTH_WITH_MODULES = {
+    "modules": {
+        "transcriber": {"status": "ok", "success_count": 5, "error_count": 0},
+        "uploader": {"status": "degraded", "success_count": 2, "error_count": 1},
+        "notifier": {"status": "error", "success_count": 0, "error_count": 3},
+    },
+    "summary": {"total": 3, "ok": 1, "degraded": 1, "error": 1},
+}
+
+
+class TestHealthPartialEndpoint:
+    @pytest.fixture
+    def client(self, tmp_path):
+        from starlette.testclient import TestClient
+        (tmp_path / ".mp").mkdir()
+        with patch.object(dashboard, "_get_root_dir", return_value=str(tmp_path)):
+            app = dashboard.create_app()
+            yield TestClient(app)
+
+    def test_returns_200_with_html_content(self, client):
+        with patch.object(dashboard, "_get_pipeline_module_health", return_value={}):
+            resp = client.get("/api/health/partial")
+        assert resp.status_code == 200
+        assert len(resp.text) > 0
+
+    def test_response_is_text_html_content_type(self, client):
+        with patch.object(dashboard, "_get_pipeline_module_health", return_value={}):
+            resp = client.get("/api/health/partial")
+        assert "text/html" in resp.headers["content-type"]
+
+    def test_includes_status_badges_when_modules_exist(self, client):
+        with patch.object(
+            dashboard, "_get_pipeline_module_health", return_value=SAMPLE_PIPELINE_HEALTH_WITH_MODULES
+        ):
+            resp = client.get("/api/health/partial")
+        assert resp.status_code == 200
+        assert "badge-green" in resp.text
+        assert "badge-yellow" in resp.text
+        assert "badge-red" in resp.text
+        assert "transcriber" in resp.text
+        assert "uploader" in resp.text
+        assert "notifier" in resp.text
+
+    def test_returns_no_pipeline_modules_when_empty(self, client):
+        with patch.object(dashboard, "_get_pipeline_module_health", return_value={}):
+            resp = client.get("/api/health/partial")
+        assert resp.status_code == 200
+        assert "No pipeline modules registered" in resp.text
+
+    def test_endpoint_is_registered(self):
+        app = dashboard.create_app()
+        routes = {r.path: r for r in app.routes if hasattr(r, "path")}
+        assert "/api/health/partial" in routes
+        route = routes["/api/health/partial"]
+        assert "GET" in route.methods

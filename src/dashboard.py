@@ -271,6 +271,13 @@ def create_app():
         data["pipeline"] = _get_pipeline_module_health()
         return JSONResponse(content=data)
 
+    @app.get("/api/health/partial", response_class=HTMLResponse)
+    async def api_health_partial():
+        """Render the pipeline health panel fragment for HTMX SSE swap."""
+        pipeline_health = _get_pipeline_module_health()
+        template = jinja_env.get_template("_health_panel.html")
+        return HTMLResponse(content=template.render(pipeline_health=pipeline_health))
+
     @app.get("/api/health/liveness")
     async def api_health_liveness():
         """Liveness probe — fast, no I/O. Returns 200 if process is alive."""

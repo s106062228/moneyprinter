@@ -331,6 +331,12 @@
 - [ ] Kubernetes Helm chart for scaled deployment
 - [x] Predictive micro-trend detection for topic selection — DONE (iteration 15)
 
+## Completed — Iteration 21 (2026-03-31)
+- [x] SSE auto-refresh for dashboard health panel — hx-trigger + partial template + /api/health/partial endpoint (5 tests, 91.85% coverage) [H65]
+- [x] SIGTERM graceful shutdown for PipelineHealthMonitor — signal handlers + _shutdown_called flag (8 tests, 92.75% coverage) [H66]
+- [x] Config-driven auto_save_interval — config getter + config.example.json + PipelineHealthMonitor integration (9 tests) [H67]
+- [x] Full test suite: 2833 passed, 0 failures, 86.44% coverage [H65, H66, H67]
+
 ## Completed — Iteration 20 (2026-03-31)
 - [x] Add get_plugin_manager() lazy singleton to plugin_manager.py [H64]
 - [x] Remove _get_plugin_manager() from publisher.py, import shared singleton [H64]
@@ -345,3 +351,19 @@
 - [x] Add Pipeline Modules card to dashboard.html with status badges [H63]
 - [x] Include pipeline health in SSE stream + update tests [H63]
 - [x] Run full test suite (2811 passed, 0 failures, 86.48% coverage) [H62, H63, H64]
+
+## Implementation Tasks — Iteration 21 (2026-03-31)
+- [x] Create src/templates/_health_panel.html partial template [H65]
+- [x] Add GET /api/health/partial endpoint to dashboard.py [H65]
+- [x] Add hx-trigger="sse:dashboard-update" to Pipeline Modules card in dashboard.html [H65]
+- [x] Update dashboard.html to {% include '_health_panel.html' %} for initial render [H65]
+- [x] Write tests for /api/health/partial endpoint (5 tests) [H65]
+- [x] Add _shutdown_called flag to PipelineHealthMonitor.__init__ [H66]
+- [x] Add _graceful_shutdown() + _sigterm_handler() + _sigint_handler() methods [H66]
+- [x] Register SIGTERM/SIGINT handlers in report_health() alongside atexit [H66]
+- [x] Write tests for SIGTERM/SIGINT handlers (8 tests) [H66]
+- [x] Add get_pipeline_health_auto_save_interval() getter to config.py [H67]
+- [x] Update PipelineHealthMonitor.__init__ to use config getter as default [H67]
+- [x] Add pipeline_health_auto_save_interval to config.example.json [H67]
+- [x] Write tests for config-driven auto_save_interval (9 tests) [H67]
+- [x] Run full test suite (2833 passed, 0 failures, 86.44% coverage) [H65, H66, H67]

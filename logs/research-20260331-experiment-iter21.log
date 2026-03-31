@@ -1,0 +1,24 @@
+Research Pipeline — Experiment Step (Iteration 21)
+Date: 2026-03-31
+Status: COMPLETE
+
+Full Test Suite:
+  Total: 2833 passed, 20 skipped, 0 failures
+  Runtime: 216.96s (3:36)
+  Coverage: 86.44%
+
+Per-Module Results:
+  dashboard.py:        93 tests, 91.85% coverage (was 90.31% in iter 20 retro note)
+  pipeline_health.py: 120 tests, 92.75% coverage (was 95.18% in iter 20)
+  config.py:           41 tests, 74.17% coverage
+
+New Tests Added:
+  H65 (SSE auto-refresh):     5 new tests in test_dashboard.py
+  H66 (SIGTERM handler):      8 new tests in test_pipeline_health.py
+  H67 (config auto_save):     9 new tests (7 in test_config.py + 2 in test_pipeline_health.py)
+  Total new: 22 tests
+
+Delta from Iteration 20:
+  Tests: 2811 → 2833 (+22)
+  Failures: 0 → 0
+  Coverage: 86.48% → 86.44% (-0.04%, within noise)
