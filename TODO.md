@@ -102,6 +102,11 @@
 - [x] Virality scorer module (`virality_scorer.py`) with LLM-based metadata scoring, platform-specific weights
 - [x] Unit tests for A/B testing (71 tests, 96.15% coverage), virality scorer (71 tests, 95.29% coverage), PATCH endpoint (12 tests)
 
+## Completed — Iteration 22 (2026-04-01)
+- [x] Multi-language dubbing module (`multi_lang_dubbing.py`) with VideoDubber, 18 languages, faster-whisper/AssemblyAI STT, Edge TTS/KittenTTS, optional Wav2Lip lip-sync (68 tests) [H68]
+- [x] Security audit (Run 22) — FFmpeg stderr info disclosure (6 locations), export_optimizer exception leak, plugin_manager filepath leak, ffprobe JSON error leak (5 findings, 5 fixed)
+- [x] Unit tests for multi-language dubbing (68 new tests, ~2901 total suite)
+
 ## Completed — Iteration 17 (2026-03-30)
 - [x] Content watermarker (`content_watermarker.py`) with WatermarkResult, ContentWatermarker, VideoSeal lazy integration (118 tests, 100% coverage) [H53]
 - [x] Content quality gate (`quality_gate.py`) with QualityVerdict, ContentQualityGate, 5-dimension LLM scoring, platform weights (149 tests, 94.02% coverage) [H54]
@@ -320,7 +325,7 @@
 - [x] Virality scoring (predict clip engagement before posting) — DONE (iteration 8)
 - [x] Shoppable content integration (product links in video descriptions) — DONE (iteration 15, affiliate links MVP)
 - [x] Multi-platform export optimizer (platform-specific aspect ratios and formats) — DONE (iteration 9)
-- [ ] Multi-language dubbing (AI lip-sync for cross-language distribution)
+- [x] Multi-language dubbing (AI lip-sync for cross-language distribution) — DONE (iteration 22, multi_lang_dubbing.py)
 
 ## Planned — Low Priority
 - [x] Plugin system for custom platform integrations — DONE (iteration 16, pluggy-based)

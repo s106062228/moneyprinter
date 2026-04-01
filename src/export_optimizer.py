@@ -290,8 +290,9 @@ class ExportOptimizer:
         )
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
+            logger.debug("ffmpeg export stderr: %s", result.stderr.strip()[:500])
             raise RuntimeError(
-                f"ffmpeg export failed (exit {result.returncode}): {result.stderr.strip()}"
+                f"ffmpeg export failed (exit {result.returncode})"
             )
 
         logger.info(f"Export complete: {output_path}")
@@ -329,7 +330,7 @@ class ExportOptimizer:
                 path = self.optimize_clip(source_path, platform, output_dir)
                 results[platform] = path
             except Exception as exc:
-                logger.error(f"Export failed for '{platform}': {exc}")
-                results[platform] = str(exc)
+                logger.error(f"Export failed for '{platform}': {type(exc).__name__}")
+                results[platform] = type(exc).__name__
 
         return results

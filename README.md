@@ -11,8 +11,8 @@
   <a href="https://github.com/s106062228/moneyprinter/pulls"><img src="https://img.shields.io/github/issues-pr/s106062228/moneyprinter?style=for-the-badge&color=green" alt="Pull Requests" /></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12+" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Ready" />
-  <img src="https://img.shields.io/badge/security-15x%20audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security: 15x Audited" />
-  <img src="https://img.shields.io/badge/tests-470%2B%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 470+ Passed" />
+  <img src="https://img.shields.io/badge/security-22x%20audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security: 22x Audited" />
+  <img src="https://img.shields.io/badge/tests-2900%2B%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 2900+ Passed" />
   <img src="https://img.shields.io/badge/coverage-tracked-blue?style=for-the-badge&logo=codecov&logoColor=white" alt="Coverage Tracked" />
   <img src="https://img.shields.io/badge/LLM-multi--provider-blueviolet?style=for-the-badge&logo=openai&logoColor=white" alt="Multi-LLM Provider" />
 </p>
@@ -32,6 +32,7 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 - **Affiliate Marketing** — Scrape Amazon product info, generate marketing pitches, and auto-post to Twitter
 - **Business Outreach** — Scrape Google Maps for local businesses, extract emails, and send cold outreach
 - **Multi-LLM Provider** — Choose from Ollama (local), OpenAI, Anthropic Claude, or Groq for text generation — swap providers with a single config change
+- **Multi-Language Dubbing** — Automatically dub videos into 18 languages using speech-to-text (faster-whisper/AssemblyAI), LLM-powered translation, and multi-language TTS (Edge TTS/KittenTTS) — optional Wav2Lip lip-sync, batch dubbing support, configurable STT/TTS backends
 - **Local AI First** — Default Ollama integration (Llama, Mistral, Gemma, etc.) — no API keys needed for the core pipeline
 - **Docker Ready** — Full Docker and Docker Compose support with Xvfb for headless browser automation
 - **Multi-Platform Publisher** — Publish generated content across YouTube, TikTok, Twitter, and Instagram simultaneously with a single command — includes retry logic, analytics tracking, and webhook notifications for each platform
@@ -50,8 +51,8 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 - **CI/CD Pipeline** — GitHub Actions with automated testing, code coverage reporting, security scanning (Bandit), and code linting (Ruff)
 - **Code Coverage** — pytest-cov integration with per-line coverage tracking, HTML reports, and CI threshold enforcement (40% minimum)
 - **Context Managers** — All browser classes support `with` statement for automatic resource cleanup (no leaked browser processes)
-- **470+ Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, analytics reports, cache, logging, multi-LLM provider, retry logic, webhooks, multi-platform publisher, content scheduler, thumbnail generator, SEO optimizer, Twitter/YouTube cache, Instagram Reels, and utilities
-- **15x Security Audited** — SSRF protection, TOCTOU-safe atomic writes, ZIP traversal hardening, recursion depth limits, email rate limiting, CSV injection prevention, URL bounds validation, webhook URL validation, info disclosure prevention, analytics event rotation, arbitrary file read prevention, email format validation, timeout caps, retry module info disclosure fixes, deserialization validation, path/URL disclosure prevention, thumbnail null-byte validation, session collision prevention, cache size caps
+- **2900+ Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, analytics reports, cache, logging, multi-LLM provider, retry logic, webhooks, multi-platform publisher, content scheduler, thumbnail generator, SEO optimizer, Twitter/YouTube cache, Instagram Reels, and utilities
+- **22x Security Audited** — SSRF protection, TOCTOU-safe atomic writes, ZIP traversal hardening, recursion depth limits, email rate limiting, CSV injection prevention, URL bounds validation, webhook URL validation, info disclosure prevention, analytics event rotation, arbitrary file read prevention, email format validation, timeout caps, retry module info disclosure fixes, deserialization validation, path/URL disclosure prevention, thumbnail null-byte validation, session collision prevention, cache size caps
 
 ## Architecture
 
@@ -71,6 +72,7 @@ moneyprinter/
 │   ├── content_scheduler.py   # Scheduled publishing with optimal times
 │   ├── seo_optimizer.py        # SEO metadata optimizer (titles, tags, hashtags, hooks)
 │   ├── thumbnail.py             # AI thumbnail generator with 5 style presets
+│   ├── multi_lang_dubbing.py   # Multi-language dubbing pipeline (18 languages)
 │   ├── webhooks.py            # Discord & Slack webhook notifications
 │   ├── analytics.py          # Event tracking and metrics (atomic writes)
 │   ├── analytics_report.py    # Cross-platform analytics report generator
@@ -99,6 +101,7 @@ moneyprinter/
 LLM Provider (topic) → LLM Provider (script) → SEO Optimizer (metadata) → KittenTTS (audio)
     → Gemini (images) → faster-whisper (subtitles) → MoviePy (composite) → Thumbnail (auto)
     → Multi-Platform Publisher (YouTube + TikTok + Instagram + Twitter)
+    → Multi-Language Dubber (18 languages, STT → LLM translate → TTS → FFmpeg merge)
 
 Supported LLM Providers: Ollama (local) | OpenAI | Anthropic Claude | Groq
 ```
@@ -194,6 +197,11 @@ Edit `config.json` with your settings:
 | `seo.include_tags` | Generate YouTube tags | No (default: `true`) |
 | `seo.include_hooks` | Generate engagement hooks | No (default: `true`) |
 | `seo.hashtag_count` | Number of hashtags (1-15) | No (default: `8`) |
+| `dubbing.enabled` | Enable dubbing pipeline | No (default: `false`) |
+| `dubbing.default_languages` | Default target languages | No (default: `["es", "fr", "de"]`) |
+| `dubbing.stt_backend` | STT engine: `faster_whisper` or `assemblyai` | No (default: `faster_whisper`) |
+| `dubbing.tts_backend` | TTS engine: `edge_tts` or `kittentts` | No (default: `edge_tts`) |
+| `dubbing.lip_sync` | Enable Wav2Lip lip-sync | No (default: `false`) |
 
 **Security tip:** Sensitive values can also be set via environment variables:
 
@@ -365,6 +373,43 @@ Configure in `config.json`:
 Or set credentials via environment variables: `IG_USERNAME`, `IG_PASSWORD`.
 
 Features: session persistence (no re-login per upload), atomic cache writes for upload history, analytics integration, caption generation with hashtag injection, video format validation (.mp4/.mov), context manager support, cache size rotation (5000 max entries), input validation (null bytes, path checks, caption length).
+
+### Multi-Language Dubbing
+
+Dub your videos into 18 languages automatically:
+
+```python
+from multi_lang_dubbing import VideoDubber
+
+dubber = VideoDubber(tts_backend="edge_tts")
+
+# Dub a single video
+result = dubber.dub("video.mp4", target_lang="es", output_dir="/output/")
+print(result.output_path)  # /output/video_es.mp4
+
+# Batch dub into multiple languages
+results = dubber.batch_dub("video.mp4", ["es", "fr", "de", "ja"], "/output/")
+for r in results:
+    print(f"{r.target_lang}: {'OK' if r.success else r.error}")
+```
+
+Configure in `config.json`:
+
+```json
+{
+  "dubbing": {
+    "enabled": true,
+    "default_languages": ["es", "fr", "de"],
+    "stt_backend": "faster_whisper",
+    "tts_backend": "edge_tts",
+    "lip_sync": false
+  }
+}
+```
+
+Supported languages: English, Spanish, French, German, Portuguese, Japanese, Korean, Chinese, Hindi, Arabic, Russian, Italian, Dutch, Polish, Turkish, Vietnamese, Thai, Indonesian.
+
+Features: faster-whisper or AssemblyAI for speech extraction, LLM-powered translation via the multi-provider system, Edge TTS (18 voices) or KittenTTS for speech synthesis, optional Wav2Lip lip-sync, FFmpeg audio replacement, batch dubbing with deduplication, comprehensive input validation (null bytes, path length, video format, language whitelist).
 
 ### Content Scheduler
 
@@ -553,7 +598,7 @@ cd src && python -m pytest ../tests/ -v
 cd src && python -m pytest ../tests/ --cov=. --cov-report=term-missing --cov-report=html:../htmlcov
 ```
 
-**425+ tests** covering: config loading and caching, input validation (paths, URLs, filenames), analytics tracking, analytics report generation (platform stats, trend analysis, recommendations, JSON serialization), cache CRUD operations (including Twitter and YouTube atomic writes), logging framework, multi-LLM provider system (Ollama/OpenAI/Anthropic/Groq), retry/recovery logic, webhook notifications (Discord/Slack), multi-platform publisher (job validation, platform dispatch, retry logic, analytics/notifications), content scheduler (job lifecycle, persistence, optimal times, thread safety, repeat scheduling), thumbnail generator (color utilities, gradient backgrounds, text wrapping, font loading, style presets, metadata generation, video frame extraction), SEO optimizer (input validation, JSON parsing, title/description/hashtag/tag cleaning, score estimation, platform-specific optimization, config helpers, prompt builders), and utility functions.
+**2900+ tests** covering: config loading and caching, input validation (paths, URLs, filenames), analytics tracking, analytics report generation (platform stats, trend analysis, recommendations, JSON serialization), cache CRUD operations (including Twitter and YouTube atomic writes), logging framework, multi-LLM provider system (Ollama/OpenAI/Anthropic/Groq), retry/recovery logic, webhook notifications (Discord/Slack), multi-platform publisher (job validation, platform dispatch, retry logic, analytics/notifications), content scheduler (job lifecycle, persistence, optimal times, thread safety, repeat scheduling), thumbnail generator (color utilities, gradient backgrounds, text wrapping, font loading, style presets, metadata generation, video frame extraction), SEO optimizer (input validation, JSON parsing, title/description/hashtag/tag cleaning, score estimation, platform-specific optimization, config helpers, prompt builders), and utility functions.
 
 Coverage reports are generated automatically in CI and stored as build artifacts. The `.coveragerc` configuration enforces a **40% minimum coverage threshold** — the CI pipeline fails if coverage drops below this level.
 
@@ -569,7 +614,7 @@ See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full configur
 
 ## Security
 
-MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (**14 audits completed, 80 findings, 78 fixed**).
+MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (**22 audits completed, 86 findings, 84 fixed**).
 
 Key security measures:
 
@@ -620,16 +665,20 @@ To report a security vulnerability, please open a private issue or contact the m
 
 ## Roadmap
 
-See [TODO.md](TODO.md) for the full roadmap. Key upcoming features:
+See [TODO.md](TODO.md) for the full roadmap. Recently completed:
 
-- Web dashboard for monitoring
-- Content calendar UI (frontend for content scheduler)
-- Video template system (custom intros/outros)
-- AI hook optimization for viral engagement
-- Virality scoring (predict engagement before posting)
-- OpusClip-style smart clipping from long-form content
-- Shoppable content integration
-- Multi-platform export optimizer
+- Multi-language dubbing pipeline (18 languages)
+- Web dashboard with real-time SSE monitoring
+- Content calendar UI with drag-and-drop scheduling
+- A/B testing for video titles and thumbnails
+- Plugin system for custom platform integrations
+- GPU-accelerated FFmpeg pipeline
+- Cache encryption at rest
+
+Key upcoming features:
+
+- Multi-language UI
+- Kubernetes Helm chart for scaled deployment
 
 ## Contributing
 

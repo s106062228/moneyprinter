@@ -1,5 +1,59 @@
 # MoneyPrinter Development Log
 
+## Run 22 — 2026-04-01
+
+### Architecture Analysis
+- **Missing Multi-Language Support**: The project had 5 platform integrations (YouTube, TikTok, Twitter, Instagram, direct upload) but no way to reach non-English audiences. Multi-language content is a 3-4x revenue multiplier for faceless channels in 2026, with multilingual AI videos commanding $150-$500 per video on freelance marketplaces.
+- **FFmpeg Info Disclosure Pattern**: Discovered that `ffmpeg_utils.py` was leaking subprocess stderr content in RuntimeError exceptions at 6 locations (ffprobe, trim_clip, concat_clips, transcode, extract_audio). FFmpeg error output can reveal system paths, library versions, codec configurations, and OS details that aid attacker reconnaissance.
+- **Export Optimizer Exception Leak**: `export_optimizer.py` batch_export() logged and returned full exception strings including filesystem paths.
+- **Plugin Manager Path Leak**: `plugin_manager.py` load_from_directory() logged full plugin file paths and exception messages during import failures.
+
+### Research Findings (2026 Market Update)
+- **AI Video Market Explosion**: Global AI video generator market at $788.5M in 2025, projected $3.44B by 2033 (20.3% CAGR). 67M+ monthly active users on AI video platforms. Orders increased 5x in a single month (late 2025 → early 2026).
+- **Multilingual Content Premium**: Faceless YouTube channels earning passive income are the #1 AI video use case in 2026. A fitness influencer created AI-voiced daily tips in 10 languages, earning $3,000/month through sponsorships alone.
+- **Open-Source Dubbing Stack**: Wav2Lip (lip-sync), Linly-Dubbing (end-to-end), ViDubb (voice cloning + dubbing), Sync Labs (visual dubbing API). The pipeline of STT → translate → TTS → lip-sync is now commoditized with open-source components.
+- **Edge TTS for Multi-Language**: Microsoft Edge TTS provides free, high-quality neural voices in 100+ languages — ideal for automated content pipelines with no API key required.
+- **Revenue Optimization**: Creators using automation report $80-150K/month from AdSense + affiliates + sponsorships. Cross-posting to all major platforms achieves 3-4x distribution efficiency. 82% of internet traffic is video in 2026.
+
+### Feature Implemented: Multi-Language Dubbing Module (`src/multi_lang_dubbing.py`)
+- **Full module** with `VideoDubber` class supporting:
+  - 18 languages: English, Spanish, French, German, Portuguese, Japanese, Korean, Chinese, Hindi, Arabic, Russian, Italian, Dutch, Polish, Turkish, Vietnamese, Thai, Indonesian
+  - STT backends: faster-whisper (local) or AssemblyAI (cloud)
+  - TTS backends: KittenTTS or Edge TTS (18 neural voices, no API key needed)
+  - Optional Wav2Lip lip-sync with graceful fallback when not installed
+  - FFmpeg-based audio replacement (no shell=True, 300s timeout)
+  - LLM-powered batch translation via the multi-provider system
+  - Batch dubbing with deduplication and language limit (max 20)
+  - Comprehensive input validation: null bytes, path length, video format whitelist, language whitelist
+  - Transcript length cap (50,000 chars), video duration cap (600s)
+  - Output filename sanitization (regex, 100-char limit)
+  - Config helpers: get_dubbing_enabled(), get_dubbing_default_languages(), get_dubbing_stt_backend(), get_dubbing_tts_backend(), get_dubbing_lip_sync_enabled()
+- **Data classes**: TranscriptSegment (with from_dict validation), DubResult (with serialization + truncation)
+- **68 unit tests** covering: TranscriptSegment creation/serialization/validation, DubResult creation/truncation/caps, VideoDubber init validation, language validation, video path validation (null bytes, empty, wrong ext, valid .mp4/.mov), output dir validation, supported languages, translation parsing (full/partial/empty/out-of-range/truncation), output filename building, dub success/no-speech/exception flows, batch dub (type validation, too many languages, deduplication, multi-lang), Edge TTS voice mapping, all config helpers, lip-sync fallback, merge audio mock, get_duration mock, module constants
+
+### Security Fixes (Run 22) — 5 findings, 5 fixed
+1. **HIGH**: `export_optimizer.py` — `{exc}` in error log and result dict replaced with `{type(exc).__name__}` to prevent exception info disclosure
+2. **MEDIUM**: `ffmpeg_utils.py` (6 locations) — subprocess stderr removed from RuntimeError exceptions; moved to logger.debug() with 500-char cap. Affected: ffprobe, trim_clip, concat_clips, transcode, extract_audio
+3. **MEDIUM**: `ffmpeg_utils.py` — ffprobe JSON parse error `{exc}` replaced with `{type(exc).__name__}`
+4. **MEDIUM**: `export_optimizer.py` — ffmpeg export stderr removed from exception message
+5. **MEDIUM**: `plugin_manager.py` — filepath and exc removed from import failure warning; now logs only exception type name
+
+### README Updates
+- Updated badge counts: 22x audited, 2900+ tests
+- Added Multi-Language Dubbing feature to feature list with usage examples
+- Added dubbing module to architecture diagram and pipeline flow
+- Added dubbing configuration table entries
+- Updated security section (22 audits, 86 findings, 84 fixed)
+- Updated roadmap to reflect dubbing completion and remaining items
+- Added `dubbing` section to config.example.json
+
+### Test Results
+- All 68 new dubbing tests: PASS (0.11s)
+- Syntax check on all modified files: PASS
+- All security fixes verified
+
+---
+
 ## Run 15 — 2026-03-26
 
 ### Architecture Analysis

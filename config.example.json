@@ -82,5 +82,12 @@
     "include_hooks": true,
     "hashtag_count": 8
   },
-  "pipeline_health_auto_save_interval": 10
+  "pipeline_health_auto_save_interval": 10,
+  "dubbing": {
+    "enabled": false,
+    "default_languages": ["es", "fr", "de"],
+    "stt_backend": "faster_whisper",
+    "tts_backend": "edge_tts",
+    "lip_sync": false
+  }
 }

@@ -160,14 +160,15 @@ def get_video_info(video_path: str) -> VideoInfo:
 
     if result.returncode != 0:
         logger.error("ffprobe failed with non-zero exit code.")
+        logger.debug("ffprobe stderr: %s", result.stderr.strip()[:500])
         raise RuntimeError(
-            f"ffprobe failed (exit {result.returncode}): {result.stderr.strip()}"
+            f"ffprobe failed (exit {result.returncode})"
         )
 
     try:
         data = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"ffprobe returned invalid JSON: {exc}") from exc
+        raise RuntimeError(f"ffprobe returned invalid JSON: {type(exc).__name__}") from exc
 
     # Extract from streams
     streams = data.get("streams", [])
@@ -314,8 +315,9 @@ def trim_clip(
 
     if result.returncode != 0:
         logger.error("ffmpeg trim failed.")
+        logger.debug("ffmpeg trim stderr: %s", result.stderr.strip()[:500])
         raise RuntimeError(
-            f"ffmpeg trim failed (exit {result.returncode}): {result.stderr.strip()}"
+            f"ffmpeg trim failed (exit {result.returncode})"
         )
 
     logger.info("Trim complete.")
@@ -414,8 +416,9 @@ def concat_clips(
 
     if result.returncode != 0:
         logger.error("ffmpeg concat failed.")
+        logger.debug("ffmpeg concat stderr: %s", result.stderr.strip()[:500])
         raise RuntimeError(
-            f"ffmpeg concat failed (exit {result.returncode}): {result.stderr.strip()}"
+            f"ffmpeg concat failed (exit {result.returncode})"
         )
 
     logger.info("Concat complete.")
@@ -521,8 +524,9 @@ def transcode(
 
     if result.returncode != 0:
         logger.error("ffmpeg transcode failed.")
+        logger.debug("ffmpeg transcode stderr: %s", result.stderr.strip()[:500])
         raise RuntimeError(
-            f"ffmpeg transcode failed (exit {result.returncode}): {result.stderr.strip()}"
+            f"ffmpeg transcode failed (exit {result.returncode})"
         )
 
     logger.info("Transcode complete.")
@@ -571,9 +575,9 @@ def extract_audio(
 
     if result.returncode != 0:
         logger.error("ffmpeg audio extraction failed.")
+        logger.debug("ffmpeg extract_audio stderr: %s", result.stderr.strip()[:500])
         raise RuntimeError(
-            f"ffmpeg audio extraction failed (exit {result.returncode}): "
-            f"{result.stderr.strip()}"
+            f"ffmpeg audio extraction failed (exit {result.returncode})"
         )
 
     logger.info("Audio extraction complete.")

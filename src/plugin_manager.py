@@ -315,10 +315,8 @@ class PluginManager:
                 spec.loader.exec_module(module)  # type: ignore[union-attr]
             except Exception as exc:
                 logger.warning(
-                    "Failed to import plugin module %s: %s: %s",
-                    filepath,
+                    "Failed to import plugin module: %s",
                     type(exc).__name__,
-                    exc,
                 )
                 continue
 

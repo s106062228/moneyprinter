@@ -1,16 +1,52 @@
 # Security Audit Report — MoneyPrinter
 
-**Last Updated:** 2026-03-25
-**Audit Run:** 14
+**Last Updated:** 2026-04-01
+**Audit Run:** 22
 
 ## Summary
 
 | Severity | Found | Fixed |
 |----------|-------|-------|
 | Critical | 2 | 2 |
-| High | 5 | 5 |
-| Medium | 28 | 28 |
-| Low | 45 | 43 |
+| High | 6 | 6 |
+| Medium | 32 | 32 |
+| Low | 46 | 44 |
+
+## Findings — Run 22
+
+### HIGH
+
+#### 81. Exception info disclosure in export_optimizer batch_export
+- **File:** `src/export_optimizer.py` line 332
+- **Issue:** `{exc}` in error log and result dict leaks full exception message including file paths and system info
+- **Fix:** Changed to `{type(exc).__name__}` in both log and results dict
+- **Status:** ✅ Fixed
+
+### MEDIUM
+
+#### 82. FFmpeg stderr leaked in RuntimeError (ffprobe)
+- **File:** `src/ffmpeg_utils.py` line 164
+- **Issue:** `result.stderr.strip()` in RuntimeError exposes system paths, library versions, and config details
+- **Fix:** Moved stderr to `logger.debug()` (capped at 500 chars); RuntimeError now shows only exit code
+- **Status:** ✅ Fixed
+
+#### 83. FFmpeg stderr leaked in RuntimeError (trim, concat, transcode, extract_audio)
+- **File:** `src/ffmpeg_utils.py` lines 318, 418, 525, 575-576
+- **Issue:** Same pattern — subprocess stderr exposed in exception messages at 4 additional locations
+- **Fix:** All 4 locations fixed: stderr logged at DEBUG level, RuntimeError sanitized
+- **Status:** ✅ Fixed
+
+#### 84. Plugin filepath leaked in import failure warning
+- **File:** `src/plugin_manager.py` line 318
+- **Issue:** `filepath` and full `exc` message logged in warning, exposing plugin directory structure
+- **Fix:** Removed filepath and exc from warning; logged only `type(exc).__name__`
+- **Status:** ✅ Fixed
+
+#### 85. ffprobe JSON parse error leaked exception details
+- **File:** `src/ffmpeg_utils.py` line 170
+- **Issue:** `{exc}` in RuntimeError for invalid JSON could leak partial stdout content
+- **Fix:** Changed to `{type(exc).__name__}`
+- **Status:** ✅ Fixed
 
 ## Findings — Run 1
 
