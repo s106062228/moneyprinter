@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/chengwen/.claude/plugins -name *.json)",
+      "Bash(mkdir -p ~/LLM/scripts ~/LLM/moneyprinter/.claude/worktrees/eager-leavitt/.claude/skills)",
+      "Bash(mkdir -p ~/.claude/skills/research-init ~/.claude/skills/spec-to-tasks ~/.claude/skills/run-experiments ~/.claude/skills/analyze-and-update ~/.claude/skills/sync-github)"
+    ]
+  }
+}

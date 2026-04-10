@@ -715,7 +715,10 @@ class TestBatchExport:
             )
 
         assert result["youtube"] == "/out/youtube.mp4"
-        assert "ffmpeg missing" in result["tiktok"]
+        # Error message sanitized to avoid info disclosure — only the
+        # exception class name is stored, not the original error message.
+        assert result["tiktok"] == "RuntimeError"
+        assert "ffmpeg missing" not in result["tiktok"]
 
     def test_batch_passes_correct_args(self, optimizer, tmp_path):
         source = str(tmp_path / "video.mp4")
@@ -745,8 +748,9 @@ class TestBatchExport:
             )
 
         assert len(result) == 2
+        # Error messages sanitized — only exception class name is stored.
         for v in result.values():
-            assert "bad" in v
+            assert v == "ValueError"
 
 
 # ===========================================================================
@@ -1006,7 +1010,9 @@ class TestSubprocessErrorHandling:
 
         with patch("export_optimizer.get_video_info", return_value=info), \
              patch("export_optimizer.subprocess.run", return_value=fail_result):
-            with pytest.raises(RuntimeError, match="libx264 not found"):
+            # Error message sanitized to avoid info disclosure — stderr
+            # content is logged at DEBUG, not exposed in the raised message.
+            with pytest.raises(RuntimeError, match=r"ffmpeg export failed"):
                 optimizer.optimize_clip(source, "youtube", str(tmp_path))
 
     def test_success_returncode_zero_does_not_raise(self, optimizer, tmp_path):

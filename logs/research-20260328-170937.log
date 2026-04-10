@@ -1,0 +1,1 @@
+[2026-03-28 17:09:37] Survey iteration 6 complete. Topics: MoviePy v2 YouTube.py migration, FastMCP HTTP+auth, content calendar UI, competitor landscape. 12 sources surveyed. Key themes: MoviePy v2 migration is well-documented (13 API calls mapped), MCP HTTP auth is production-ready (~5 lines to add), FullCalendar.js + HTMX is the calendar pattern.

@@ -8,7 +8,7 @@ content strategy optimization.
 import os
 import json
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from config import ROOT_DIR
 
@@ -63,7 +63,7 @@ def track_event(
     data = _load_analytics()
 
     event = {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "type": event_type,
         "platform": platform,
         "details": details or {},

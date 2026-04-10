@@ -1,0 +1,36 @@
+__pycache__
+*.pyc
+*.pyo
+
+# Secrets & configuration
+config.json
+.env
+.env.*
+
+# Runtime data
+.mp/
+Songs/
+google-maps-scraper-*/
+niche.txt
+*.exe
+
+# Coverage reports
+htmlcov/
+coverage.xml
+.coverage
+*.coverage
+
+# Virtual environment
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+auto.sh

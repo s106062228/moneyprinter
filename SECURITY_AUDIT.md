@@ -1,16 +1,182 @@
 # Security Audit Report — MoneyPrinter
 
-**Last Updated:** 2026-04-01
-**Audit Run:** 22
+**Last Updated:** 2026-04-11
+**Audit Run:** 26
+
+---
+
+## Run 26 — 2026-04-11 (niche_discovery security review)
+
+A new module (`src/niche_discovery.py`) was added this run. Full OWASP-aligned scan performed. **All issues addressed during implementation and hardening pass.**
+
+### Findings (all LOW)
+
+1. **Inline `import math` moved to module-level**
+   The `_score_volume()` method had an inline `import math` which violates PEP 8 and could mask import failures. **Fixed**: moved `import math` to module-level imports.
+
+2. **Bare `except Exception: pass` blocks — no logging**
+   13 exception handlers silently swallowed errors with no logging. **Fixed**: all bare except blocks now log at WARNING or DEBUG level using the project's `mp_logger` framework. No `str(exc)` appears in any log line (consistent with project security posture).
+
+3. **Null-byte injection in niche list**
+   The `discover()` method accepted user-provided niche strings without null-byte validation. **Fixed**: added `"\x00" not in n` filter in the niche list comprehension.
+
+4. **Math domain error in `_score_volume()`**
+   `math.log10()` called without explicit type validation of `count`. **Fixed**: added `try/except` with `int()` coercion and `max(1, ...)` guard before `log10()` call.
+
+5. **Atomic file persistence with temp-file cleanup**
+   Verified: `_persist()` uses `tempfile.mkstemp` + `os.replace` for atomicity, with temp-file unlink in the `finally` block. No orphan files on crash.
+
+6. **Thread-safety**
+   Verified: all public methods acquire the instance `RLock`. Concurrent access tested with 10-thread test.
+
+7. **No exception message disclosure**
+   Verified: no `str(exc)` or `repr(exc)` appears in any log line, return value, or user-facing output. Only sanitized logger.warning() calls with static messages.
+
+8. **Unbounded growth protection**
+   History list capped at `_MAX_ENTRIES` (10,000) on both load and persist. Niche lists, topic suggestions, and string fields all have length caps.
+
+9. **No hardcoded secrets**
+   Verified: no API keys, passwords, or credentials in source code.
+
+No HIGH or MEDIUM issues introduced. All findings addressed during implementation.
+
+---
+
+## Run 25 — 2026-04-07 (profit_calculator security review)
+
+A new module (`src/profit_calculator.py`) was added this run. It was scanned end-to-end against the OWASP checklist and prior audit patterns. **All 8 issues were addressed during initial implementation** (no regressions introduced).
+
+### Findings (all LOW)
+
+1. **Numeric input amplification in `estimate_cost`**
+   `estimate_cost()` could be invoked with `llm_tokens=10**12`, causing a pathological product before any clamping step. **Fixed**: inputs are clamped inside `estimate_cost` to `_MAX_TOKENS` (10M), `_MAX_CHARS` (10M), `_MAX_COMPUTE_SECONDS` (10 days) and `_MAX_STORAGE_MB` (10 TB) **before** the multiplication.
+
+2. **Config-driven rate injection**
+   A malicious or corrupt `config.json` could set `profit.llm_rate_per_1k_tokens` to `1e308` and overflow the downstream arithmetic. **Fixed**: `_read_float()` rejects values outside `[0, _MAX_RATE]` (=$1,000 per unit) and falls back to the 2026 commodity default.
+
+3. **Null-byte injection in `video_id`**
+   Unvalidated `video_id` containing `\x00` could corrupt log output, persist corrupted state, or confuse downstream path operations. **Fixed**: `record_cost()` raises `ValueError` for empty, non-string, or null-byte-containing ids, and truncates to `_MAX_VIDEO_ID_LENGTH`.
+
+4. **Non-atomic file write / orphaned temp files**
+   Direct `open("w")` on the state file would corrupt on crash; a bare `tempfile.mkstemp` without cleanup leaves orphan `.profit_*.tmp` files on failure. **Fixed**: `_persist()` uses `tempfile.mkstemp` + `os.replace()` for atomicity, and unlinks the temp file in the `except` path so a crash cannot leak temp state.
+
+5. **Corrupt / non-list JSON state file**
+   A manipulated state file (e.g. `{"not": "list"}`) would previously cause a type error on load. **Fixed**: `_ensure_loaded()` silently recovers to an empty list for corrupt JSON, non-list top-level structures, and missing files.
+
+6. **Exception-message info disclosure**
+   Per the project posture, `str(exc)` must not appear in log lines or return values. **Verified**: no exception message strings are interpolated into logs or return dicts; only the exception class name / sanitized constants.
+
+7. **Untrusted `RevenueTracker` cascading failure**
+   If an injected revenue tracker raised from `get_entries()`, the profit calculator would previously propagate the error. **Fixed**: `_revenue_for_video()` and `get_profit_summary()` wrap tracker calls in `try/except` and fall back to empty revenue data.
+
+8. **Thread-safety of read/modify/write**
+   Concurrent `record_cost()` calls could race on `self._entries`. **Fixed**: all state-touching methods acquire a single `RLock`; verified with a 20-thread concurrent-write test.
+
+### Separately — Functional (non-security) fix
+
+- **`trend_detector._forecast_peak` flat-input bug**: `numpy.polyfit` on perfectly flat data can return slopes ~1e-17 due to floating-point noise, causing the `slope <= 0` guard to fail and a bogus peak date to be returned. Replaced with an epsilon check (`<= 1e-9`) and explicit normalisation of near-zero slopes to `0.0`.
+
+### Test-suite drift (not security issues, but documented here for traceability)
+
+- `test_mcp_server.py` (9 stale assertions) and `test_export_optimizer.py` (3 stale assertions) still expected the pre-Run-23 behaviour of leaking the original exception message substring in response/result fields. Run 23 sanitized these paths intentionally — tests were updated in Run 25 to positively assert the sanitized message **and** negatively assert the leaked substring is absent, thereby locking in the security fix against future regressions.
+- `test_template_cli.py` referenced the optional `prettytable` dependency without an `importorskip` guard; the test now correctly skips in environments without that dep.
+
+---
 
 ## Summary
 
 | Severity | Found | Fixed |
 |----------|-------|-------|
 | Critical | 2 | 2 |
-| High | 6 | 6 |
-| Medium | 32 | 32 |
-| Low | 46 | 44 |
+| High | 9 | 9 |
+| Medium | 39 | 39 |
+| Low | 58 | 56 |
+
+## Findings — Run 24
+
+### HIGH
+
+#### 92. Dashboard path traversal bypass via absolute paths
+- **File:** `src/dashboard.py` line 457
+- **Issue:** Path traversal validation only checked for `..` and null bytes but accepted absolute paths like `/etc/passwd`
+- **Fix:** Added checks rejecting paths starting with `/`, `\`, or drive letters (e.g., `C:`)
+- **Status:** Fixed
+
+### MEDIUM
+
+#### 93. Timezone-naive datetime in analytics.py
+- **File:** `src/analytics.py` line 66
+- **Issue:** `datetime.now()` returns timezone-naive local time, causing inconsistent timestamps across systems and silent comparison failures with UTC-based timestamps in other modules
+- **Fix:** Changed to `datetime.now(timezone.utc).isoformat()` with proper import
+- **Status:** Fixed
+
+#### 94. Auto-optimizer hour validation missing range check
+- **File:** `src/auto_optimizer.py` lines 506, 912
+- **Issue:** Parsed hour values from timestamps were not validated for 0-23 range; malformed timestamps like `T25:00:00` would parse without error
+- **Fix:** Added `if not (0 <= hour < 24): continue` guard in both platform analysis and auto-tune schedule
+- **Status:** Fixed
+
+#### 95. Auto-optimizer info disclosure in recommendation text
+- **File:** `src/auto_optimizer.py` line 690
+- **Issue:** Recommendation description mentioned "Check credentials, API limits" which hints at authentication issues if reports are shared
+- **Fix:** Changed to generic "Review your configuration and retry settings" language; capped failure count display
+- **Status:** Fixed
+
+### LOW
+
+#### 96. Auto-optimizer timestamp format not validated
+- **File:** `src/auto_optimizer.py` line 461
+- **Issue:** Timestamp strings from JSON are length-checked and null-byte-checked but not format-validated; malformed strings could pass simple ISO comparison
+- **Status:** Documented (acceptable risk — string comparison is conservative and safe)
+
+#### 97. Auto-optimizer platform string Unicode edge case
+- **File:** `src/auto_optimizer.py` line 489
+- **Issue:** Platform strings undergo `str().lower()` but not ASCII-only validation before frozenset membership check
+- **Status:** Documented (acceptable risk — frozenset membership check is exact match only)
+
+## Findings — Run 23
+
+### HIGH
+
+#### 86. Insecure default network binding in MCP HTTP transport
+- **File:** `src/mcp_server.py` line 330
+- **Issue:** When `--http` flag is used without `--token`, the server binds to `0.0.0.0` exposing all MCP tools (analyze_video, publish_content, schedule_content) to the network without authentication
+- **Fix:** Changed to bind to `127.0.0.1` (localhost only) when no auth token is provided; `0.0.0.0` only used when `--token` is set
+- **Status:** Fixed
+
+#### 87. Path traversal in dashboard calendar POST endpoint
+- **File:** `src/dashboard.py` line 455
+- **Issue:** `video_path` parameter accepted from user input without path traversal validation; `..` sequences could reference files outside the project
+- **Fix:** Added `..` and null-byte checks on video_path, plus length truncation (1024 chars) for all fields
+- **Status:** Fixed
+
+### MEDIUM
+
+#### 88. MCP tool exception info disclosure (6 locations)
+- **File:** `src/mcp_server.py` lines 85, 88, 90, 139, 142, 230, 235, 291, 296
+- **Issue:** Exception `str(exc)` returned in error response dicts, leaking internal paths, module names, and configuration details to MCP clients
+- **Fix:** Replaced all `"message": str(exc)` with `"message": "Operation failed"` — full errors logged server-side only
+- **Status:** Fixed
+
+#### 89. Content scheduler platform string DoS
+- **File:** `src/content_scheduler.py` line 204
+- **Issue:** Platform strings from `from_dict()` deserialization were not length-capped before validation, allowing very long strings to waste memory
+- **Fix:** Added `[:50]` truncation before `str(p).lower() in _ALLOWED_PLATFORMS` check
+- **Status:** Fixed
+
+#### 90. Dashboard calendar fields unbounded
+- **File:** `src/dashboard.py` lines 452-455
+- **Issue:** `title`, `scheduled_time` fields from POST body accepted without length limits
+- **Fix:** Added `[:500]` and `[:100]` truncation respectively
+- **Status:** Fixed
+
+### LOW
+
+#### 91. Revenue tracker JSON structure not schema-validated
+- **File:** `src/revenue_tracker.py` line 264
+- **Issue:** `_read_file()` loads JSON without validating structure; non-dict entries in list are silently skipped
+- **Fix:** Acceptable risk — `from_dict()` has defensive validation and skips invalid entries
+- **Status:** Documented (acceptable risk)
 
 ## Findings — Run 22
 

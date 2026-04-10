@@ -4,3 +4,30 @@ Timestamp : 20260328-040223
 Pipeline  : survey -> hypothesis -> architect -> implement -> experiment -> evaluate -> retro
 =========================
 
+## Research Pipeline Iteration 3 Complete
+
+### Results Summary
+
+| Step | Status | Key Output |
+|------|--------|------------|
+| Survey | Done | 11 sources, 3 papers saved. FastAPI+HTMX+SSE dashboard, PySceneDetect splitting API, MCP ecosystem maturity |
+| Hypothesis | Done | 4 hypotheses (H11-H14). Prioritized: test fixes + clip splitting |
+| Architect | Done | Detailed fix plan for 9 tests (3 categories) + split_clips() design |
+| Implement | Done | 9 test fixes + `split_clips()` method (68 lines) + 11 new tests |
+| Experiment | Done | **745 passed, 0 failed** (was 725/9). Coverage 76.69% |
+| Evaluate | Done | H11 CONFIRMED, H12 CONFIRMED, H13+H14 deferred |
+| Retro | Done | Committed `98fbebe`, pushed to main, report saved |
+
+### What Changed
+- **`src/smart_clipper.py`**: New `split_clips()` method — converts ClipCandidate metadata to PySceneDetect scene_list, calls `split_video_ffmpeg()` for lossless clip extraction
+- **5 test files**: Fixed 9 pre-existing failures (stale Instagram assertions, lazy import mock targets, hash-based session paths)
+- **`tests/test_smart_clipper.py`**: 11 new tests for split_clips with full mock coverage
+
+### Next Iteration Priorities
+1. **H13**: Web dashboard (FastAPI + HTMX + SSE) — zero JS deps
+2. **H14**: Smart clipper CLI menu option
+3. MCP integration exploration
+
+Note: SMTP credentials not configured — email report saved to `reports/email-20260328.txt`.
+
+=== Completed at Sat Mar 28 04:18:54 CST 2026 ===

@@ -449,10 +449,23 @@ def create_app():
                 status_code=400,
             )
 
-        title = (body.get("title") or "").strip()
+        title = (body.get("title") or "").strip()[:500]
         platforms = body.get("platforms") or []
-        scheduled_time = (body.get("scheduled_time") or "").strip()
-        video_path = (body.get("video_path") or "").strip()
+        scheduled_time = (body.get("scheduled_time") or "").strip()[:100]
+        video_path = (body.get("video_path") or "").strip()[:1024]
+
+        # Security: validate video_path does not contain path traversal or absolute paths
+        if video_path and (
+            ".." in video_path
+            or "\x00" in video_path
+            or video_path.startswith("/")
+            or video_path.startswith("\\")
+            or (len(video_path) >= 2 and video_path[1] == ":")
+        ):
+            return JSONResponse(
+                content={"error": "Invalid video_path"},
+                status_code=400,
+            )
 
         missing = []
         if not title:

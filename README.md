@@ -11,8 +11,8 @@
   <a href="https://github.com/s106062228/moneyprinter/pulls"><img src="https://img.shields.io/github/issues-pr/s106062228/moneyprinter?style=for-the-badge&color=green" alt="Pull Requests" /></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12+" />
   <img src="https://img.shields.io/badge/docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Ready" />
-  <img src="https://img.shields.io/badge/security-22x%20audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security: 22x Audited" />
-  <img src="https://img.shields.io/badge/tests-2900%2B%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 2900+ Passed" />
+  <img src="https://img.shields.io/badge/security-26x%20audited-brightgreen?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security: 26x Audited" />
+  <img src="https://img.shields.io/badge/tests-3320%2B%20passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests: 3320+ Passed" />
   <img src="https://img.shields.io/badge/coverage-tracked-blue?style=for-the-badge&logo=codecov&logoColor=white" alt="Coverage Tracked" />
   <img src="https://img.shields.io/badge/LLM-multi--provider-blueviolet?style=for-the-badge&logo=openai&logoColor=white" alt="Multi-LLM Provider" />
 </p>
@@ -33,6 +33,10 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 - **Business Outreach** — Scrape Google Maps for local businesses, extract emails, and send cold outreach
 - **Multi-LLM Provider** — Choose from Ollama (local), OpenAI, Anthropic Claude, or Groq for text generation — swap providers with a single config change
 - **Multi-Language Dubbing** — Automatically dub videos into 18 languages using speech-to-text (faster-whisper/AssemblyAI), LLM-powered translation, and multi-language TTS (Edge TTS/KittenTTS) — optional Wav2Lip lip-sync, batch dubbing support, configurable STT/TTS backends
+- **Revenue Tracker** — Estimate and track earnings across all platforms with niche-specific CPM/RPM rates, revenue forecasting, top-earner rankings, and niche profitability comparison — supports custom CPM overrides and configurable currency
+- **Profit Calculator** — Closes the money-printing feedback loop: tracks per-video production cost (LLM tokens, TTS chars, compute seconds, storage MB), cross-references against the Revenue Tracker, and reports **true net profit** per video, platform, and niche — also ranks the most profitable niches and forecasts 30-day profit with configurable 2026 commodity rates
+- **Auto-Optimization Engine** — Analyzes historical analytics and revenue data to recommend optimal content strategies: best niches, platforms, posting times, and content frequency — generates actionable reports with prioritized recommendations, trend detection (growing/declining/stable), composite scoring, and auto-tune schedule that adjusts posting times based on past performance
+- **Niche Discovery Engine** — The "brain" that tells the money printer *what* to print: combines trend detection, revenue analytics, and profit margins to automatically discover and rank the most profitable content niches — multi-dimensional scoring (trending momentum, historical profitability, CPM rates, production volume), head-to-head niche comparison, topic suggestion generation from trends + evergreen seed banks, configurable scoring weights, and persistent discovery history
 - **Local AI First** — Default Ollama integration (Llama, Mistral, Gemma, etc.) — no API keys needed for the core pipeline
 - **Docker Ready** — Full Docker and Docker Compose support with Xvfb for headless browser automation
 - **Multi-Platform Publisher** — Publish generated content across YouTube, TikTok, Twitter, and Instagram simultaneously with a single command — includes retry logic, analytics tracking, and webhook notifications for each platform
@@ -51,8 +55,8 @@ MoneyPrinter is an open-source automation tool that generates and publishes shor
 - **CI/CD Pipeline** — GitHub Actions with automated testing, code coverage reporting, security scanning (Bandit), and code linting (Ruff)
 - **Code Coverage** — pytest-cov integration with per-line coverage tracking, HTML reports, and CI threshold enforcement (40% minimum)
 - **Context Managers** — All browser classes support `with` statement for automatic resource cleanup (no leaked browser processes)
-- **2900+ Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, analytics reports, cache, logging, multi-LLM provider, retry logic, webhooks, multi-platform publisher, content scheduler, thumbnail generator, SEO optimizer, Twitter/YouTube cache, Instagram Reels, and utilities
-- **22x Security Audited** — SSRF protection, TOCTOU-safe atomic writes, ZIP traversal hardening, recursion depth limits, email rate limiting, CSV injection prevention, URL bounds validation, webhook URL validation, info disclosure prevention, analytics event rotation, arbitrary file read prevention, email format validation, timeout caps, retry module info disclosure fixes, deserialization validation, path/URL disclosure prevention, thumbnail null-byte validation, session collision prevention, cache size caps
+- **3320+ Unit Tests** — Comprehensive pytest suite covering config, validation, analytics, analytics reports, revenue tracker, profit calculator, niche discovery, cache, logging, multi-LLM provider, retry logic, webhooks, multi-platform publisher, content scheduler, thumbnail generator, SEO optimizer, Twitter/YouTube cache, Instagram Reels, auto-optimizer, and utilities
+- **26x Security Audited** — SSRF protection, TOCTOU-safe atomic writes, ZIP traversal hardening, recursion depth limits, email rate limiting, CSV injection prevention, URL bounds validation, webhook URL validation, info disclosure prevention, analytics event rotation, arbitrary file read prevention, email format validation, timeout caps, retry module info disclosure fixes, deserialization validation, path/URL disclosure prevention, thumbnail null-byte validation, session collision prevention, cache size caps, MCP auth enforcement, dashboard path traversal hardening, profit-calculator input clamping and rate-injection defence, niche-discovery null-byte filtering and structured logging
 
 ## Architecture
 
@@ -74,6 +78,10 @@ moneyprinter/
 │   ├── thumbnail.py             # AI thumbnail generator with 5 style presets
 │   ├── multi_lang_dubbing.py   # Multi-language dubbing pipeline (18 languages)
 │   ├── webhooks.py            # Discord & Slack webhook notifications
+│   ├── revenue_tracker.py     # Revenue estimation and tracking (CPM/RPM)
+│   ├── profit_calculator.py   # Production cost tracking + net profit (LLM/TTS/compute/storage)
+│   ├── auto_optimizer.py      # Auto-optimization engine (strategy recommendations)
+│   ├── niche_discovery.py     # Niche discovery engine (profitability scoring)
 │   ├── analytics.py          # Event tracking and metrics (atomic writes)
 │   ├── analytics_report.py    # Cross-platform analytics report generator
 │   ├── validation.py         # Input validation and security
@@ -101,6 +109,10 @@ moneyprinter/
 LLM Provider (topic) → LLM Provider (script) → SEO Optimizer (metadata) → KittenTTS (audio)
     → Gemini (images) → faster-whisper (subtitles) → MoviePy (composite) → Thumbnail (auto)
     → Multi-Platform Publisher (YouTube + TikTok + Instagram + Twitter)
+    → Revenue Tracker (CPM/RPM estimation, niche analytics, monthly forecasting)
+    → Profit Calculator (cost - revenue, margin %, top profitable niches, profit forecast)
+    → Auto-Optimizer (strategy recommendations, schedule tuning, feedback loop)
+    → Niche Discovery (trend + profit + CPM scoring → ranked niche recommendations)
     → Multi-Language Dubber (18 languages, STT → LLM translate → TTS → FFmpeg merge)
 
 Supported LLM Providers: Ollama (local) | OpenAI | Anthropic Claude | Groq
@@ -197,11 +209,25 @@ Edit `config.json` with your settings:
 | `seo.include_tags` | Generate YouTube tags | No (default: `true`) |
 | `seo.include_hooks` | Generate engagement hooks | No (default: `true`) |
 | `seo.hashtag_count` | Number of hashtags (1-15) | No (default: `8`) |
+| `revenue.default_niche` | Default content niche for CPM lookup | No (default: `general`) |
+| `revenue.currency` | Currency label for revenue display | No (default: `USD`) |
+| `revenue.custom_cpm` | Custom CPM overrides per platform | No (default: `{}`) |
+| `optimizer.enabled` | Enable auto-optimization engine | No (default: `false`) |
+| `optimizer.lookback_days` | Analysis window in days | No (default: `30`) |
+| `optimizer.min_data_points` | Minimum events before generating recs | No (default: `5`) |
+| `optimizer.auto_tune` | Enable automatic schedule tuning | No (default: `false`) |
 | `dubbing.enabled` | Enable dubbing pipeline | No (default: `false`) |
 | `dubbing.default_languages` | Default target languages | No (default: `["es", "fr", "de"]`) |
 | `dubbing.stt_backend` | STT engine: `faster_whisper` or `assemblyai` | No (default: `faster_whisper`) |
 | `dubbing.tts_backend` | TTS engine: `edge_tts` or `kittentts` | No (default: `edge_tts`) |
 | `dubbing.lip_sync` | Enable Wav2Lip lip-sync | No (default: `false`) |
+| `niche_discovery.enabled` | Enable niche discovery engine | No (default: `true`) |
+| `niche_discovery.lookback_days` | Analysis window for historical data | No (default: `30`) |
+| `niche_discovery.trend_weight` | Weight for trend momentum scoring (0-1) | No (default: `0.30`) |
+| `niche_discovery.profit_weight` | Weight for profit margin scoring (0-1) | No (default: `0.35`) |
+| `niche_discovery.cpm_weight` | Weight for CPM rate scoring (0-1) | No (default: `0.20`) |
+| `niche_discovery.volume_weight` | Weight for production volume scoring (0-1) | No (default: `0.15`) |
+| `niche_discovery.max_results` | Maximum niche results to return | No (default: `20`) |
 
 **Security tip:** Sensitive values can also be set via environment variables:
 
@@ -411,6 +437,48 @@ Supported languages: English, Spanish, French, German, Portuguese, Japanese, Kor
 
 Features: faster-whisper or AssemblyAI for speech extraction, LLM-powered translation via the multi-provider system, Edge TTS (18 voices) or KittenTTS for speech synthesis, optional Wav2Lip lip-sync, FFmpeg audio replacement, batch dubbing with deduplication, comprehensive input validation (null bytes, path length, video format, language whitelist).
 
+### Revenue Tracking
+
+Estimate and track earnings across all platforms:
+
+```python
+from revenue_tracker import RevenueTracker
+
+tracker = RevenueTracker()
+
+# Record revenue after a video gets views
+tracker.record_revenue("vid_abc", "youtube", views=50000, niche="finance")
+tracker.record_revenue("vid_abc", "tiktok", views=120000, niche="finance")
+
+# Get a 30-day summary
+summary = tracker.get_summary(days=30)
+print(f"Net revenue: ${summary.total_net:.2f}")
+
+# Forecast monthly revenue based on recent performance
+forecast = tracker.forecast_monthly(lookback_days=7)
+print(f"Projected monthly: ${forecast['projected_monthly_net']:.2f}")
+
+# See your top-earning videos
+top = tracker.get_top_earners(days=30, limit=5)
+
+# Compare niche profitability
+niches = tracker.get_niche_comparison()
+```
+
+Configure in `config.json`:
+
+```json
+{
+  "revenue": {
+    "default_niche": "finance",
+    "currency": "USD",
+    "custom_cpm": {"youtube": 15.0}
+  }
+}
+```
+
+Features: platform-specific CPM/RPM tables for 11 niches (finance, tech, health, gaming, etc.), creator revenue share modeling (YouTube 45%, TikTok 50%, Instagram 55%), niche profitability comparison, monthly revenue forecasting, top-earner rankings, custom CPM overrides, configurable currency, thread-safe with atomic persistence, 2026 market-rate data.
+
 ### Content Scheduler
 
 Schedule content publishing for optimal posting times:
@@ -614,7 +682,7 @@ See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full configur
 
 ## Security
 
-MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (**22 audits completed, 86 findings, 84 fixed**).
+MoneyPrinter takes security seriously. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for the full audit report (**24 audits completed, 97 findings, 93 fixed**).
 
 Key security measures:
 

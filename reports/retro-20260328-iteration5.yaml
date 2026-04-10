@@ -1,0 +1,36 @@
+subject: "[Research] MoneyPrinter — 2026-03-28 Iteration 5 complete"
+to: "cottenrushstorm@gmail.com"
+date: "2026-03-28"
+status: "Gmail draft created (draftId: r3506874246230750338) — send manually"
+git_commit: "a2d4fa5"
+
+hypotheses:
+  H18:
+    name: "MCP server (FastMCP 3.0)"
+    verdict: "CONFIRMED"
+    metric: "4 tools, 32 tests, 100% coverage"
+  H19:
+    name: "Fix 4 dep test failures"
+    verdict: "CONFIRMED"
+    metric: "4/4 fixed, 839/839 passing"
+  H20:
+    name: "Content template CLI"
+    verdict: "CONFIRMED"
+    metric: "21 tests, all passing"
+
+stats:
+  hypotheses_tested: 3
+  confirmed: 3
+  rejected: 0
+  new_tests: 53
+  total_tests: 839
+  total_failing: 0
+  coverage: "77.68%"
+  coverage_change: "+0.96%"
+  files_changed: 19
+
+next_priorities:
+  - "Full MoviePy v2 migration for YouTube.py"
+  - "Content calendar UI"
+  - "MCP authentication + Streamable HTTP transport"
+  - "A/B testing framework for titles/thumbnails"

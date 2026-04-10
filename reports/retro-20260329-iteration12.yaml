@@ -1,0 +1,32 @@
+iteration: 12
+date: "2026-03-29"
+commit: b11172a
+theme: "Pipeline wiring — connecting standalone modules"
+
+hypotheses:
+  - id: H38
+    title: "Wire ffmpeg_utils into export_optimizer"
+    status: CONFIRMED
+    tests: 96
+    coverage: "97.98%"
+  - id: H39
+    title: "Wire ffmpeg_utils into smart_clipper"
+    status: CONFIRMED
+    tests: 68
+    coverage: "96.77%"
+  - id: H40
+    title: "Wire uniqueness_scorer into publisher"
+    status: CONFIRMED
+    tests: 56
+    coverage: "63.37%"
+
+test_suite:
+  total: 1860
+  passing: 1855
+  failing: 5
+  pre_existing_failures: 5
+  coverage: "84.19%"
+  new_tests: 52
+
+email_draft_id: "r4896168854096544505"
+email_to: "cottenrushstorm@gmail.com"

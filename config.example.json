@@ -83,11 +83,39 @@
     "hashtag_count": 8
   },
   "pipeline_health_auto_save_interval": 10,
+  "optimizer": {
+    "enabled": false,
+    "lookback_days": 30,
+    "min_data_points": 5,
+    "auto_tune": false
+  },
   "dubbing": {
     "enabled": false,
     "default_languages": ["es", "fr", "de"],
     "stt_backend": "faster_whisper",
     "tts_backend": "edge_tts",
     "lip_sync": false
+  },
+  "revenue": {
+    "default_niche": "general",
+    "currency": "USD",
+    "custom_cpm": {}
+  },
+  "profit": {
+    "llm_rate_per_1k_tokens": 0.01,
+    "tts_rate_per_1k_chars": 0.015,
+    "compute_rate_per_hour": 0.02,
+    "storage_rate_per_gb_month": 0.023,
+    "currency": "USD"
+  },
+  "niche_discovery": {
+    "enabled": true,
+    "lookback_days": 30,
+    "min_data_points": 3,
+    "trend_weight": 0.30,
+    "profit_weight": 0.35,
+    "cpm_weight": 0.20,
+    "volume_weight": 0.15,
+    "max_results": 20
   }
 }

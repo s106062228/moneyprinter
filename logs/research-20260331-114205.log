@@ -1,0 +1,30 @@
+=== Research Team Run ===
+Project   : /Users/chengwen/LLM/moneyprinter
+Timestamp : 20260331-114205
+Pipeline  : survey -> hypothesis -> architect -> implement -> experiment -> evaluate -> retro
+=========================
+
+## Research Pipeline Iteration 21 — Complete
+
+### Results
+| Hypothesis | Verdict | New Tests |
+|---|---|---|
+| **H65** SSE auto-refresh for health panel | **CONFIRMED** | 5 |
+| **H66** SIGTERM graceful shutdown | **CONFIRMED** | 8 |
+| **H67** Config-driven auto_save_interval | **CONFIRMED** | 9 |
+
+### Key Numbers
+- **2833 tests passing** (+22 from iteration 20), **0 failures**
+- **86.44% coverage** (stable)
+- **0 new dependencies**
+- Commit `25c52c6` pushed to `main`
+
+### What Was Built
+1. **H65**: Dashboard health panel now auto-refreshes in real-time via HTMX SSE — `hx-trigger="sse:dashboard-update"` fetches a Jinja2 partial template on each SSE event. Zero JavaScript.
+2. **H66**: PipelineHealthMonitor handles SIGTERM/SIGINT for container shutdown with `_shutdown_called` flag preventing double-flush. Covers all exit paths.
+3. **H67**: `auto_save_interval` now configurable via `config.json` — the 32nd config getter with bounds validation [1, 10000].
+
+### Email
+SMTP not configured — report saved to `reports/email-20260331-iteration21.log`.
+
+=== Completed at Tue Mar 31 11:59:46 CST 2026 ===

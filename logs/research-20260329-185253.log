@@ -1,0 +1,29 @@
+=== Research Team Run ===
+Project   : /Users/chengwen/LLM/moneyprinter
+Timestamp : 20260329-185253
+Pipeline  : survey -> hypothesis -> architect -> implement -> experiment -> evaluate -> retro
+=========================
+
+## Iteration 12 Complete
+
+**Theme**: Pipeline Wiring — first integration iteration connecting standalone modules
+
+### Results
+| Hypothesis | Status | Tests | Coverage |
+|---|---|---|---|
+| H38: ffmpeg→export_optimizer | **CONFIRMED** | 96 | 97.98% |
+| H39: ffmpeg→smart_clipper | **CONFIRMED** | 68 | 96.77% |
+| H40: uniqueness→publisher | **CONFIRMED** | 56 | 63.37% |
+
+### Key Achievements
+- **export_optimizer.py has zero MoviePy imports** — single-pass FFmpeg subprocess (crop+scale+trim)
+- **smart_clipper split_clips() uses ffmpeg_utils.trim_clip()** — simpler than PySceneDetect wrapper
+- **Publisher checks uniqueness before publishing** — configurable block/warn/off modes
+- **52 new tests**, 1860 total, 84.19% coverage
+- **12 consecutive iterations** with 0 new test failures
+
+### Shipped
+- Git: `b11172a` pushed to main
+- Email draft: created in Gmail for cottenrushstorm@gmail.com
+
+=== Completed at Sun Mar 29 19:15:21 CST 2026 ===

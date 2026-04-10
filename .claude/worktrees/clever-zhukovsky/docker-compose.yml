@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  moneyprinter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: moneyprinter
+    image: moneyprinter:latest
+
+    # Volume mounts for persistent data and configurations
+    volumes:
+      - ./config.json:/app/config.json:rw
+      - ./.mp:/app/.mp:rw
+      - ./Songs:/app/Songs:rw
+      - ./outputs:/app/outputs:rw
+
+    # Environment variables for API keys and credentials
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}
+      MP_EMAIL_USERNAME: ${MP_EMAIL_USERNAME:-}
+      MP_EMAIL_PASSWORD: ${MP_EMAIL_PASSWORD:-}
+      DISPLAY: :99
+      PYTHONUNBUFFERED: 1
+
+    # Allocate shared memory for browser automation
+    shm_size: 2g
+
+    # Resource limits (adjust as needed)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+    # Allow the container to run in the foreground
+    stdin_open: true
+    tty: true
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Ollama service for local LLM inference with GPU support
+  # Uncomment to enable
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ollama
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ollama:/root/.ollama
+  #   environment:
+  #     - OLLAMA_HOST=0.0.0.0:11434
+  #   ports:
+  #     - "11434:11434"
+  #   # GPU passthrough (requires docker with nvidia-docker support)
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #   networks:
+  #     - moneyprinter-network
+
+# Optional: Network configuration for multi-service communication
+# networks:
+#   moneyprinter-network:
+#     driver: bridge
+
+# Optional: Named volume for Ollama data persistence
+# volumes:
+#   ollama:

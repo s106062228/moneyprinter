@@ -201,8 +201,8 @@ class ScheduledJob:
         # Validate platforms
         raw_platforms = data.get("platforms", [])
         platforms = [
-            str(p) for p in (raw_platforms if isinstance(raw_platforms, list) else [])
-            if str(p).lower() in _ALLOWED_PLATFORMS
+            str(p)[:50] for p in (raw_platforms if isinstance(raw_platforms, list) else [])
+            if str(p)[:50].lower() in _ALLOWED_PLATFORMS
         ][:10]
         # Validate status
         raw_status = str(data.get("status", "pending"))

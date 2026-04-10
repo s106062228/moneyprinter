@@ -1,0 +1,28 @@
+=== Research Team Run ===
+Project   : /Users/chengwen/LLM/moneyprinter
+Timestamp : 20260328-124724
+Pipeline  : survey -> hypothesis -> architect -> implement -> experiment -> evaluate -> retro
+=========================
+
+**Iteration 5 complete.** Here's the summary:
+
+### Results
+| Hypothesis | Verdict | Key Metric |
+|---|---|---|
+| **H18**: MCP server (FastMCP 3.0) | **CONFIRMED** | 4 tools, 32 tests, 100% coverage |
+| **H19**: Fix 4 dep test failures | **CONFIRMED** | 4/4 fixed, 839/839 passing |
+| **H20**: Content template CLI | **CONFIRMED** | 21 tests, all passing |
+
+### What Was Built
+1. **MCP Server** (`src/mcp_server.py`) — 4 content pipeline tools via FastMCP 3.0. MPV2 is now the first open-source multi-workflow content automation MCP server.
+2. **Content Template CLI** (menu option 8) — list, create, delete, generate batch jobs
+3. **Dependency fixes** — MoviePy v2 import migration + faster_whisper mock isolation
+
+### Stats
+- **839 tests passing, 0 failures** (was 782/786) — first time at 100% pass rate
+- **77.68% coverage** (+0.96%)
+- **53 new tests** added
+- Git pushed to main at `a2d4fa5`
+- Email draft created in Gmail (draftId: `r3506874246230750338`) — send manually from drafts
+
+=== Completed at Sat Mar 28 13:05:24 CST 2026 ===

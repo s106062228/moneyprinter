@@ -146,7 +146,9 @@ class TestAnalyzeVideo:
         assert isinstance(result, list)
         assert len(result) == 1
         assert result[0]["error"] == "FileNotFoundError"
-        assert "no such file" in result[0]["message"]
+        # Error message sanitized to avoid info disclosure
+        assert result[0]["message"] == "Video file not found"
+        assert "no such file" not in result[0]["message"]
 
     # ------------------------------------------------------------------
     # 5. ValueError → error dict
@@ -162,7 +164,9 @@ class TestAnalyzeVideo:
             result = analyze_video("vid.mp4")
 
         assert result[0]["error"] == "ValueError"
-        assert "bad duration" in result[0]["message"]
+        # Error message sanitized to avoid info disclosure
+        assert result[0]["message"] == "Invalid argument provided"
+        assert "bad duration" not in result[0]["message"]
 
     # ------------------------------------------------------------------
     # 6. Unexpected exception → error dict with class name
@@ -178,7 +182,9 @@ class TestAnalyzeVideo:
             result = analyze_video("vid.mp4")
 
         assert result[0]["error"] == "RuntimeError"
-        assert "GPU exploded" in result[0]["message"]
+        # Error message sanitized to avoid info disclosure
+        assert result[0]["message"] == "Operation failed"
+        assert "GPU exploded" not in result[0]["message"]
 
     # ------------------------------------------------------------------
     # 7. Empty results list is returned as-is
@@ -318,7 +324,8 @@ class TestPublishContent:
             output = publish_content("vid.mp4", "")
 
         assert output[0]["error"] == "ValueError"
-        assert "empty title" in output[0]["message"]
+        assert output[0]["message"] == "Operation failed"
+        assert "empty title" not in output[0]["message"]
 
     # ------------------------------------------------------------------
     # 14. Unexpected exception → error dict
@@ -335,7 +342,8 @@ class TestPublishContent:
             output = publish_content("vid.mp4", "Title")
 
         assert output[0]["error"] == "ConnectionError"
-        assert "upload failed" in output[0]["message"]
+        assert output[0]["message"] == "Operation failed"
+        assert "upload failed" not in output[0]["message"]
 
     # ------------------------------------------------------------------
     # 15. Default platforms is ["youtube"]
@@ -475,7 +483,8 @@ class TestScheduleContent:
             result = schedule_content("", "T", ["youtube"])
 
         assert result["error"] == "ValueError"
-        assert "empty video_path" in result["message"]
+        assert result["message"] == "Operation failed"
+        assert "empty video_path" not in result["message"]
 
     # ------------------------------------------------------------------
     # 22. Unexpected exception → error dict
@@ -491,7 +500,8 @@ class TestScheduleContent:
             )
 
         assert result["error"] == "OSError"
-        assert "disk full" in result["message"]
+        assert result["message"] == "Operation failed"
+        assert "disk full" not in result["message"]
 
     # ------------------------------------------------------------------
     # 23. Inner get_best_posting_time failure is silently swallowed
@@ -633,7 +643,8 @@ class TestGetAnalytics:
             result = get_analytics(platform="unknown_platform_xyz")
 
         assert result["error"] == "ValueError"
-        assert "unknown platform" in result["message"]
+        assert result["message"] == "Operation failed"
+        assert "unknown platform" not in result["message"]
 
     # ------------------------------------------------------------------
     # 30. Unexpected exception → error dict
@@ -646,7 +657,8 @@ class TestGetAnalytics:
             result = get_analytics(platform="")
 
         assert result["error"] == "PermissionError"
-        assert "access denied" in result["message"]
+        assert result["message"] == "Operation failed"
+        assert "access denied" not in result["message"]
 
     # ------------------------------------------------------------------
     # 31. generate_report result is fully forwarded

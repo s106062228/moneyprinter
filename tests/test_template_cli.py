@@ -147,6 +147,7 @@ class TestContentTemplatesCLI:
         tpl2 = _make_mock_template("tech-weekly", "tech", ["instagram"], 10)
         mock_manager.list_templates.return_value = [tpl1, tpl2]
 
+        pytest.importorskip("prettytable")
         from prettytable import PrettyTable
 
         tpl_table = PrettyTable()

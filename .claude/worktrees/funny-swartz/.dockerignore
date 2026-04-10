@@ -1,0 +1,81 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.Python
+.venv
+venv/
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Project-specific directories
+.mp/
+Songs/
+outputs/
+.pytest_cache/
+
+# Configuration and environment
+config.json
+.env
+.env.local
+.env.*.local
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Node (if applicable)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Test and build artifacts
+pytest-cache-files-*/
+*.coverage
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Cache files
+.cache/
+*.cache
+
+# Other
+.github/
+DEVELOPMENT_LOG.md
+SECURITY_AUDIT.md
+TODO.md

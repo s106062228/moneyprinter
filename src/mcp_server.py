@@ -80,15 +80,15 @@ def analyze_video(
             "analyze_video: found %d highlights in %s", len(result), video_path
         )
         return result
-    except FileNotFoundError as exc:
-        logger.error("analyze_video: file not found — %s", exc)
-        return [{"error": "FileNotFoundError", "message": str(exc)}]
-    except ValueError as exc:
-        logger.error("analyze_video: invalid argument — %s", exc)
-        return [{"error": "ValueError", "message": str(exc)}]
+    except FileNotFoundError:
+        logger.error("analyze_video: file not found")
+        return [{"error": "FileNotFoundError", "message": "Video file not found"}]
+    except ValueError:
+        logger.error("analyze_video: invalid argument")
+        return [{"error": "ValueError", "message": "Invalid argument provided"}]
     except Exception as exc:
-        logger.error("analyze_video: unexpected error — %s: %s", type(exc).__name__, exc)
-        return [{"error": type(exc).__name__, "message": str(exc)}]
+        logger.error("analyze_video: unexpected error — %s", type(exc).__name__)
+        return [{"error": type(exc).__name__, "message": "Operation failed"}]
 
 
 # ---------------------------------------------------------------------------
@@ -136,12 +136,12 @@ def publish_content(
         return output
     except ValueError as exc:
         logger.error("publish_content: validation error — %s", exc)
-        return [{"error": "ValueError", "message": str(exc)}]
+        return [{"error": "ValueError", "message": "Operation failed"}]
     except Exception as exc:
         logger.error(
             "publish_content: unexpected error — %s: %s", type(exc).__name__, exc
         )
-        return [{"error": type(exc).__name__, "message": str(exc)}]
+        return [{"error": type(exc).__name__, "message": "Operation failed"}]
 
 
 # ---------------------------------------------------------------------------
@@ -227,12 +227,12 @@ def schedule_content(
         return result
     except ValueError as exc:
         logger.error("schedule_content: validation error — %s", exc)
-        return {"error": "ValueError", "message": str(exc)}
+        return {"error": "ValueError", "message": "Operation failed"}
     except Exception as exc:
         logger.error(
             "schedule_content: unexpected error — %s: %s", type(exc).__name__, exc
         )
-        return {"error": type(exc).__name__, "message": str(exc)}
+        return {"error": type(exc).__name__, "message": "Operation failed"}
 
 
 # ---------------------------------------------------------------------------
@@ -288,12 +288,12 @@ def get_analytics(
         return result
     except ValueError as exc:
         logger.error("get_analytics: invalid argument — %s", exc)
-        return {"error": "ValueError", "message": str(exc)}
+        return {"error": "ValueError", "message": "Operation failed"}
     except Exception as exc:
         logger.error(
             "get_analytics: unexpected error — %s: %s", type(exc).__name__, exc
         )
-        return {"error": type(exc).__name__, "message": str(exc)}
+        return {"error": type(exc).__name__, "message": "Operation failed"}
 
 
 # ---------------------------------------------------------------------------
@@ -326,8 +326,15 @@ if __name__ == "__main__":
         if auth:
             mcp.settings.auth = auth
             logger.info("Bearer token auth enabled for HTTP transport")
-        logger.info("Starting MoneyPrinter MCP server on HTTP port %d", args.http)
-        mcp.run(transport="http", host="0.0.0.0", port=args.http)
+        else:
+            logger.warning(
+                "No --token provided; binding to 127.0.0.1 only for safety"
+            )
+        # Bind to localhost by default when no auth token is set to prevent
+        # unauthenticated network exposure (security audit run 23).
+        bind_host = "0.0.0.0" if auth else "127.0.0.1"
+        logger.info("Starting MoneyPrinter MCP server on %s:%d", bind_host, args.http)
+        mcp.run(transport="http", host=bind_host, port=args.http)
     else:
         logger.info("Starting MoneyPrinter MCP server on stdio")
         mcp.run()  # stdio default — compatible with Claude Code

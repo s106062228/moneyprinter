@@ -1,0 +1,31 @@
+=== Research Team Run ===
+Project   : /Users/chengwen/LLM/moneyprinter
+Timestamp : 20260328-170524
+Pipeline  : survey -> hypothesis -> architect -> implement -> experiment -> evaluate -> retro
+=========================
+
+## Pipeline Complete — Iteration 6 Summary
+
+**Commit**: `0f992c2` pushed to `origin/main`
+**Email**: Sent to cottenrushstorm@gmail.com (fallback report also at `reports/retro-20260328-iteration6.yaml`)
+
+### Results
+
+| Hypothesis | Verdict | Key Metric |
+|---|---|---|
+| **H21**: MoviePy v2 migration for YouTube.py | **CONFIRMED** | 13 v1 APIs → 0, 29 tests |
+| **H22**: MCP HTTP + Bearer Token Auth | **CONFIRMED** | `_get_auth()` + `--token`, 11 tests |
+| **H23**: Content calendar UI | DEFERRED | Next iteration |
+
+### Key Achievements
+- **YouTube.py fully migrated to MoviePy v2** — zero deprecated v1 APIs remain. ImageMagick dependency eliminated.
+- **MCP server now supports authenticated HTTP transport** — `--http PORT --token TOKEN` enables remote access with BearerTokenAuth.
+- **879 tests, 0 failures** (+40 from 839). Zero failures maintained for 3 consecutive iterations.
+- **Critical bug caught**: `subtitles.with_position()` outplace semantics — v2 returns a copy, must capture return value.
+
+### Next Iteration Priorities
+1. Content calendar UI (FullCalendar.js on existing dashboard)
+2. MCP OAuth 2.1 provider
+3. A/B testing framework
+
+=== Completed at Sat Mar 28 17:22:44 CST 2026 ===

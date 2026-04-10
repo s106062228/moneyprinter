@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gtimeout --version)",
+      "Bash(~/LLM/scripts/run-research-team.sh ~/LLM/moneyprinter)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(bash -c ':*)",
+      "Read(//Users/chengwen/LLM/moneyprinter/**)",
+      "Bash(PROMPT=\"test prompt\" ~/.local/bin/claude -p --dangerously-skip-permissions --model \"claude-opus-4-6\" --max-turns 1 \"$PROMPT\")",
+      "Bash(MY_PROMPT=\"test prompt\")",
+      "Bash(~/.local/bin/claude -p --dangerously-skip-permissions --model \"claude-opus-4-6\" --max-turns 1 \"$MY_PROMPT\")",
+      "Bash(PIPELINE_PROMPT=\"hello world test\")",
+      "Bash(~/.local/bin/claude -p --dangerously-skip-permissions --model \"claude-opus-4-6\" --max-turns 1 --allowedTools \"Read,Write,Edit,Bash,Glob,Grep,Agent,WebSearch,WebFetch\" \"$PIPELINE_PROMPT\")",
+      "Bash(MY_PROMPT=\"hello world test\")",
+      "Bash(~/.local/bin/claude -p --dangerously-skip-permissions --model \"claude-opus-4-6\" --max-turns 1 --allowedTools \"Read,Write,Edit,Bash,Glob,Grep,Agent,WebSearch,WebFetch\" \"$MY_PROMPT\")",
+      "Bash(MY_PROMPT=\"hello test\")"
+    ]
+  }
+}

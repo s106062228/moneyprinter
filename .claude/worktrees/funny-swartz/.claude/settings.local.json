@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ralph-enable-ci)",
+      "Bash(cat /tmp/ralph-claude-code/examples/*.json)",
+      "Bash(ralph-import TODO.md)",
+      "Bash(kill 3954 3952)",
+      "Bash(ralph --circuit-status)"
+    ]
+  }
+}

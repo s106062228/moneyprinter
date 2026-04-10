@@ -102,6 +102,29 @@
 - [x] Virality scorer module (`virality_scorer.py`) with LLM-based metadata scoring, platform-specific weights
 - [x] Unit tests for A/B testing (71 tests, 96.15% coverage), virality scorer (71 tests, 95.29% coverage), PATCH endpoint (12 tests)
 
+## Completed — Iteration 26 (2026-04-11)
+- [x] Niche Discovery Engine (`niche_discovery.py`) — NicheOpportunity, DiscoveryReport, NicheDiscoveryEngine with multi-dimensional scoring (trend + profit + CPM + volume), niche comparison, topic suggestion generation, configurable weights, persistent history, thread-safe (104 tests)
+- [x] Security audit (Run 26) — niche_discovery inline import fix, bare-except logging hardening (13 sites), null-byte filtering in niche list, math domain error guard, atomic persistence verified, thread-safety verified (9 findings, 9 addressed)
+- [x] Unit tests for niche discovery (104 new tests, ~3320 total suite passing)
+
+## Completed — Iteration 25 (2026-04-07)
+- [x] Profit Calculator module (`profit_calculator.py`) — CostEntry, ProfitSummary, ProfitCalculator with production-cost tracking (LLM / TTS / compute / storage), per-video profit breakdown, `get_profit_summary`, `get_top_profitable_niches`, `forecast_monthly_profit`, cross-referenced against `RevenueTracker` (70 tests) [H71]
+- [x] Fix `trend_detector._forecast_peak` flat-input bug (numpy polyfit floating-point noise)
+- [x] Repair test-suite drift from Run 23 error-sanitization (9 MCP + 3 export_optimizer stale assertions)
+- [x] Guard optional `prettytable` dependency in `test_template_cli` with `importorskip`
+- [x] Security audit (Run 25) — profit_calculator input clamping, config-rate validation, null-byte rejection, atomic persistence with temp-file cleanup, thread-safe access, defensive RevenueTracker wrapping (8 findings, 8 addressed during implementation)
+- [x] Unit tests for profit calculator (70 new tests, 3150 total suite passing)
+
+## Completed — Iteration 24 (2026-04-06)
+- [x] Auto-Optimization Engine (`auto_optimizer.py`) with PlatformInsight, NicheInsight, Recommendation, OptimizationReport, AutoOptimizer, auto-tune schedule, performance feedback loop (159 tests) [H70]
+- [x] Security audit (Run 24) — dashboard path traversal bypass via absolute paths, analytics timezone-naive datetime, auto-optimizer hour validation, auto-optimizer info disclosure (6 findings, 4 fixed, 2 documented)
+- [x] Unit tests for auto-optimizer (159 new tests, ~3154 total suite)
+
+## Completed — Iteration 23 (2026-04-01)
+- [x] Revenue tracker module (`revenue_tracker.py`) with RevenueEntry, RevenueSummary, RevenueTracker, CPM/RPM tables for 11 niches, revenue forecasting, top earners, niche comparison (94 tests) [H69]
+- [x] Security audit (Run 23) — MCP insecure network binding, dashboard path traversal, MCP info disclosure (6 locations), scheduler platform string DoS, dashboard field truncation (6 findings, 5 fixed, 1 documented)
+- [x] Unit tests for revenue tracker (94 new tests, ~2995 total suite)
+
 ## Completed — Iteration 22 (2026-04-01)
 - [x] Multi-language dubbing module (`multi_lang_dubbing.py`) with VideoDubber, 18 languages, faster-whisper/AssemblyAI STT, Edge TTS/KittenTTS, optional Wav2Lip lip-sync (68 tests) [H68]
 - [x] Security audit (Run 22) — FFmpeg stderr info disclosure (6 locations), export_optimizer exception leak, plugin_manager filepath leak, ffprobe JSON error leak (5 findings, 5 fixed)

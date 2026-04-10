@@ -481,8 +481,10 @@ class TrendDetector:
             # Pure Python fallback
             slope = (values[-1] - values[0]) / (len(values) - 1)
 
-        if slope <= 0:
-            return (slope, "")
+        # Treat near-zero slopes as flat (numpy.polyfit can return values
+        # like 1e-17 for perfectly flat input due to floating-point noise).
+        if slope <= 1e-9:
+            return (0.0 if abs(slope) <= 1e-9 else slope, "")
 
         # Extrapolate: find day where value reaches max(values) * 1.5, capped at days_ahead
         current_max = max(values)

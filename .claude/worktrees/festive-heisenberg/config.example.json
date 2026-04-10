@@ -1,0 +1,85 @@
+{
+  "verbose": true,
+  "firefox_profile": "",
+  "headless": false,
+  "ollama_base_url": "http://127.0.0.1:11434",
+  "ollama_model": "",
+  "twitter_language": "English",
+  "nanobanana2_api_base_url": "https://generativelanguage.googleapis.com/v1beta",
+  "nanobanana2_api_key": "",
+  "nanobanana2_model": "gemini-3.1-flash-image-preview",
+  "nanobanana2_aspect_ratio": "9:16",
+  "threads": 2,
+  "zip_url": "",
+  "is_for_kids": false,
+  "google_maps_scraper": "https://github.com/gosom/google-maps-scraper/archive/refs/tags/v0.9.7.zip",
+  "email": {
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "username": "",
+    "password": ""
+  },
+  "google_maps_scraper_niche": "",
+  "scraper_timeout": 300,
+  "outreach_message_subject": "I have a question...",
+  "outreach_message_body_file": "outreach_message.html",
+  "stt_provider": "local_whisper",
+  "whisper_model": "base",
+  "whisper_device": "auto",
+  "whisper_compute_type": "int8",
+  "assembly_ai_api_key": "",
+  "tts_voice": "Jasper",
+  "llm_provider": "ollama",
+  "openai_api_key": "",
+  "openai_model": "gpt-4o-mini",
+  "anthropic_api_key": "",
+  "anthropic_model": "claude-sonnet-4-6",
+  "groq_api_key": "",
+  "groq_model": "llama-3.3-70b-versatile",
+  "font": "bold_font.ttf",
+  "imagemagick_path": "Path to magick.exe or on linux/macOS just /usr/bin/convert",
+  "script_sentence_length": 4,
+  "instagram": {
+    "username": "",
+    "password": ""
+  },
+  "webhooks": {
+    "enabled": false,
+    "discord_url": "",
+    "slack_url": "",
+    "notify_on": ["video_generated", "video_uploaded", "tweet_posted", "pitch_shared", "error"]
+  },
+  "publisher": {
+    "platforms": ["youtube"],
+    "retry_failed": true,
+    "max_retries": 2
+  },
+  "scheduler": {
+    "enabled": false,
+    "max_pending_jobs": 100,
+    "optimal_times": {
+      "youtube": ["10:00", "14:00", "18:00"],
+      "tiktok": ["09:00", "12:00", "19:00"],
+      "twitter": ["08:00", "12:00", "17:00"],
+      "instagram": ["09:00", "13:00", "18:00"]
+    }
+  },
+  "thumbnail": {
+    "width": 1280,
+    "height": 720,
+    "style": "bold",
+    "font": "bold_font.ttf",
+    "text_color": "#FFFFFF",
+    "outline_color": "#000000",
+    "outline_width": 4,
+    "gradient_colors": ["#FF0000", "#FF6600"]
+  },
+  "seo": {
+    "enabled": true,
+    "platforms": ["youtube"],
+    "language": "en",
+    "include_tags": true,
+    "include_hooks": true,
+    "hashtag_count": 8
+  }
+}

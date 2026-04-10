@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls /Users/chengwen/LLM/moneyprinter/.claude/worktrees/laughing-kapitsa/venv/bin/python*)",
+      "Read(//Users/chengwen/LLM/moneyprinter/**)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
